@@ -1,13 +1,19 @@
-import { Wrench, Zap, Wind, Sun, Trash2, Sprout, LucideProps, HelpCircle } from 'lucide-react';
+import { Wrench, Zap, Wind, Sun, Trash2, Sprout, LucideProps, HelpCircle, Settings, PaintRoller, Hammer, Layers, Bug, KeyRound } from 'lucide-react';
 import type { FC } from 'react';
 
 export type ServiceCategory =
   | 'Plumbing'
   | 'Electrical'
+  | 'Appliance Repair'
+  | 'Garbage Collection'
   | 'HVAC'
   | 'Solar Installation'
-  | 'Garbage Collection'
+  | 'Painting & Decorating'
+  | 'Carpentry & Furniture'
   | 'Landscaping'
+  | 'Tiling & Masonry'
+  | 'Pest Control'
+  | 'Locksmith'
   | 'Other';
 
 interface ServiceCategoryIconProps extends LucideProps {
@@ -16,13 +22,19 @@ interface ServiceCategoryIconProps extends LucideProps {
 }
 
 const serviceIcons: Record<ServiceCategory, FC<LucideProps>> = {
-  Plumbing: Wrench,
-  Electrical: Zap,
-  HVAC: Wind,
-  'Solar Installation': Sun,
+  'Plumbing': Wrench,
+  'Electrical': Zap,
+  'Appliance Repair': Settings, // Changed from Tool to Settings
   'Garbage Collection': Trash2,
-  Landscaping: Sprout,
-  Other: HelpCircle,
+  'HVAC': Wind,
+  'Solar Installation': Sun,
+  'Painting & Decorating': PaintRoller,
+  'Carpentry & Furniture': Hammer,
+  'Landscaping': Sprout,
+  'Tiling & Masonry': Layers,
+  'Pest Control': Bug,
+  'Locksmith': KeyRound,
+  'Other': HelpCircle,
 };
 
 const ServiceCategoryIcon: FC<ServiceCategoryIconProps> = ({ category, className, iconOnly = false, ...props }) => {

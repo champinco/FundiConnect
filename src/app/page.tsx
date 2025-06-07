@@ -6,11 +6,9 @@ import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-
 import ProviderCard, { type Provider } from '@/components/provider-card';
 
 const serviceCategories: ServiceCategory[] = [
-  'Electrical',
   'Plumbing',
-  'HVAC',
-  'Solar Installation',
-  'Landscaping',
+  'Electrical',
+  'Appliance Repair',
   'Garbage Collection',
 ];
 
@@ -41,14 +39,15 @@ const featuredProviders: Provider[] = [
   },
   {
     id: '3',
-    name: 'GreenScape Gardens',
+    name: 'FixIt Appliance Masters',
     profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.9,
-    reviewsCount: 95,
-    location: 'Karen, Nairobi',
-    mainService: 'Landscaping',
-    isVerified: false,
-    bioSummary: 'Transforming outdoor spaces into beautiful, serene environments. Offering design, installation, and maintenance.',
+    rating: 4.7,
+    reviewsCount: 75,
+    location: 'Kilimani, Nairobi',
+    mainService: 'Appliance Repair',
+    isVerified: true,
+    verificationAuthority: 'Technician Guild',
+    bioSummary: 'Expert repairs for all major home appliances. Fast, reliable, and affordable service.',
   },
 ];
 
@@ -102,7 +101,7 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold font-headline text-center mb-10">
             Browse Services
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
             {serviceCategories.map((category) => (
               <Link href={`/search?category=${encodeURIComponent(category)}`} key={category}>
                 <ServiceCategoryIcon category={category} />

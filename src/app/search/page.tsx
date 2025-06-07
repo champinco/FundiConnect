@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Filter, Star, MapPin, Search as SearchIcon } from 'lucide-react';
+import type { ServiceCategory } from '@/components/service-category-icon';
 
 // Mock data - replace with actual data fetching
 const mockProviders: Provider[] = [
@@ -34,41 +35,18 @@ const mockProviders: Provider[] = [
   },
   {
     id: '3',
-    name: 'CoolBreeze HVAC Experts',
+    name: 'Appliance Wizards KE',
     profilePictureUrl: 'https://placehold.co/600x400.png',
     rating: 4.7,
     reviewsCount: 92,
     location: 'Kilimani, Nairobi',
-    mainService: 'HVAC',
+    mainService: 'Appliance Repair',
     isVerified: true,
-    verificationAuthority: 'NCA',
-    bioSummary: 'Keep your space comfortable with our HVAC installation, repair, and maintenance services.',
+    verificationAuthority: 'NITA',
+    bioSummary: 'Expert repair for fridges, washing machines, ovens, and more. Quick and reliable service.',
   },
   {
     id: '4',
-    name: 'Solaris Green Energy',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.9,
-    reviewsCount: 150,
-    location: 'Thika Road, Nairobi',
-    mainService: 'Solar Installation',
-    isVerified: true,
-    verificationAuthority: 'EPRA',
-    bioSummary: 'Go green with our expert solar panel installation services. Save on energy bills and help the environment.',
-  },
-  {
-    id: '5',
-    name: 'EverGreen Landscapers',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.6,
-    reviewsCount: 70,
-    location: 'Karen, Nairobi',
-    mainService: 'Landscaping',
-    isVerified: false,
-    bioSummary: 'Creative landscaping solutions to beautify your outdoor spaces. Design, installation, and maintenance.',
-  },
-  {
-    id: '6',
     name: 'EcoClean Waste Management',
     profilePictureUrl: 'https://placehold.co/600x400.png',
     rating: 4.3,
@@ -76,9 +54,29 @@ const mockProviders: Provider[] = [
     location: 'Industrial Area, Nairobi',
     mainService: 'Garbage Collection',
     isVerified: true,
-    verificationAuthority: 'NEMA', // Example, might need different authority
+    verificationAuthority: 'NEMA',
     bioSummary: 'Reliable and eco-friendly garbage collection services for homes and businesses.',
   },
+   {
+    id: '5',
+    name: 'Solaris Green Energy',
+    profilePictureUrl: 'https://placehold.co/600x400.png',
+    rating: 4.9,
+    reviewsCount: 150,
+    location: 'Thika Road, Nairobi',
+    mainService: 'Solar Installation', // This provider is Tier 2 but kept in mock for diversity
+    isVerified: true,
+    verificationAuthority: 'EPRA',
+    bioSummary: 'Go green with our expert solar panel installation services. Save on energy bills and help the environment.',
+  },
+];
+
+const tier1ServiceCategories: ServiceCategory[] = [
+  'Plumbing',
+  'Electrical',
+  'Appliance Repair',
+  'Garbage Collection',
+  'Other'
 ];
 
 
@@ -134,13 +132,9 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Electrical">Electrical</SelectItem>
-                  <SelectItem value="Plumbing">Plumbing</SelectItem>
-                  <SelectItem value="HVAC">HVAC</SelectItem>
-                  <SelectItem value="Solar Installation">Solar Installation</SelectItem>
-                  <SelectItem value="Landscaping">Landscaping</SelectItem>
-                  <SelectItem value="Garbage Collection">Garbage Collection</SelectItem>
-                  <SelectItem value="Other">Other</SelectItem>
+                  {tier1ServiceCategories.map(category => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

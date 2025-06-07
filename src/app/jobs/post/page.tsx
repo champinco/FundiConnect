@@ -10,7 +10,11 @@ import { Upload, Briefcase, Send } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 
 const serviceCategories: ServiceCategory[] = [
-  'Electrical', 'Plumbing', 'HVAC', 'Solar Installation', 'Landscaping', 'Garbage Collection', 'Other'
+  'Plumbing',
+  'Electrical',
+  'Appliance Repair',
+  'Garbage Collection',
+  'Other'
 ];
 
 export default function PostJobPage() {
