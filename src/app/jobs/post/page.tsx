@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, Briefcase, Send } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 
+// Tier 1 services + Other for job posting
 const serviceCategories: ServiceCategory[] = [
   'Plumbing',
   'Electrical',

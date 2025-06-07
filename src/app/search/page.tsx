@@ -64,13 +64,14 @@ const mockProviders: Provider[] = [
     rating: 4.9,
     reviewsCount: 150,
     location: 'Thika Road, Nairobi',
-    mainService: 'Solar Installation', // This provider is Tier 2 but kept in mock for diversity
+    mainService: 'Solar Installation', 
     isVerified: true,
     verificationAuthority: 'EPRA',
     bioSummary: 'Go green with our expert solar panel installation services. Save on energy bills and help the environment.',
   },
 ];
 
+// Tier 1 services + Other for search filters
 const tier1ServiceCategories: ServiceCategory[] = [
   'Plumbing',
   'Electrical',
@@ -84,7 +85,7 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
   // In a real app, you'd fetch providers based on searchParams
   const filteredProviders = mockProviders.filter(provider => {
     let matches = true;
-    if (searchParams?.category && provider.mainService !== searchParams.category) {
+    if (searchParams?.category && provider.mainService !== searchParams.category && searchParams.category !== 'Other') {
       matches = false;
     }
     // Add more filtering logic for location and query if needed
@@ -127,7 +128,7 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
             
             <div>
               <h3 className="font-medium mb-2">Service Category</h3>
-              <Select defaultValue={searchParams?.category}>
+              <Select defaultValue={searchParams?.category || 'Other'}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>

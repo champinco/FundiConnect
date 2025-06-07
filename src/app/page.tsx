@@ -5,6 +5,7 @@ import { Search, MapPin } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
 
+// Tier 1 services for homepage browsing
 const serviceCategories: ServiceCategory[] = [
   'Plumbing',
   'Electrical',
@@ -39,7 +40,7 @@ const featuredProviders: Provider[] = [
   },
   {
     id: '3',
-    name: 'FixIt Appliance Masters',
+    name: 'FixIt Appliance Masters', // Updated provider to match 'Appliance Repair'
     profilePictureUrl: 'https://placehold.co/600x400.png',
     rating: 4.7,
     reviewsCount: 75,
