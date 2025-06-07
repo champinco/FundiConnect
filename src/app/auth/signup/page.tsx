@@ -70,7 +70,7 @@ export default function SignupPage() {
       if (error.code) { // Firebase Auth errors often have a 'code' property
         switch (error.code) {
           case 'auth/email-already-in-use':
-            errorMessage = "This email address is already in use.";
+            errorMessage = "This email address is already in use. Please try a different email or log in if you already have an account.";
             break;
           case 'auth/weak-password':
             errorMessage = "The password is too weak.";
