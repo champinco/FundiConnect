@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label";
 import { UserPlus, User, AtSign, KeyRound, Phone } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { signupUserAction, signupFormSchema, type SignupFormValues } from './actions';
+import { signupUserAction } from './actions';
+import { signupFormSchema, type SignupFormValues } from './schemas'; // Import from new schemas.ts
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth'; // Import Firebase Auth
-import { auth } from '@/lib/firebase'; // Your Firebase config
+import { createUserWithEmailAndPassword } from 'firebase/auth'; 
+import { auth } from '@/lib/firebase'; 
 
 export default function SignupPage() {
   const router = useRouter();
@@ -36,17 +37,13 @@ export default function SignupPage() {
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
     try {
-      // Step 1: Firebase Authentication
+      // Step 1: Firebase Authentication (Client-side)
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
 
-      if (firebaseUser) {
-        // Step 2: Call server action to create profiles in Firestore
-        // We pass all data, but the action will use the actual UID from Firebase Auth for consistency.
-        // The action has a mock UID for now, but in a full setup, it would receive firebaseUser.uid.
-        const result = await signupUserAction({
-            ...data, // pass all form data
-        });
+      if (firebaseUser && firebaseUser.uid) {
+        // Step 2: Call server action to create profiles in Firestore, passing the actual Firebase UID
+        const result = await signupUserAction(data, firebaseUser.uid);
 
         if (result.success) {
           toast({
@@ -54,23 +51,36 @@ export default function SignupPage() {
             description: "Your FundiConnect account has been successfully created.",
             variant: "default",
           });
-          // TODO: Redirect based on account type or to a profile setup page
           router.push(data.accountType === 'provider' ? `/providers/${firebaseUser.uid}?setup=true` : '/'); 
         } else {
+          // This error is for issues creating Firestore profiles
           toast({
-            title: "Signup Failed",
+            title: "Profile Creation Failed",
             description: result.message,
             variant: "destructive",
           });
         }
       } else {
-        throw new Error("Firebase user not created.");
+        // This should ideally not happen if createUserWithEmailAndPassword succeeds
+        throw new Error("Firebase user not created or UID not available.");
       }
     } catch (error: any) {
       console.error("Signup Page Error:", error);
       let errorMessage = "An unexpected error occurred. Please try again.";
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "This email address is already in use.";
+      if (error.code) { // Firebase Auth errors often have a 'code' property
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = "This email address is already in use.";
+            break;
+          case 'auth/weak-password':
+            errorMessage = "The password is too weak.";
+            break;
+          case 'auth/invalid-email':
+            errorMessage = "The email address is not valid.";
+            break;
+          default:
+            errorMessage = error.message || "Firebase authentication failed.";
+        }
       } else if (error.message) {
         errorMessage = error.message;
       }
