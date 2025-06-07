@@ -31,23 +31,25 @@ export default function LoginPage() {
         'callback': (response: any) => console.log("reCAPTCHA solved for login"),
         'expired-callback': () => {
           toast({ title: "reCAPTCHA Expired", description: "Please try again.", variant: "destructive" });
-          setIsLoading(false);
+          setIsLoading(false); // Ensure loading state is reset
         }
       });
       recaptchaVerifierRef.current.render().catch((error: any) => {
         console.error("Login RecaptchaVerifier render error:", error);
-        toast({ 
-            title: "reCAPTCHA Error", 
-            description: "Could not initialize reCAPTCHA. Ensure your domain is authorized in Firebase settings & refresh.", 
+        toast({
+            title: "reCAPTCHA Error",
+            description: "Could not initialize reCAPTCHA. Ensure your domain is authorized in Firebase settings & refresh.",
             variant: "destructive",
-            duration: 10000 
+            duration: 10000
         });
         setIsLoading(false);
       });
     }
      return () => {
-      if (recaptchaVerifierRef.current) {
-        // No direct 'destroy' or 'clear' method. Firebase handles this.
+      const verifier = recaptchaVerifierRef.current;
+      if (verifier) {
+        verifier.clear(); // Clear the existing verifier on component unmount
+        recaptchaVerifierRef.current = null;
       }
     };
   }, [auth, toast]);
@@ -57,11 +59,11 @@ export default function LoginPage() {
     setIsLoading(true);
 
     if (!recaptchaVerifierRef.current) {
-      toast({ 
-          title: "reCAPTCHA Error", 
-          description: "reCAPTCHA not initialized. Please wait or refresh. Ensure your domain is authorized in Firebase.", 
+      toast({
+          title: "reCAPTCHA Error",
+          description: "reCAPTCHA not initialized. Please wait or refresh. Ensure your domain is authorized in Firebase.",
           variant: "destructive",
-          duration: 10000  
+          duration: 10000
         });
       setIsLoading(false);
       return;
@@ -74,33 +76,46 @@ export default function LoginPage() {
         setConfirmationResult(confirmation);
         setOtpSent(true);
         toast({ title: "OTP Sent", description: `An OTP has been sent to ${phoneNumber}.` });
+        setIsLoading(false); // OTP sent, stop loading for this stage
       } catch (error: any) {
         console.error("Error sending OTP for login:", error);
-         if (recaptchaVerifierRef.current) { 
-            recaptchaVerifierRef.current.clear();
+        let errorMessage = error.message || "Please check the phone number and try again.";
+        if (error.code === 'auth/captcha-check-failed') {
+            errorMessage = "reCAPTCHA verification failed. Please ensure your app's domain is authorized in Firebase Authentication settings and try again.";
+        } else if (error.code === 'auth/invalid-phone-number') {
+            errorMessage = "The phone number you entered is invalid. Please check and try again.";
+        } else if (error.code === 'auth/invalid-recaptcha-token') {
+            errorMessage = "reCAPTCHA token was invalid. Please try sending the OTP again.";
+        }
+
+        toast({
+            title: "Failed to Send OTP",
+            description: errorMessage,
+            variant: "destructive",
+            duration: 10000
+        });
+
+        const currentVerifier = recaptchaVerifierRef.current;
+        if (currentVerifier) {
+            currentVerifier.clear();
              recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container-login', {
                 'size': 'invisible',
                 'callback': () => {},
                 'expired-callback': () => {}
             });
-            recaptchaVerifierRef.current.render().catch(console.error);
+            recaptchaVerifierRef.current.render()
+              .catch(renderError => {
+                  console.error("Failed to re-render reCAPTCHA after OTP send error:", renderError);
+                  toast({ title: "reCAPTCHA Re-init Error", description: "Could not reset reCAPTCHA. Please refresh.", variant: "destructive" });
+              })
+              .finally(() => {
+                setIsLoading(false);
+              });
+        } else {
+            setIsLoading(false);
         }
-        let errorMessage = error.message || "Please check the phone number and try again.";
-        if (error.code === 'auth/captcha-check-failed') {
-            errorMessage = "reCAPTCHA verification failed. Please ensure your app's domain is authorized in Firebase Authentication settings and try again.";
-        } else if (error.code === 'auth/invalid-phone-number') {
-            errorMessage = "The phone number you entered is invalid. Please check and try again."
-        }
-        toast({ 
-            title: "Failed to Send OTP", 
-            description: errorMessage, 
-            variant: "destructive",
-            duration: 10000 
-        });
-      } finally {
-        setIsLoading(false);
       }
-    } else { 
+    } else {
       if (!confirmationResult) {
         toast({ title: "Verification Error", description: "OTP confirmation context lost. Please try sending OTP again.", variant: "destructive" });
         setOtpSent(false);
@@ -110,7 +125,7 @@ export default function LoginPage() {
       try {
         const userCredential = await confirmationResult.confirm(otp);
         toast({ title: "Login Successful!", description: "Welcome back!", variant: "default" });
-        router.push('/'); 
+        router.push('/');
         console.log("Logged in user:", userCredential.user);
       } catch (error: any) {
         console.error("Error verifying OTP for login:", error);
@@ -120,11 +135,11 @@ export default function LoginPage() {
         } else if (error.code === 'auth/code-expired') {
             errorMessage = "The OTP has expired. Please request a new one.";
         }
-        toast({ 
-            title: "OTP Verification Failed", 
-            description: errorMessage, 
+        toast({
+            title: "OTP Verification Failed",
+            description: errorMessage,
             variant: "destructive",
-            duration: 7000 
+            duration: 7000
         });
       } finally {
         setIsLoading(false);
@@ -142,13 +157,6 @@ export default function LoginPage() {
           <CardTitle className="text-3xl font-headline">Welcome Back!</CardTitle>
           <CardDescription>Log in to your FundiConnect account using your phone number.</CardDescription>
         </CardHeader>
-        {/* Alert to inform user that phone auth is not fully functional yet (if needed for testing) */}
-        {/* <Alert variant="default" className="m-4 bg-primary/10 border-primary/30">
-          <AlertTitle className="text-primary">Developer Note</AlertTitle>
-          <AlertDescription className="text-primary/80">
-            Phone authentication is being set up. This form does not yet complete a real Firebase phone auth.
-          </AlertDescription>
-        </Alert> */}
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-6">
             {!otpSent ? (
@@ -156,11 +164,11 @@ export default function LoginPage() {
                 <Label htmlFor="phoneNumber">Phone Number</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    id="phoneNumber" 
-                    type="tel" 
-                    placeholder="+254 7XX XXX XXX" 
-                    className="pl-10" 
+                  <Input
+                    id="phoneNumber"
+                    type="tel"
+                    placeholder="+254 7XX XXX XXX"
+                    className="pl-10"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     required
@@ -173,10 +181,10 @@ export default function LoginPage() {
                  <p className="text-sm text-muted-foreground">
                   An OTP was sent to {phoneNumber}.
                 </p>
-                <Input 
-                  id="otp" 
-                  type="text" 
-                  placeholder="6-digit code" 
+                <Input
+                  id="otp"
+                  type="text"
+                  placeholder="6-digit code"
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   required
@@ -196,7 +204,7 @@ export default function LoginPage() {
                 Change phone number or resend OTP
               </Button>
             )}
-            
+
           </CardContent>
         </form>
         <CardFooter className="text-center text-sm">
