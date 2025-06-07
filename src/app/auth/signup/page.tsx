@@ -18,7 +18,7 @@ import { useState, useEffect, useRef } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
-const containerId = 'recaptcha-container-signup'; // Defined at component level
+const containerId = 'recaptcha-container-signup';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -40,7 +40,6 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (!auth) return;
-    // const containerId = 'recaptcha-container-signup'; // Moved to component level
 
     if (!recaptchaVerifierRef.current && document.getElementById(containerId)) {
       console.log("Attempting to initialize reCAPTCHA in useEffect (Signup)");
@@ -97,9 +96,10 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
-    // const containerId = 'recaptcha-container-signup'; // Moved to component level
+    
+    let appVerifier = recaptchaVerifierRef.current;
 
-    if (!recaptchaVerifierRef.current) {
+    if (!appVerifier) {
       console.log("recaptchaVerifierRef is null in onSubmit, attempting to initialize (Signup).");
       if (document.getElementById(containerId)) {
         try {
@@ -118,6 +118,7 @@ export default function SignupPage() {
           });
           await verifier.render();
           recaptchaVerifierRef.current = verifier;
+          appVerifier = verifier;
           console.log("reCAPTCHA initialized and rendered in onSubmit (Signup).");
         } catch (error: any) {
           console.error("Error initializing reCAPTCHA in onSubmit (Signup):", error);
@@ -137,7 +138,6 @@ export default function SignupPage() {
       }
     }
     
-    const appVerifier = recaptchaVerifierRef.current;
 
     if (!otpSent) {
       try {
@@ -160,6 +160,8 @@ export default function SignupPage() {
           }
         } else if (error.code === 'auth/invalid-phone-number') {
           errorMessage = "The phone number you entered is invalid. Please check and try again.";
+        } else if (error.code === 'auth/too-many-requests') {
+          errorMessage = "Too many OTP requests. Please try again later.";
         }
         console.error("Error sending OTP for signup:", error, "Code:", error.code);
         toast({
@@ -210,6 +212,8 @@ export default function SignupPage() {
             errorMessage = "The OTP you entered is incorrect. Please check and try again.";
         } else if (error.code === 'auth/code-expired') {
             errorMessage = "The OTP has expired. Please request a new one.";
+        } else if (error.code === 'auth/too-many-requests') {
+          errorMessage = "Too many OTP verification attempts. Please try again later or request a new OTP.";
         }
         toast({
             title: "OTP Verification Failed",

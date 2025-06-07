@@ -13,6 +13,8 @@ import { auth } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 
+const containerId = 'recaptcha-container-login';
+
 export default function LoginPage() {
   const router = useRouter();
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -25,7 +27,6 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!auth) return;
-    const containerId = 'recaptcha-container-login';
 
     if (!recaptchaVerifierRef.current && document.getElementById(containerId)) {
       console.log("Attempting to initialize reCAPTCHA in useEffect (Login)");
@@ -81,9 +82,10 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const containerId = 'recaptcha-container-login';
+    
+    let appVerifier = recaptchaVerifierRef.current;
 
-    if (!recaptchaVerifierRef.current) {
+    if (!appVerifier) {
       console.log("recaptchaVerifierRef is null in handleLogin, attempting to initialize (Login).");
       if (document.getElementById(containerId)) {
         try {
@@ -102,6 +104,7 @@ export default function LoginPage() {
           });
           await verifier.render();
           recaptchaVerifierRef.current = verifier;
+          appVerifier = verifier;
           console.log("reCAPTCHA initialized and rendered in handleLogin (Login).");
         } catch (error: any) {
           console.error("Error initializing reCAPTCHA in handleLogin (Login):", error);
@@ -121,8 +124,6 @@ export default function LoginPage() {
       }
     }
     
-    const appVerifier = recaptchaVerifierRef.current;
-
     if (!otpSent) {
       try {
         console.log("Attempting to send OTP (Login)... Phone:", phoneNumber);
@@ -146,6 +147,8 @@ export default function LoginPage() {
             errorMessage = "The phone number you entered is invalid. Please check and try again.";
         } else if (error.code === 'auth/user-not-found'){
             errorMessage = "No account found with this phone number. Please sign up first.";
+        } else if (error.code === 'auth/too-many-requests') {
+          errorMessage = "Too many OTP requests. Please try again later.";
         }
         console.error("Error sending OTP for login:", error, "Code:", error.code);
         toast({
@@ -177,6 +180,8 @@ export default function LoginPage() {
             errorMessage = "The OTP you entered is incorrect. Please check and try again.";
         } else if (error.code === 'auth/code-expired') {
             errorMessage = "The OTP has expired. Please request a new one.";
+        } else if (error.code === 'auth/too-many-requests') {
+            errorMessage = "Too many OTP verification attempts. Please try again later or request a new OTP.";
         }
         toast({
             title: "OTP Verification Failed",
@@ -262,3 +267,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
