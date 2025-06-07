@@ -1,3 +1,4 @@
+
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +65,7 @@ const mockProviders: Provider[] = [
     rating: 4.9,
     reviewsCount: 150,
     location: 'Thika Road, Nairobi',
-    mainService: 'Solar Installation', 
+    mainService: 'Solar Installation',
     isVerified: true,
     verificationAuthority: 'EPRA',
     bioSummary: 'Go green with our expert solar panel installation services. Save on energy bills and help the environment.',
@@ -82,13 +83,19 @@ const tier1ServiceCategories: ServiceCategory[] = [
 
 
 export default function SearchPage({ searchParams }: { searchParams?: { category?: string; location?: string; query?: string } }) {
+  const categoryParam = searchParams?.category;
+  const locationParam = searchParams?.location;
+  const queryParam = searchParams?.query;
+
   // In a real app, you'd fetch providers based on searchParams
   const filteredProviders = mockProviders.filter(provider => {
     let matches = true;
-    if (searchParams?.category && provider.mainService !== searchParams.category && searchParams.category !== 'Other') {
+    if (categoryParam && provider.mainService !== categoryParam && categoryParam !== 'Other') {
       matches = false;
     }
     // Add more filtering logic for location and query if needed
+    // Example: if (locationParam && !provider.location.toLowerCase().includes(locationParam.toLowerCase())) matches = false;
+    // Example: if (queryParam && !provider.name.toLowerCase().includes(queryParam.toLowerCase()) && !provider.mainService.toLowerCase().includes(queryParam.toLowerCase()) ) matches = false;
     return matches;
   });
 
@@ -102,14 +109,14 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
             <Label htmlFor="service-query">Service or Provider Name</Label>
             <div className="relative">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input id="service-query" placeholder="e.g., Electrician, John Doe" className="pl-10" defaultValue={searchParams?.query}/>
+              <Input id="service-query" placeholder="e.g., Electrician, John Doe" className="pl-10" defaultValue={queryParam || ''}/>
             </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="location-query">Location</Label>
              <div className="relative">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input id="location-query" placeholder="e.g., Nairobi, Kilimani" className="pl-10" defaultValue={searchParams?.location} />
+              <Input id="location-query" placeholder="e.g., Nairobi, Kilimani" className="pl-10" defaultValue={locationParam || ''} />
             </div>
           </div>
           <Button className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90">
@@ -128,7 +135,7 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
             
             <div>
               <h3 className="font-medium mb-2">Service Category</h3>
-              <Select defaultValue={searchParams?.category || 'Other'}>
+              <Select defaultValue={categoryParam || 'Other'}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
@@ -192,3 +199,5 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
     </div>
   );
 }
+
+    
