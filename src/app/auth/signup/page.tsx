@@ -13,7 +13,7 @@ import { UserPlus, User, AtSign, KeyRound, Phone } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { signupUserAction } from './actions';
-import { signupFormSchema, type SignupFormValues } from './schemas'; // Import from new schemas.ts
+import { signupFormSchema, type SignupFormValues } from './schemas';
 import { useState } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth'; 
 import { auth } from '@/lib/firebase'; 
@@ -23,7 +23,7 @@ export default function SignupPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
-  const { control, register, handleSubmit, formState: { errors } } = useForm<SignupFormValues>({
+  const { control, register, handleSubmit, formState: { errors }, setError } = useForm<SignupFormValues>({
     resolver: zodResolver(signupFormSchema),
     defaultValues: {
       fullName: "",
@@ -71,12 +71,18 @@ export default function SignupPage() {
         switch (error.code) {
           case 'auth/email-already-in-use':
             errorMessage = "This email address is already in use. Please try a different email or log in if you already have an account.";
+            setError('email', {
+              type: 'manual',
+              message: "This email is already registered. Please log in or use a different one."
+            });
             break;
           case 'auth/weak-password':
             errorMessage = "The password is too weak.";
+            setError('password', { type: 'manual', message: errorMessage });
             break;
           case 'auth/invalid-email':
             errorMessage = "The email address is not valid.";
+            setError('email', { type: 'manual', message: errorMessage });
             break;
           default:
             errorMessage = error.message || "Firebase authentication failed.";
@@ -193,3 +199,4 @@ export default function SignupPage() {
     </div>
   );
 }
+
