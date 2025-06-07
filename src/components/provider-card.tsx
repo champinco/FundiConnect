@@ -31,8 +31,8 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
           <Image
             src={provider.profilePictureUrl}
             alt={provider.name}
-            layout="fill"
-            objectFit="cover"
+            fill
+            style={{ objectFit: 'cover' }}
             data-ai-hint="professional portrait"
           />
         </div>

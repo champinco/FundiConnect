@@ -51,15 +51,15 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
             <Image
               src={provider.profilePictureUrl}
               alt={`${provider.name} cover image`}
-              layout="fill"
-              objectFit="cover"
+              fill
+              style={{ objectFit: 'cover' }}
               priority
               data-ai-hint="workshop tools"
             />
             <div className="absolute inset-0 bg-black/30 flex flex-col justify-end p-6 md:p-8">
                 <div className="flex items-start md:items-center space-x-4">
                     <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-background shadow-md overflow-hidden">
-                        <Image src={provider.profilePictureUrl} alt={provider.name} layout="fill" objectFit="cover" data-ai-hint="professional portrait"/>
+                        <Image src={provider.profilePictureUrl} alt={provider.name} fill style={{ objectFit: 'cover' }} data-ai-hint="professional portrait"/>
                     </div>
                     <div>
                         <h1 className="text-3xl md:text-4xl font-bold font-headline text-white ">{provider.name}</h1>
