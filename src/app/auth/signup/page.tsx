@@ -36,42 +36,49 @@ export default function SignupPage() {
     },
   });
 
-  useEffect(() => {
-    if (!auth) return; // Ensure auth is initialized
+ useEffect(() => {
+    if (!auth) return;
 
+    // Only initialize if ref is null and container exists
     if (!recaptchaVerifierRef.current && document.getElementById('recaptcha-container-signup')) {
+      console.log("Attempting to initialize reCAPTCHA in useEffect (Signup)");
       const verifier = new RecaptchaVerifier(auth, 'recaptcha-container-signup', {
         'size': 'invisible',
         'callback': (response: any) => {
-          console.log("reCAPTCHA solved (useEffect setup)");
+          console.log("reCAPTCHA solved (useEffect setup - Signup)");
         },
         'expired-callback': () => {
           toast({ title: "reCAPTCHA Expired", description: "Please try sending OTP again.", variant: "destructive" });
           setIsLoading(false);
-          recaptchaVerifierRef.current?.clear();
-          recaptchaVerifierRef.current = null;
+          // DO NOT clear or nullify recaptchaVerifierRef.current here.
+          // The same instance should be re-used by signInWithPhoneNumber, which will re-prompt if expired.
         }
       });
 
       verifier.render()
         .then(() => {
           recaptchaVerifierRef.current = verifier;
-          console.log("reCAPTCHA rendered and ref set (useEffect)");
+          console.log("reCAPTCHA rendered and ref set (useEffect - Signup)");
         })
         .catch((error: any) => {
-          console.error("Initial RecaptchaVerifier render error:", error);
+          console.error("Initial RecaptchaVerifier render error (Signup):", error);
           toast({
               title: "reCAPTCHA Error",
               description: "Could not initialize reCAPTCHA. Ensure your domain is authorized in Firebase settings & refresh.",
               variant: "destructive",
               duration: 10000
           });
+          recaptchaVerifierRef.current = null; // Ensure ref is null on error
         });
     }
 
      return () => {
-      recaptchaVerifierRef.current?.clear();
-      recaptchaVerifierRef.current = null;
+      // Cleanup on component unmount
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear();
+        recaptchaVerifierRef.current = null;
+        console.log("reCAPTCHA cleared on unmount (Signup)");
+      }
     };
   }, [auth, toast]);
 
@@ -79,48 +86,18 @@ export default function SignupPage() {
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
 
-    let appVerifier = recaptchaVerifierRef.current;
-
-    if (!appVerifier && auth && document.getElementById('recaptcha-container-signup')) {
-      console.log("Attempting to initialize reCAPTCHA in onSubmit as it was not ready.");
-      try {
-        const newVerifier = new RecaptchaVerifier(auth, 'recaptcha-container-signup', {
-          'size': 'invisible',
-          'callback': (response: any) => console.log("reCAPTCHA solved (onSubmit setup)"),
-          'expired-callback': () => {
-            toast({ title: "reCAPTCHA Expired", description: "Please try sending OTP again.", variant: "destructive" });
-            setIsLoading(false);
-            recaptchaVerifierRef.current?.clear();
-            recaptchaVerifierRef.current = null;
-          }
-        });
-        await newVerifier.render();
-        recaptchaVerifierRef.current = newVerifier;
-        appVerifier = newVerifier;
-        console.log("reCAPTCHA initialized in onSubmit.");
-      } catch (initError: any) {
-        console.error("Failed to initialize reCAPTCHA in onSubmit:", initError);
-        toast({
-          title: "reCAPTCHA Error",
-          description: "Could not prepare reCAPTCHA. Please refresh the page.",
-          variant: "destructive",
-          duration: 7000
-        });
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    if (!appVerifier) {
+    if (!recaptchaVerifierRef.current) {
       toast({
           title: "reCAPTCHA Error",
-          description: "reCAPTCHA not initialized. Please wait or refresh. Ensure your domain is authorized in Firebase.",
+          description: "reCAPTCHA not ready. Please wait a moment or refresh the page. Ensure your domain is authorized in Firebase.",
           variant: "destructive",
           duration: 10000
         });
       setIsLoading(false);
       return;
     }
+    
+    const appVerifier = recaptchaVerifierRef.current;
 
     if (!otpSent) {
       try {
@@ -128,36 +105,33 @@ export default function SignupPage() {
         setConfirmationResult(confirmation);
         setOtpSent(true);
         toast({ title: "OTP Sent", description: `An OTP has been sent to ${data.phoneNumber}.` });
-        setIsLoading(false);
       } catch (error: any) {
         console.error("Error sending OTP for signup:", error);
-        let errorMessage = error.message || "Please check the phone number and try again.";
+        let errorMessage = "Failed to send OTP. " + (error.message || "Please check the phone number and try again.");
         if (error.code === 'auth/captcha-check-failed') {
             errorMessage = "reCAPTCHA verification failed. Ensure domain is authorized in Firebase and try again.";
         } else if (error.code === 'auth/invalid-phone-number') {
             errorMessage = "The phone number you entered is invalid. Please check and try again.";
         } else if (error.code === 'auth/invalid-recaptcha-token') {
             errorMessage = "reCAPTCHA token was invalid. Please try sending the OTP again.";
-        }  else if (error.code === 'auth/missing-client-identifier') {
+             // Consider allowing re-use of current verifier after this
+        }  else if (error.code === 'auth/missing-client-identifier' || error.code === 'auth/missing-recaptcha-token') {
             errorMessage = "reCAPTCHA challenge not solved or client identifier missing. Please try again.";
         }
-
-
         toast({
             title: "Failed to Send OTP",
             description: errorMessage,
             variant: "destructive",
             duration: 10000
         });
-
-        recaptchaVerifierRef.current?.clear();
-        recaptchaVerifierRef.current = null;
+         // Do NOT clear recaptchaVerifierRef here, let Firebase handle re-challenge with the same verifier.
+      } finally {
         setIsLoading(false);
       }
     } else {
       if (!confirmationResult) {
         toast({ title: "Verification Error", description: "OTP confirmation context lost. Please try sending OTP again.", variant: "destructive" });
-        setOtpSent(false); // Allow resending OTP
+        setOtpSent(false); 
         setIsLoading(false);
         return;
       }
@@ -187,7 +161,7 @@ export default function SignupPage() {
         }
       } catch (error: any) {
         console.error("Error verifying OTP or creating profile:", error);
-        let errorMessage = error.message || "Please check the OTP and try again.";
+        let errorMessage = "OTP verification failed. " + (error.message || "Please check the OTP and try again.");
         if (error.code === 'auth/invalid-verification-code') {
             errorMessage = "The OTP you entered is incorrect. Please check and try again.";
         } else if (error.code === 'auth/code-expired') {
