@@ -18,6 +18,8 @@ import { useState, useEffect, useRef } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
+const containerId = 'recaptcha-container-signup'; // Defined at component level
+
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -38,7 +40,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (!auth) return;
-    const containerId = 'recaptcha-container-signup';
+    // const containerId = 'recaptcha-container-signup'; // Moved to component level
 
     if (!recaptchaVerifierRef.current && document.getElementById(containerId)) {
       console.log("Attempting to initialize reCAPTCHA in useEffect (Signup)");
@@ -95,7 +97,7 @@ export default function SignupPage() {
 
   const onSubmit = async (data: SignupFormValues) => {
     setIsLoading(true);
-    const containerId = 'recaptcha-container-signup';
+    // const containerId = 'recaptcha-container-signup'; // Moved to component level
 
     if (!recaptchaVerifierRef.current) {
       console.log("recaptchaVerifierRef is null in onSubmit, attempting to initialize (Signup).");
@@ -322,6 +324,5 @@ export default function SignupPage() {
     </div>
   );
 }
-
 
     
