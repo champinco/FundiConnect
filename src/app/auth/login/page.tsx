@@ -12,6 +12,7 @@ import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } fro
 import { auth } from '@/lib/firebase';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,7 +36,12 @@ export default function LoginPage() {
       });
       recaptchaVerifierRef.current.render().catch((error: any) => {
         console.error("Login RecaptchaVerifier render error:", error);
-        toast({ title: "reCAPTCHA Error", description: "Could not initialize reCAPTCHA. Refresh and try again.", variant: "destructive"});
+        toast({ 
+            title: "reCAPTCHA Error", 
+            description: "Could not initialize reCAPTCHA. Ensure your domain is authorized in Firebase settings & refresh.", 
+            variant: "destructive",
+            duration: 10000 
+        });
         setIsLoading(false);
       });
     }
@@ -51,7 +57,12 @@ export default function LoginPage() {
     setIsLoading(true);
 
     if (!recaptchaVerifierRef.current) {
-      toast({ title: "reCAPTCHA Error", description: "reCAPTCHA not initialized. Please wait or refresh.", variant: "destructive" });
+      toast({ 
+          title: "reCAPTCHA Error", 
+          description: "reCAPTCHA not initialized. Please wait or refresh. Ensure your domain is authorized in Firebase.", 
+          variant: "destructive",
+          duration: 10000  
+        });
       setIsLoading(false);
       return;
     }
@@ -65,7 +76,7 @@ export default function LoginPage() {
         toast({ title: "OTP Sent", description: `An OTP has been sent to ${phoneNumber}.` });
       } catch (error: any) {
         console.error("Error sending OTP for login:", error);
-         if (recaptchaVerifierRef.current) { // Attempt to reset reCAPTCHA
+         if (recaptchaVerifierRef.current) { 
             recaptchaVerifierRef.current.clear();
              recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container-login', {
                 'size': 'invisible',
@@ -74,11 +85,22 @@ export default function LoginPage() {
             });
             recaptchaVerifierRef.current.render().catch(console.error);
         }
-        toast({ title: "Failed to Send OTP", description: error.message || "Please check the phone number and try again.", variant: "destructive" });
+        let errorMessage = error.message || "Please check the phone number and try again.";
+        if (error.code === 'auth/captcha-check-failed') {
+            errorMessage = "reCAPTCHA verification failed. Please ensure your app's domain is authorized in Firebase Authentication settings and try again.";
+        } else if (error.code === 'auth/invalid-phone-number') {
+            errorMessage = "The phone number you entered is invalid. Please check and try again."
+        }
+        toast({ 
+            title: "Failed to Send OTP", 
+            description: errorMessage, 
+            variant: "destructive",
+            duration: 10000 
+        });
       } finally {
         setIsLoading(false);
       }
-    } else { // OTP has been sent, now verify it
+    } else { 
       if (!confirmationResult) {
         toast({ title: "Verification Error", description: "OTP confirmation context lost. Please try sending OTP again.", variant: "destructive" });
         setOtpSent(false);
@@ -87,15 +109,23 @@ export default function LoginPage() {
       }
       try {
         const userCredential = await confirmationResult.confirm(otp);
-        // Handle successful login
         toast({ title: "Login Successful!", description: "Welcome back!", variant: "default" });
-        // TODO: Redirect user or manage session (e.g., using a global state/context)
-        // For now, just redirect to home page.
         router.push('/'); 
         console.log("Logged in user:", userCredential.user);
       } catch (error: any) {
         console.error("Error verifying OTP for login:", error);
-        toast({ title: "OTP Verification Failed", description: error.message || "Please check the OTP and try again.", variant: "destructive" });
+        let errorMessage = error.message || "Please check the OTP and try again.";
+        if (error.code === 'auth/invalid-verification-code') {
+            errorMessage = "The OTP you entered is incorrect. Please check and try again.";
+        } else if (error.code === 'auth/code-expired') {
+            errorMessage = "The OTP has expired. Please request a new one.";
+        }
+        toast({ 
+            title: "OTP Verification Failed", 
+            description: errorMessage, 
+            variant: "destructive",
+            duration: 7000 
+        });
       } finally {
         setIsLoading(false);
       }
@@ -112,6 +142,13 @@ export default function LoginPage() {
           <CardTitle className="text-3xl font-headline">Welcome Back!</CardTitle>
           <CardDescription>Log in to your FundiConnect account using your phone number.</CardDescription>
         </CardHeader>
+        {/* Alert to inform user that phone auth is not fully functional yet (if needed for testing) */}
+        {/* <Alert variant="default" className="m-4 bg-primary/10 border-primary/30">
+          <AlertTitle className="text-primary">Developer Note</AlertTitle>
+          <AlertDescription className="text-primary/80">
+            Phone authentication is being set up. This form does not yet complete a real Firebase phone auth.
+          </AlertDescription>
+        </Alert> */}
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-6">
             {!otpSent ? (

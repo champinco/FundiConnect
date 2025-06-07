@@ -17,6 +17,7 @@ import { signupFormSchema, type SignupFormValues } from './schemas';
 import { useState, useEffect, useRef } from 'react';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth'; 
 import { auth } from '@/lib/firebase'; 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -42,9 +43,6 @@ export default function SignupPage() {
         'size': 'invisible',
         'callback': (response: any) => {
           console.log("reCAPTCHA solved for signup");
-          // reCAPTCHA solved, allow signInWithPhoneNumber.
-          // If using 'visible' reCAPTCHA, you might trigger OTP sending here.
-          // For 'invisible', it's often triggered by form submit.
         },
         'expired-callback': () => {
           toast({ title: "reCAPTCHA Expired", description: "Please try submitting the form again.", variant: "destructive" });
@@ -53,15 +51,18 @@ export default function SignupPage() {
       });
       recaptchaVerifierRef.current.render().catch((error: any) => {
         console.error("Signup RecaptchaVerifier render error:", error);
-        toast({ title: "reCAPTCHA Error", description: "Could not initialize reCAPTCHA. Please refresh and try again.", variant: "destructive"});
+        toast({ 
+            title: "reCAPTCHA Error", 
+            description: "Could not initialize reCAPTCHA. Ensure your domain is authorized in Firebase settings & refresh.", 
+            variant: "destructive",
+            duration: 10000 
+        });
         setIsLoading(false);
       });
     }
-    // Cleanup on unmount
-    return () => {
+     return () => {
       if (recaptchaVerifierRef.current) {
-        // No direct 'destroy' or 'clear' method typically needed for invisible reCAPTCHA on unmount
-        // unless you are re-rendering it multiple times under specific conditions.
+        // No direct 'destroy' or 'clear' method. Firebase handles this.
       }
     };
   }, [auth, toast]);
@@ -71,7 +72,12 @@ export default function SignupPage() {
     setIsLoading(true);
     
     if (!recaptchaVerifierRef.current) {
-      toast({ title: "reCAPTCHA Error", description: "reCAPTCHA not initialized. Please wait or refresh.", variant: "destructive" });
+      toast({ 
+          title: "reCAPTCHA Error", 
+          description: "reCAPTCHA not initialized. Please wait or refresh. Ensure your domain is authorized in Firebase.", 
+          variant: "destructive",
+          duration: 10000  
+        });
       setIsLoading(false);
       return;
     }
@@ -85,24 +91,34 @@ export default function SignupPage() {
         toast({ title: "OTP Sent", description: `An OTP has been sent to ${data.phoneNumber}.` });
       } catch (error: any) {
         console.error("Error sending OTP:", error);
-        // Reset reCAPTCHA for a new attempt, especially for invisible reCAPTCHA
-        if (recaptchaVerifierRef.current) {
-            recaptchaVerifierRef.current.clear(); // Clear the current verifier
-             recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container-signup', { // Re-initialize
+        if (recaptchaVerifierRef.current) { 
+            recaptchaVerifierRef.current.clear();
+             recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container-signup', { 
                 'size': 'invisible',
                 'callback': () => {},
                 'expired-callback': () => {}
             });
             recaptchaVerifierRef.current.render().catch(console.error);
         }
-        toast({ title: "Failed to Send OTP", description: error.message || "Please check the phone number and try again.", variant: "destructive" });
+        let errorMessage = error.message || "Please check the phone number and try again.";
+        if (error.code === 'auth/captcha-check-failed') {
+            errorMessage = "reCAPTCHA verification failed. Please ensure your app's domain is authorized in Firebase Authentication settings and try again.";
+        } else if (error.code === 'auth/invalid-phone-number') {
+            errorMessage = "The phone number you entered is invalid. Please check and try again."
+        }
+        toast({ 
+            title: "Failed to Send OTP", 
+            description: errorMessage, 
+            variant: "destructive",
+            duration: 10000
+        });
       } finally {
         setIsLoading(false);
       }
-    } else { // OTP has been sent, now verify it
+    } else { 
       if (!confirmationResult) {
         toast({ title: "Verification Error", description: "OTP confirmation context lost. Please try sending OTP again.", variant: "destructive" });
-        setOtpSent(false); // Reset state to re-send OTP
+        setOtpSent(false); 
         setIsLoading(false);
         return;
       }
@@ -111,7 +127,7 @@ export default function SignupPage() {
         const firebaseUser = userCredential.user;
 
         if (firebaseUser && firebaseUser.uid) {
-          const currentFormData = getValues(); // Get current form values
+          const currentFormData = getValues(); 
           const result = await signupUserAction(currentFormData, firebaseUser.uid);
           if (result.success) {
             toast({
@@ -132,7 +148,18 @@ export default function SignupPage() {
         }
       } catch (error: any) {
         console.error("Error verifying OTP or creating profile:", error);
-        toast({ title: "OTP Verification Failed", description: error.message || "Please check the OTP and try again.", variant: "destructive" });
+        let errorMessage = error.message || "Please check the OTP and try again.";
+        if (error.code === 'auth/invalid-verification-code') {
+            errorMessage = "The OTP you entered is incorrect. Please check and try again.";
+        } else if (error.code === 'auth/code-expired') {
+            errorMessage = "The OTP has expired. Please request a new one.";
+        }
+        toast({ 
+            title: "OTP Verification Failed", 
+            description: errorMessage, 
+            variant: "destructive",
+            duration: 7000 
+        });
       } finally {
         setIsLoading(false);
       }
@@ -149,6 +176,13 @@ export default function SignupPage() {
           <CardTitle className="text-3xl font-headline">Create an Account</CardTitle>
           <CardDescription>Join FundiConnect using your phone number.</CardDescription>
         </CardHeader>
+        {/* Alert to inform user that phone auth is not fully functional yet (if needed for testing) */}
+        {/* <Alert variant="default" className="m-4 bg-primary/10 border-primary/30">
+          <AlertTitle className="text-primary">Developer Note</AlertTitle>
+          <AlertDescription className="text-primary/80">
+            Phone authentication is being set up. This form does not yet complete a real Firebase phone auth.
+          </AlertDescription>
+        </Alert> */}
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
             {!otpSent ? (
