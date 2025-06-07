@@ -24,41 +24,52 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!auth) return; 
+    if (!auth) return;
+    const containerId = 'recaptcha-container-login';
 
-    // Only initialize if ref is null and container exists
-    if (!recaptchaVerifierRef.current && document.getElementById('recaptcha-container-login')) {
+    if (!recaptchaVerifierRef.current && document.getElementById(containerId)) {
       console.log("Attempting to initialize reCAPTCHA in useEffect (Login)");
-      const verifier = new RecaptchaVerifier(auth, 'recaptcha-container-login', {
-        'size': 'invisible',
-        'callback': (response: any) => {
+      try {
+        const verifier = new RecaptchaVerifier(auth, containerId, {
+          'size': 'invisible',
+          'callback': (response: any) => {
             console.log("reCAPTCHA solved (useEffect setup - Login)");
-        },
-        'expired-callback': () => {
-          toast({ title: "reCAPTCHA Expired", description: "Please try sending OTP again.", variant: "destructive" });
-          setIsLoading(false);
-          // DO NOT clear or nullify recaptchaVerifierRef.current here.
-          // The same instance should be re-used by signInWithPhoneNumber, which will re-prompt if expired.
-        }
-      });
-      verifier.render()
-        .then(() => {
-          recaptchaVerifierRef.current = verifier;
-          console.log("reCAPTCHA rendered and ref set (useEffect - Login)");
-        })
-        .catch((error: any) => {
-          console.error("Initial RecaptchaVerifier render error (Login):", error);
-          toast({
-              title: "reCAPTCHA Error",
-              description: "Could not initialize reCAPTCHA. Ensure your domain is authorized in Firebase settings & refresh.",
-              variant: "destructive",
-              duration: 10000
-          });
-          recaptchaVerifierRef.current = null; // Ensure ref is null on error
+          },
+          'expired-callback': () => {
+            toast({ title: "reCAPTCHA Expired", description: "Please try sending OTP again.", variant: "destructive" });
+            if (recaptchaVerifierRef.current) {
+              recaptchaVerifierRef.current.clear();
+              recaptchaVerifierRef.current = null;
+              console.log("reCAPTCHA expired and verifier cleared (Login).");
+            }
+            setIsLoading(false);
+          }
         });
+        verifier.render()
+          .then(() => {
+            recaptchaVerifierRef.current = verifier;
+            console.log("reCAPTCHA rendered and ref set (useEffect - Login)");
+          })
+          .catch((error: any) => {
+            console.error("Initial RecaptchaVerifier render error (Login useEffect):", error);
+            toast({
+                title: "reCAPTCHA Error",
+                description: "Could not initialize reCAPTCHA. Ensure your domain is authorized in Firebase settings & refresh.",
+                variant: "destructive",
+                duration: 10000
+            });
+            recaptchaVerifierRef.current = null;
+          });
+      } catch (error) {
+         console.error("Error creating RecaptchaVerifier instance (Login useEffect):", error);
+         toast({
+            title: "reCAPTCHA Setup Failed",
+            description: "Could not create reCAPTCHA verifier. Please refresh.",
+            variant: "destructive",
+        });
+      }
     }
      return () => {
-      // Cleanup on component unmount
       if (recaptchaVerifierRef.current) {
         recaptchaVerifierRef.current.clear();
         recaptchaVerifierRef.current = null;
@@ -70,46 +81,79 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const containerId = 'recaptcha-container-login';
 
     if (!recaptchaVerifierRef.current) {
-      toast({
-          title: "reCAPTCHA Error",
-          description: "reCAPTCHA not ready. Please wait a moment or refresh the page. Ensure your domain is authorized in Firebase.",
-          variant: "destructive",
-          duration: 10000
-        });
-      setIsLoading(false);
-      return;
+      console.log("recaptchaVerifierRef is null in handleLogin, attempting to initialize (Login).");
+      if (document.getElementById(containerId)) {
+        try {
+          const verifier = new RecaptchaVerifier(auth, containerId, {
+            'size': 'invisible',
+            'callback': (response: any) => console.log("reCAPTCHA solved (handleLogin init - Login)"),
+            'expired-callback': () => {
+              toast({ title: "reCAPTCHA Expired", description: "Please try sending OTP again.", variant: "destructive" });
+              if (recaptchaVerifierRef.current) {
+                recaptchaVerifierRef.current.clear();
+                recaptchaVerifierRef.current = null;
+                console.log("reCAPTCHA expired and verifier cleared (handleLogin init - Login).");
+              }
+              setIsLoading(false);
+            }
+          });
+          await verifier.render();
+          recaptchaVerifierRef.current = verifier;
+          console.log("reCAPTCHA initialized and rendered in handleLogin (Login).");
+        } catch (error: any) {
+          console.error("Error initializing reCAPTCHA in handleLogin (Login):", error);
+          toast({
+            title: "reCAPTCHA Initialization Failed",
+            description: "Could not set up reCAPTCHA. Please try again or refresh.",
+            variant: "destructive",
+            duration: 7000
+          });
+          setIsLoading(false);
+          return;
+        }
+      } else {
+         toast({ title: "Error", description: "reCAPTCHA container not found. Please refresh.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
     }
     
     const appVerifier = recaptchaVerifierRef.current;
 
     if (!otpSent) {
       try {
+        console.log("Attempting to send OTP (Login)... Phone:", phoneNumber);
         const confirmation = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
         setConfirmationResult(confirmation);
         setOtpSent(true);
         toast({ title: "OTP Sent", description: `An OTP has been sent to ${phoneNumber}.` });
       } catch (error: any) {
-        console.error("Error sending OTP for login:", error);
         let errorMessage = "Failed to send OTP. " + (error.message || "Please check the phone number and try again.");
-        if (error.code === 'auth/captcha-check-failed') {
-            errorMessage = "reCAPTCHA verification failed. Ensure domain is authorized in Firebase and try again.";
+        if (error.code === 'auth/captcha-check-failed' || error.code === 'auth/invalid-recaptcha-token' || error.code === 'auth/missing-recaptcha-token' || error.code === 'auth/missing-client-identifier') {
+          if (error.code === 'auth/captcha-check-failed') errorMessage = "reCAPTCHA verification failed. Ensure domain is authorized in Firebase and try again.";
+          else if (error.code === 'auth/invalid-recaptcha-token') errorMessage = "reCAPTCHA token was invalid. Please try sending the OTP again.";
+          else if (error.code === 'auth/missing-client-identifier' || error.code === 'auth/missing-recaptcha-token') errorMessage = "reCAPTCHA challenge not solved or client identifier missing. Please try again.";
+          
+          if (recaptchaVerifierRef.current) {
+            recaptchaVerifierRef.current.clear();
+            recaptchaVerifierRef.current = null;
+            console.log(`reCAPTCHA verifier cleared due to OTP send error: ${error.code} (Login)`);
+          }
         } else if (error.code === 'auth/invalid-phone-number') {
             errorMessage = "The phone number you entered is invalid. Please check and try again.";
-        } else if (error.code === 'auth/invalid-recaptcha-token') {
-            errorMessage = "reCAPTCHA token was invalid. Please try sending the OTP again.";
-             // Consider allowing re-use of current verifier after this
-        } else if (error.code === 'auth/missing-client-identifier' || error.code === 'auth/missing-recaptcha-token') {
-            errorMessage = "reCAPTCHA challenge not solved or client identifier missing. Please try again.";
+        } else if (error.code === 'auth/user-not-found'){
+            errorMessage = "No account found with this phone number. Please sign up first.";
         }
+        console.error("Error sending OTP for login:", error, "Code:", error.code);
         toast({
             title: "Failed to Send OTP",
             description: errorMessage,
             variant: "destructive",
             duration: 10000
         });
-        // Do NOT clear recaptchaVerifierRef here, let Firebase handle re-challenge with the same verifier.
       } finally {
         setIsLoading(false);
       }
@@ -121,12 +165,13 @@ export default function LoginPage() {
         return;
       }
       try {
+        console.log("Attempting to verify OTP (Login)... OTP:", otp);
         const userCredential = await confirmationResult.confirm(otp);
         toast({ title: "Login Successful!", description: "Welcome back!", variant: "default" });
         router.push('/');
         console.log("Logged in user:", userCredential.user);
       } catch (error: any) {
-        console.error("Error verifying OTP for login:", error);
+        console.error("Error verifying OTP for login:", error, "Code:", error.code);
         let errorMessage = "OTP verification failed. " + (error.message || "Please check the OTP and try again.");
         if (error.code === 'auth/invalid-verification-code') {
             errorMessage = "The OTP you entered is incorrect. Please check and try again.";
@@ -192,7 +237,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            <div id="recaptcha-container-login"></div>
+            <div id={containerId}></div>
 
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
               {isLoading ? "Processing..." : (otpSent ? "Verify OTP & Log In" : "Send OTP")}
