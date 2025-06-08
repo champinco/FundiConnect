@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Briefcase, Users, Sparkles, MessageSquare } from 'lucide-react'; // Added MessageSquare
+import { Menu, Briefcase, Users, Sparkles, MessageSquare, UserPlus, LogIn } from 'lucide-react';
 
 export default function Header() {
   const navItems = [
@@ -10,7 +10,12 @@ export default function Header() {
     { href: '/search', label: 'Find Fundis', icon: <Users className="h-5 w-5" /> },
     { href: '/smart-match', label: 'Smart Match', icon: <Sparkles className="h-5 w-5" /> },
     { href: '/jobs/post', label: 'Post a Job', icon: <Briefcase className="h-5 w-5" /> },
-    { href: '/messages', label: 'Messages', icon: <MessageSquare className="h-5 w-5" /> }, // New Messages Link
+    { href: '/messages', label: 'Messages', icon: <MessageSquare className="h-5 w-5" /> },
+  ];
+
+  const authNavItems = [
+    { href: '/auth/login', label: 'Login', icon: <LogIn className="h-5 w-5" /> },
+    { href: '/auth/signup', label: 'Sign Up', icon: <UserPlus className="h-5 w-5" /> },
   ];
 
   return (
@@ -37,6 +42,16 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center space-x-2">
+           <div className="hidden md:flex items-center space-x-2">
+            {authNavItems.map((item) => (
+              <Button key={item.label} asChild variant={item.label === 'Sign Up' ? 'default' : 'outline' } size="sm">
+                <Link href={item.href} className="flex items-center">
+                  {item.icon}
+                  <span className="ml-2">{item.label}</span>
+                </Link>
+              </Button>
+            ))}
+          </div>
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">
@@ -45,7 +60,7 @@ export default function Header() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
-              <div className="flex flex-col space-y-4 p-4">
+              <div className="flex flex-col space-y-2 p-4">
                 <Link href="/" className="mb-4">
                   <span className="font-bold text-xl font-headline text-primary">FundiConnect</span>
                 </Link>
@@ -53,7 +68,18 @@ export default function Header() {
                   <Link
                     key={item.label}
                     href={item.href}
-                    className="flex items-center space-x-2 rounded-md p-2 hover:bg-accent hover:text-accent-foreground"
+                    className="flex items-center space-x-2 rounded-md p-3 hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Link>
+                ))}
+                <hr className="my-2"/>
+                {authNavItems.map((item) => (
+                   <Link
+                    key={item.label}
+                    href={item.href}
+                    className="flex items-center space-x-2 rounded-md p-3 hover:bg-accent hover:text-accent-foreground"
                   >
                     {item.icon}
                     <span>{item.label}</span>
