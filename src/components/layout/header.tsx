@@ -1,7 +1,8 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Briefcase, Users, Sparkles } from 'lucide-react'; // Removed LogIn, UserPlus
+import { Menu, Briefcase, Users, Sparkles, MessageSquare } from 'lucide-react'; // Added MessageSquare
 
 export default function Header() {
   const navItems = [
@@ -9,6 +10,7 @@ export default function Header() {
     { href: '/search', label: 'Find Fundis', icon: <Users className="h-5 w-5" /> },
     { href: '/smart-match', label: 'Smart Match', icon: <Sparkles className="h-5 w-5" /> },
     { href: '/jobs/post', label: 'Post a Job', icon: <Briefcase className="h-5 w-5" /> },
+    { href: '/messages', label: 'Messages', icon: <MessageSquare className="h-5 w-5" /> }, // New Messages Link
   ];
 
   return (
@@ -35,7 +37,6 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center space-x-2">
-          {/* Login and Signup buttons removed from desktop view */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">
@@ -58,7 +59,6 @@ export default function Header() {
                     <span>{item.label}</span>
                   </Link>
                 ))}
-                {/* Login and Signup buttons removed from mobile menu */}
               </div>
             </SheetContent>
           </Sheet>
