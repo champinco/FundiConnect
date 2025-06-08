@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Briefcase, Users, LogIn, UserPlus, Sparkles } from 'lucide-react';
+import { Menu, Briefcase, Users, Sparkles } from 'lucide-react'; // Removed LogIn, UserPlus
 
 export default function Header() {
   const navItems = [
@@ -35,16 +35,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" asChild className="hidden md:inline-flex">
-            <Link href="/auth/login">
-              <LogIn className="mr-2 h-4 w-4" /> Login
-            </Link>
-          </Button>
-          <Button asChild className="hidden md:inline-flex">
-            <Link href="/auth/signup">
-              <UserPlus className="mr-2 h-4 w-4" /> Sign Up
-            </Link>
-          </Button>
+          {/* Login and Signup buttons removed from desktop view */}
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="icon" className="md:hidden">
@@ -67,17 +58,7 @@ export default function Header() {
                     <span>{item.label}</span>
                   </Link>
                 ))}
-                <hr />
-                <Button variant="outline" asChild>
-                  <Link href="/auth/login" className="w-full">
-                    <LogIn className="mr-2 h-4 w-4" /> Login
-                  </Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/auth/signup" className="w-full">
-                    <UserPlus className="mr-2 h-4 w-4" /> Sign Up
-                  </Link>
-                </Button>
+                {/* Login and Signup buttons removed from mobile menu */}
               </div>
             </SheetContent>
           </Sheet>
