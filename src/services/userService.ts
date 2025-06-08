@@ -8,19 +8,23 @@ import type { User } from '@/models/user';
 
 /**
  * Creates or updates a user profile document in Firestore.
- * @param userData - The user data object.
+ * @param userData - The user data object. Email is now mandatory. Phone number is optional.
+ * @param uid - The Firebase Auth UID.
  * @returns A promise that resolves when the operation is complete.
  */
 export async function createUserProfileInFirestore(userData: Omit<User, 'createdAt' | 'updatedAt' | 'uid'>, uid: string): Promise<void> {
   try {
     const userRef = doc(db, 'users', uid);
     const now = serverTimestamp();
-    await setDoc(userRef, {
-      ...userData,
-      uid,
-      createdAt: now,
-      updatedAt: now,
-    }, { merge: true }); 
+    const profileToSave: User = {
+        ...userData,
+        uid,
+        // Ensure phoneNumber is explicitly set to null if not provided, to avoid undefined in Firestore
+        phoneNumber: userData.phoneNumber || null,
+        createdAt: now as any, // Will be replaced by serverTimestamp
+        updatedAt: now as any, // Will be replaced by serverTimestamp
+    };
+    await setDoc(userRef, profileToSave, { merge: true });
   } catch (error) {
     console.error('Error creating user profile in Firestore:', error);
     throw new Error('Could not create user profile.');

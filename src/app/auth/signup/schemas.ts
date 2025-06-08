@@ -3,9 +3,13 @@ import { z } from 'zod';
 
 export const signupFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
-  phoneNumber: z.string().min(10, { message: "Phone number must be at least 10 digits." })
-    .regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid phone number format." }), // Basic E.164-like regex
+  email: z.string().email({ message: "Please enter a valid email address." }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  confirmPassword: z.string().min(6, { message: "Please confirm your password." }),
   accountType: z.enum(['client', 'provider']),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords do not match.",
+  path: ["confirmPassword"], // path of error
 });
 
-export type SignupFormValues = z.infer<typeof signupFormSchema>;
+export type SignupFormValues = Omit<z.infer<typeof signupFormSchema>, 'confirmPassword'>;
