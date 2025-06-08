@@ -14,7 +14,7 @@
     --popover: 40 20% 100%;
     --popover-foreground: 210 15% 25%;
 
-    --primary: 25 85% 60%; /* Warm Inviting Orange */
+    --primary: 140 30% 55%; /* Sage Green (New Primary) */
     --primary-foreground: 0 0% 100%; /* White */
 
     --secondary: 140 30% 75%; /* Lighter Sage Green */
@@ -23,32 +23,32 @@
     --muted: 210 15% 90%; /* Light Slate Blue/Gray */
     --muted-foreground: 210 15% 50%; /* Mid Slate Blue/Gray */
 
-    --accent: 140 30% 55%; /* Sage Green */
-    --accent-foreground: 0 0% 100%; /* White for text on Sage Green */
+    --accent: 140 35% 45%; /* Deeper Sage Green (New Accent) */
+    --accent-foreground: 0 0% 100%; /* White for text on Deeper Sage Green */
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
     --border: 210 15% 88%; /* Light Border */
     --input: 210 15% 92%; /* Light Input Background */
-    --ring: 25 85% 60%; /* Warm Inviting Orange for rings */
+    --ring: 140 30% 55%; /* Sage Green for rings (New Primary) */
 
     --radius: 0.5rem;
 
-    --chart-1: 25 85% 60%; /* Primary Orange */
-    --chart-2: 140 30% 55%; /* Accent Sage Green */
-    --chart-3: 25 85% 75%; /* Lighter Orange */
-    --chart-4: 140 30% 70%; /* Lighter Sage Green */
+    --chart-1: 140 30% 55%; /* New Primary Sage Green */
+    --chart-2: 140 35% 45%; /* New Accent Deeper Sage Green */
+    --chart-3: 140 30% 70%; /* Lighter version of Primary Sage */
+    --chart-4: 140 35% 60%; /* Lighter version of Accent Deeper Sage */
     --chart-5: 210 10% 60%; /* Neutral Gray */
 
     --sidebar-background: 40 20% 100%; /* White (same as card) */
     --sidebar-foreground: 210 15% 25%;
-    --sidebar-primary: 25 85% 60%;
+    --sidebar-primary: 140 30% 55%; /* New Primary Sage Green */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 140 30% 55%;
+    --sidebar-accent: 140 35% 45%; /* New Accent Deeper Sage Green */
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 210 15% 88%;
-    --sidebar-ring: 25 85% 60%;
+    --sidebar-ring: 140 30% 55%; /* New Primary Sage Green */
   }
 
   .dark {
@@ -61,7 +61,7 @@
     --popover: 210 15% 15%;
     --popover-foreground: 40 10% 85%;
 
-    --primary: 25 85% 60%; /* Warm Inviting Orange */
+    --primary: 140 30% 55%; /* Sage Green (New Primary) */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 140 25% 30%; /* Darker Sage Green for Dark Mode */
@@ -70,7 +70,7 @@
     --muted: 210 15% 20%;
     --muted-foreground: 210 15% 60%;
 
-    --accent: 140 30% 55%; /* Sage Green */
+    --accent: 140 35% 45%; /* Deeper Sage Green (New Accent) */
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62.8% 30.6%;
@@ -78,22 +78,22 @@
 
     --border: 210 15% 25%;
     --input: 210 15% 22%;
-    --ring: 25 85% 60%;
+    --ring: 140 30% 55%; /* Sage Green for rings (New Primary) */
 
-    --chart-1: 25 85% 60%;
-    --chart-2: 140 30% 55%;
-    --chart-3: 25 85% 75%;
-    --chart-4: 140 30% 70%;
+    --chart-1: 140 30% 55%;
+    --chart-2: 140 35% 45%;
+    --chart-3: 140 30% 70%;
+    --chart-4: 140 35% 60%;
     --chart-5: 210 10% 50%; /* Darker Neutral Gray for Dark Mode */
     
     --sidebar-background: 210 15% 15%; /* Dark (same as card) */
     --sidebar-foreground: 40 10% 85%;
-    --sidebar-primary: 25 85% 60%;
+    --sidebar-primary: 140 30% 55%; /* New Primary Sage Green */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 140 30% 55%;
+    --sidebar-accent: 140 35% 45%; /* New Accent Deeper Sage Green */
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 210 15% 25%;
-    --sidebar-ring: 25 85% 60%;
+    --sidebar-ring: 140 30% 55%; /* New Primary Sage Green */
   }
 }
 
