@@ -1,6 +1,4 @@
 
-'use server'; // Can be used by server components/actions if needed, but subscriptions are client-side.
-
 import {
   collection,
   query,
@@ -122,7 +120,11 @@ export async function sendMessage(
   };
 
   const batch = writeBatch(db);
-  batch.add(messagesRef, newMessage); // Use addDoc for auto-ID for messages
+  
+  // Use .add() on a collection reference to get an auto-generated ID
+  const messageDocRef = doc(messagesRef); // Creates a reference with an auto-ID
+  batch.set(messageDocRef, newMessage); // Use set with the new reference
+
   batch.update(chatRef, {
     lastMessage: {
       text: text || (imageUrl ? 'Image' : ''),
