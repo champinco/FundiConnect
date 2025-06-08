@@ -30,7 +30,6 @@ export const postJobFormSchema = z.object({
   serviceCategory: z.enum(serviceCategoriesForValidation, { errorMap: () => ({ message: "Please select a valid service category."})}),
   jobDescription: z.string().min(20, { message: "Description must be at least 20 characters." }).max(2000),
   location: z.string().min(3, { message: "Location is required." }).max(100),
-  // photosOrVideos: z.array(z.string().url()).optional(), // For file uploads, this will be more complex
   postingOption: z.enum(['public', 'direct']),
 });
 
@@ -42,20 +41,24 @@ interface PostJobResult {
   jobId?: string;
 }
 
-export async function postJobAction(values: PostJobFormValues, clientId: string | null): Promise<PostJobResult> {
+export async function postJobAction(
+  values: PostJobFormValues, 
+  clientId: string | null,
+  photoUrls?: string[]
+): Promise<PostJobResult> {
   if (!clientId) {
     return { success: false, message: "User not authenticated. Cannot post job." };
   }
 
   try {
     const jobData: Omit<Job, 'id' | 'postedAt' | 'updatedAt' | 'quotesReceived'> = {
-      clientId: clientId, // This needs to come from authenticated user session
+      clientId: clientId,
       title: values.jobTitle,
       description: values.jobDescription,
       serviceCategory: values.serviceCategory,
       location: values.location,
       status: 'open', // Default status for new jobs
-      // photosOrVideos: values.photosOrVideos, // Handle file uploads separately
+      photosOrVideos: photoUrls, 
     };
 
     const jobId = await createJobInFirestore(jobData);

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Briefcase, Send, Loader2 } from 'lucide-react';
+import { Upload, Briefcase, Send, Loader2, Paperclip } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { useToast } from "@/hooks/use-toast";
 import { postJobAction, postJobFormSchema, type PostJobFormValues } from './actions';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { uploadFileToStorage } from '@/services/storageService';
 
 
 // Tier 1 services + Other for job posting
@@ -41,6 +42,7 @@ export default function PostJobPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -49,7 +51,7 @@ export default function PostJobPage() {
     return () => unsubscribe();
   }, []);
 
-  const { control, register, handleSubmit, formState: { errors } } = useForm<PostJobFormValues>({
+  const { control, register, handleSubmit, formState: { errors }, reset } = useForm<PostJobFormValues>({
     resolver: zodResolver(postJobFormSchema),
     defaultValues: {
       jobTitle: "",
@@ -59,6 +61,14 @@ export default function PostJobPage() {
       postingOption: "public",
     },
   });
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      // Limit number of files (e.g., 5)
+      const filesArray = Array.from(event.target.files).slice(0, 5);
+      setSelectedFiles(filesArray);
+    }
+  };
 
   const onSubmit = async (data: PostJobFormValues) => {
     if (!currentUser) {
@@ -72,14 +82,34 @@ export default function PostJobPage() {
     }
 
     setIsLoading(true);
+    let uploadedPhotoUrls: string[] = [];
+
+    if (selectedFiles.length > 0) {
+      try {
+        const uploadPromises = selectedFiles.map(file => 
+          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments/${Date.now()}`)
+        );
+        uploadedPhotoUrls = await Promise.all(uploadPromises);
+      } catch (uploadError: any) {
+        toast({
+          title: "File Upload Failed",
+          description: uploadError.message || "Could not upload one or more files. Please try again.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
-      const result = await postJobAction(data, currentUser.uid);
-      if (result.success) {
+      const result = await postJobAction(data, currentUser.uid, uploadedPhotoUrls);
+      if (result.success && result.jobId) {
         toast({
           title: "Job Posted!",
           description: "Your job has been successfully posted.",
         });
-        // TODO: Redirect to the job details page or dashboard
+        reset(); // Reset form fields
+        setSelectedFiles([]); // Clear selected files
         router.push(`/jobs/${result.jobId}`); 
       } else {
         toast({
@@ -179,12 +209,20 @@ export default function PostJobPage() {
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
                           <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
                           <p className="mb-1 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                          <p className="text-xs text-muted-foreground">SVG, PNG, JPG or GIF (MAX. 800x400px)</p>
+                          <p className="text-xs text-muted-foreground">Up to 5 images or short videos (e.g., PNG, JPG, MP4)</p>
                       </div>
-                      <Input id="dropzone-file" type="file" className="hidden" multiple />
+                      <Input id="dropzone-file" type="file" className="hidden" multiple onChange={handleFileChange} accept="image/*,video/*" />
                   </label>
-              </div> 
-              <p className="text-xs text-muted-foreground mt-1">Attach images or short videos of the problem area. This helps Fundis understand the job better. (File upload not functional yet)</p>
+              </div>
+              {selectedFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm font-medium">{selectedFiles.length} file(s) selected:</p>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground">
+                    {selectedFiles.map(file => <li key={file.name} className="truncate">{file.name} ({ (file.size / 1024 / 1024).toFixed(2) } MB)</li>)}
+                  </ul>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">Attach images or short videos of the problem area. This helps Fundis understand the job better.</p>
             </div>
 
             <div>
