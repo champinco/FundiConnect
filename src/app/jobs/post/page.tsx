@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, Briefcase, Send, Loader2, Paperclip } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { useToast } from "@/hooks/use-toast";
-import { postJobAction, postJobFormSchema, type PostJobFormValues } from './actions';
+import { postJobAction } from './actions';
+import { postJobFormSchema, type PostJobFormValues } from './schemas'; // Updated import
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -87,7 +88,7 @@ export default function PostJobPage() {
     if (selectedFiles.length > 0) {
       try {
         const uploadPromises = selectedFiles.map(file => 
-          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments/${Date.now()}`)
+          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments`) // Removed Date.now() from here, storageService handles unique names
         );
         uploadedPhotoUrls = await Promise.all(uploadPromises);
       } catch (uploadError: any) {
