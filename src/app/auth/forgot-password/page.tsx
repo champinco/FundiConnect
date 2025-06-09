@@ -45,7 +45,7 @@ export default function ForgotPasswordPage() {
         description: "Check your inbox (and spam folder) for a link to reset your password.",
       });
       setEmailSent(true); // Keep the form hidden after successful submission
-    } catch (error: any)
+    } catch (error: any) { // Ensure the opening brace is here
       console.error("Error sending password reset email:", error);
       let errorMessage = "Failed to send password reset email. Please try again.";
       if (error.code === 'auth/user-not-found') {
