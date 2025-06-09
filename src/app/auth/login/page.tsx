@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { signInWithEmailAndPassword, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import Link from 'next/link'; // Added for Link component
 
 const loginFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -119,7 +120,10 @@ export default function LoginPage() {
                 className="mt-1"
                 disabled={isLoading}
               />
-              {errors.password && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
+              <div className="flex justify-between items-center mt-1">
+                {errors.password ? <p className="text-sm text-destructive">{errors.password.message}</p> : <span />}
+                <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline hover:text-primary/80">Forgot password?</Link>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col">
@@ -129,7 +133,7 @@ export default function LoginPage() {
               ) : "Login"}
             </Button>
              <p className="text-xs text-muted-foreground mt-4 text-center">
-                Don&apos;t have an account? <a href="/auth/signup" className="text-primary hover:underline">Sign up here</a>.
+                Don&apos;t have an account? <a href="/auth/signup" className="text-primary hover:underline hover:text-primary/80">Sign up here</a>.
             </p>
           </CardFooter>
         </form>
