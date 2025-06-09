@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -10,20 +11,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Sparkles, Lightbulb } from 'lucide-react';
+import { Loader2, Sparkles, Lightbulb, Info } from 'lucide-react';
 import type { SmartMatchSuggestionsInput, SmartMatchSuggestionsOutput } from '@/ai/flows/smart-match-suggestions';
 import { getSmartMatchSuggestionsAction } from './actions';
-import ProviderCard from '@/components/provider-card'; // Assuming ProviderCard can display a simplified version or we adapt it.
-
-// Mock available providers data
-const mockAvailableProviders: SmartMatchSuggestionsInput['availableProviders'] = [
-  { name: 'John Doe Electrics', profile: 'EPRA certified electrician with 10 years experience in residential and commercial wiring.', location: 'Nairobi CBD', experience: '10 years', certifications: ['EPRA C1'], rating: 4.8 },
-  { name: 'AquaFlow Plumbers', profile: 'NCA registered plumbing services for leaks, installations, and blockages.', location: 'Westlands, Nairobi', experience: '8 years', certifications: ['NCA Plumber Grade 1'], rating: 4.5 },
-  { name: 'CoolBreeze HVAC', profile: 'HVAC technician specializing in AC installation and repair for homes and offices.', location: 'Kilimani, Nairobi', experience: '5 years', certifications: ['NITA Grade 1 HVAC'], rating: 4.7 },
-  { name: 'Solaris Green Energy', profile: 'Experts in solar panel and water heater installations. EPRA licensed.', location: 'Thika Road', experience: '7 years', certifications: ['EPRA Solar T2'], rating: 4.9 },
-  { name: 'EverGreen Landscapes', profile: 'Professional landscaping and garden maintenance services.', location: 'Karen', experience: '12 years', certifications: ['Degree in Horticulture'], rating: 4.6 },
-];
-
+import ProviderCard from '@/components/provider-card'; 
+import type { Provider } from '@/components/provider-card';
 
 const smartMatchSchema = z.object({
   jobDescription: z.string().min(20, 'Please provide a detailed job description (min 20 characters).'),
@@ -32,6 +24,11 @@ const smartMatchSchema = z.object({
 });
 
 type SmartMatchFormValues = z.infer<typeof smartMatchSchema>;
+
+// This type is for the AI's output, mapping to what ProviderCard expects.
+// We'll need to fetch the full provider details from Firestore based on the name
+// if we want to display richer info than the AI returns.
+// For now, we adapt what the AI returns.
 
 export default function SmartMatchPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -47,16 +44,18 @@ export default function SmartMatchPage() {
     setSuggestions(null);
     setError(null);
 
-    const input: SmartMatchSuggestionsInput = {
-      ...data,
-      availableProviders: mockAvailableProviders, // Using mock data for available providers
+    // The 'availableProviders' field is now handled by the server action
+    const inputForAction = {
+      jobDescription: data.jobDescription,
+      location: data.location,
+      preferredCriteria: data.preferredCriteria,
     };
 
     try {
-      const result = await getSmartMatchSuggestionsAction(input);
+      const result = await getSmartMatchSuggestionsAction(inputForAction);
       setSuggestions(result);
-    } catch (e) {
-      setError('Failed to get suggestions. Please try again.');
+    } catch (e: any) {
+      setError(e.message || 'Failed to get suggestions. Please try again.');
       console.error(e);
     } finally {
       setIsLoading(false);
@@ -142,33 +141,37 @@ export default function SmartMatchPage() {
           <h2 className="text-2xl font-bold font-headline text-center mb-8">Recommended Fundis</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {suggestions.map((suggestion, index) => {
-              const providerDetail = mockAvailableProviders.find(p => p.name === suggestion.name);
-              if (!providerDetail) return null;
-
-              // Create a simplified Provider object for ProviderCard
-              const cardProvider = {
-                id: `suggestion-${index}`, // Create a unique ID
+              // The AI output (SmartMatchSuggestionsOutput) gives: { name: string, reason: string }
+              // We need to adapt this to what ProviderCard expects, or fetch more details.
+              // For now, we'll create a simplified Provider object for the card.
+              // In a full app, you'd likely use the 'name' to fetch the full provider profile
+              // from Firestore to get their ID, picture, actual rating, etc.
+              const cardProvider: Provider = {
+                id: `suggestion-${suggestion.name.replace(/\s+/g, '-')}-${index}`, // Create a unique-ish ID
                 name: suggestion.name,
-                profilePictureUrl: 'https://placehold.co/600x400.png', // Placeholder
-                rating: providerDetail.rating,
-                reviewsCount: 0, // Not in suggestion, default to 0 or fetch if available
-                location: providerDetail.location,
-                mainService: 'Other' as any, // Determine from profile or default
-                isVerified: providerDetail.certifications.length > 0,
-                verificationAuthority: providerDetail.certifications.length > 0 ? providerDetail.certifications[0].split(' ')[0] : undefined, // Basic assumption
-                bioSummary: suggestion.reason, // Use AI reason as bio summary for the card
+                profilePictureUrl: 'https://placehold.co/600x400.png', // Placeholder - AI doesn't return this
+                rating: 0, // Placeholder - AI doesn't return this in current format
+                reviewsCount: 0, // Placeholder
+                location: "N/A", // Placeholder - AI doesn't return this directly for the card
+                mainService: 'Other' as any, // Placeholder
+                isVerified: false, // Placeholder
+                bioSummary: suggestion.reason, // Use AI reason as bio summary
               };
 
-              return <ProviderCard key={index} provider={cardProvider} />;
+              return <ProviderCard key={cardProvider.id} provider={cardProvider} />;
             })}
           </div>
         </div>
       )}
 
       {suggestions && suggestions.length === 0 && !isLoading && (
-         <Alert className="mt-8 max-w-2xl mx-auto">
-          <AlertTitle>No Specific Suggestions</AlertTitle>
-          <AlertDescription>We couldn&apos;t find specific AI matches based on your criteria. Try broadening your search or <a href="/search" className="underline text-primary">browse all providers</a>.</AlertDescription>
+         <Alert className="mt-8 max-w-2xl mx-auto" variant="default">
+          <Info className="h-5 w-5" />
+          <AlertTitle>No Specific AI Suggestions</AlertTitle>
+          <AlertDescription>
+            We couldn&apos;t find specific AI matches based on your criteria with the current provider pool. 
+            Try broadening your search criteria or <a href="/search" className="underline text-primary hover:text-primary/80">browse all providers directly</a>.
+          </AlertDescription>
         </Alert>
       )}
     </div>
