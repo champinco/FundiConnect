@@ -2,9 +2,9 @@
 /**
  * @fileOverview Service functions for interacting with job data in Firestore.
  */
-import { collection, addDoc, getDoc, doc, query, where, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDoc, doc, query, where, getDocs, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Job } from '@/models/job';
+import type { Job, JobStatus } from '@/models/job';
 
 /**
  * Creates a new job document in Firestore.
@@ -18,7 +18,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       ...jobData,
       postedAt: now,
       updatedAt: now,
-      quotesReceived: 0,
+      quotesReceived: 0, // Initialize quotesReceived
       status: jobData.status || 'open', // Default status
     };
     const docRef = await addDoc(collection(db, 'jobs'), jobWithTimestamps);
@@ -65,7 +65,7 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
 export async function getJobsByClientIdFromFirestore(clientId: string): Promise<Job[]> {
   try {
     const jobsRef = collection(db, 'jobs');
-    const q = query(jobsRef, where('clientId', '==', clientId));
+    const q = query(jobsRef, where('clientId', '==', clientId), orderBy('postedAt', 'desc'));
     const querySnapshot = await getDocs(q);
     const jobs: Job[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -82,5 +82,32 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
   } catch (error) {
     console.error('Error fetching jobs by client ID:', error);
     throw new Error('Could not fetch jobs for client.');
+  }
+}
+
+/**
+ * Updates the status of a job and optionally assigns a provider.
+ * @param jobId The ID of the job to update.
+ * @param newStatus The new status for the job.
+ * @param assignedProviderId Optional. The UID of the provider if the job is being assigned.
+ */
+export async function updateJobStatus(jobId: string, newStatus: JobStatus, assignedProviderId?: string | null): Promise<void> {
+  const jobRef = doc(db, 'jobs', jobId);
+  const updateData: any = {
+    status: newStatus,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (newStatus === 'assigned' && assignedProviderId) {
+    updateData.assignedProviderId = assignedProviderId;
+  } else if (newStatus === 'open') { // If reopening, clear assigned provider
+    updateData.assignedProviderId = null;
+  }
+
+  try {
+    await updateDoc(jobRef, updateData);
+  } catch (error) {
+    console.error(`Error updating job ${jobId} to status ${newStatus}:`, error);
+    throw new Error(`Could not update job status.`);
   }
 }
