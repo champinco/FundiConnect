@@ -13,9 +13,10 @@ import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound } from 'lucide-react
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, type User as FirebaseUser } from 'firebase/auth';
 import { signupUserAction } from './actions';
 import { signupFormSchema, type SignupFormValues as SignupFormValuesType } from './schemas'; // Renamed to avoid conflict
+import type { z } from 'zod';
 
 // Define the Zod schema including confirmPassword for client-side validation
 const clientSignupFormSchema = signupFormSchema;
@@ -55,27 +56,34 @@ export default function SignupPage() {
       // Step 1: Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
-      toast({ title: "Auth Account Created!", description: "Now setting up your profile..." });
+      
+      // Step 1.5: Send verification email
+      await sendEmailVerification(firebaseUser);
+      toast({ 
+        title: "Verification Email Sent!", 
+        description: "Your account is almost ready. Please check your email to verify your address." 
+      });
 
       // Prepare data for server action (excluding passwords)
       const profileData: SignupFormValuesType = {
         fullName: data.fullName,
         email: data.email,
         accountType: data.accountType,
-        // phoneNumber is not collected in this form
       };
 
       // Step 2: Call the server action to create Firestore profiles
       const signupResult = await signupUserAction(profileData, firebaseUser.uid);
 
       if (signupResult.success) {
-        toast({ title: "Account Created!", description: "Welcome to FundiConnect!" });
-        router.push('/'); // Redirect to home or dashboard
+        toast({ 
+          title: "Profile Setup Complete!", 
+          description: "Remember to verify your email. You will be redirected shortly." 
+        });
+        // router.push('/'); // Redirect to home or dashboard after a short delay or explicitly on verified email
+        // For now, we'll let them log in, but ideally, we'd encourage verification.
       } else {
         toast({ title: "Profile Creation Failed", description: signupResult.message, variant: "destructive" });
         // Consider what to do if Firestore profile creation fails. User auth account exists.
-        // Potentially, try to delete the auth user or guide them through a recovery.
-        // For now, just show error.
       }
     } catch (error: any) {
       console.error("Error during signup:", error);
@@ -141,7 +149,7 @@ export default function SignupPage() {
                 onValueChange={(value) => control._formValues.accountType = value as "client" | "provider"}
                 defaultValue={control._formValues.accountType}
                 className="flex space-x-4 mt-1"
-                {...register("accountType")} // Ensure radio group is registered with RHF
+                {...register("accountType")} 
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="client" id="client" disabled={isLoading} />
@@ -161,9 +169,14 @@ export default function SignupPage() {
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
               ) : "Create Account"}
             </Button>
+             <p className="text-xs text-muted-foreground mt-4 text-center">
+                Already have an account? <a href="/auth/login" className="text-primary hover:underline hover:text-primary/80">Login here</a>.
+            </p>
           </CardFooter>
         </form>
       </Card>
     </div>
   );
 }
+
+    
