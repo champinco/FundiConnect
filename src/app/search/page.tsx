@@ -7,70 +7,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Filter, Star, MapPin, Search as SearchIcon } from 'lucide-react';
 import type { ServiceCategory } from '@/components/service-category-icon';
-
-// Mock data - replace with actual data fetching
-const mockProviders: Provider[] = [
-  {
-    id: '1',
-    name: 'Alpha Electrics Ltd.',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.8,
-    reviewsCount: 120,
-    location: 'Nairobi CBD',
-    mainService: 'Electrical',
-    isVerified: true,
-    verificationAuthority: 'EPRA',
-    bioSummary: 'Top-rated electricians for all your needs. Fully certified and insured. Available 24/7 for emergencies.',
-  },
-  {
-    id: '2',
-    name: 'AquaFlow Plumbers',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.5,
-    reviewsCount: 85,
-    location: 'Westlands, Nairobi',
-    mainService: 'Plumbing',
-    isVerified: true,
-    verificationAuthority: 'NCA',
-    bioSummary: 'Experienced plumbers for residential and commercial properties. We fix leaks, install pipes, and more.',
-  },
-  {
-    id: '3',
-    name: 'Appliance Wizards KE',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.7,
-    reviewsCount: 92,
-    location: 'Kilimani, Nairobi',
-    mainService: 'Appliance Repair',
-    isVerified: true,
-    verificationAuthority: 'NITA',
-    bioSummary: 'Expert repair for fridges, washing machines, ovens, and more. Quick and reliable service.',
-  },
-  {
-    id: '4',
-    name: 'EcoClean Waste Management',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.3,
-    reviewsCount: 60,
-    location: 'Industrial Area, Nairobi',
-    mainService: 'Garbage Collection',
-    isVerified: true,
-    verificationAuthority: 'NEMA',
-    bioSummary: 'Reliable and eco-friendly garbage collection services for homes and businesses.',
-  },
-   {
-    id: '5',
-    name: 'Solaris Green Energy',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.9,
-    reviewsCount: 150,
-    location: 'Thika Road, Nairobi',
-    mainService: 'Solar Installation',
-    isVerified: true,
-    verificationAuthority: 'EPRA',
-    bioSummary: 'Go green with our expert solar panel installation services. Save on energy bills and help the environment.',
-  },
-];
+import { collection, getDocs, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { ProviderProfile } from '@/models/provider';
 
 // Tier 1 services + Other for search filters
 const tier1ServiceCategories: ServiceCategory[] = [
@@ -78,26 +17,60 @@ const tier1ServiceCategories: ServiceCategory[] = [
   'Electrical',
   'Appliance Repair',
   'Garbage Collection',
+  'HVAC',
+  'Solar Installation',
+  'Painting & Decorating',
+  'Carpentry & Furniture',
+  'Landscaping',
+  'Tiling & Masonry',
+  'Pest Control',
+  'Locksmith',
   'Other'
 ];
 
+async function getAllProviders(): Promise<Provider[]> {
+  try {
+    const providersRef = collection(db, 'providerProfiles');
+    const querySnapshot = await getDocs(providersRef);
+    const providers: Provider[] = [];
+    querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
+      // Make sure to cast to ProviderProfile or a compatible type that getDocs returns data as.
+      // For stricter typing, you might need to define a converter for your Firestore collections.
+      const data = doc.data() as ProviderProfile; 
+      providers.push({
+        id: doc.id,
+        name: data.businessName,
+        profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/600x400.png',
+        rating: data.rating,
+        reviewsCount: data.reviewsCount,
+        location: data.location,
+        mainService: data.mainService,
+        isVerified: data.isVerified,
+        verificationAuthority: data.verificationAuthority,
+        bioSummary: data.bio ? (data.bio.substring(0, 150) + (data.bio.length > 150 ? '...' : '')) : 'No bio available.',
+      });
+    });
+    return providers;
+  } catch (error) {
+    console.error("Error fetching all providers:", error);
+    return []; // Return empty array on error
+  }
+}
 
-export default function SearchPage({ searchParams }: { searchParams?: { category?: string; location?: string; query?: string } }) {
+
+export default async function SearchPage({ searchParams }: { searchParams?: { category?: string; location?: string; query?: string } }) {
   const categoryParam = searchParams?.category;
   const locationParam = searchParams?.location;
   const queryParam = searchParams?.query;
 
-  // In a real app, you'd fetch providers based on searchParams
-  const filteredProviders = mockProviders.filter(provider => {
-    let matches = true;
-    if (categoryParam && provider.mainService !== categoryParam && categoryParam !== 'Other') {
-      matches = false;
-    }
-    // Add more filtering logic for location and query if needed
-    // Example: if (locationParam && !provider.location.toLowerCase().includes(locationParam.toLowerCase())) matches = false;
-    // Example: if (queryParam && !provider.name.toLowerCase().includes(queryParam.toLowerCase()) && !provider.mainService.toLowerCase().includes(queryParam.toLowerCase()) ) matches = false;
-    return matches;
-  });
+  // Fetch all providers initially. Filtering logic will be enhanced later.
+  const allProviders = await getAllProviders();
+
+  // Simple client-side filtering for initial display based on category (if present in URL)
+  // More advanced filtering will be server-side or via a server action.
+  const filteredProviders = categoryParam && categoryParam !== 'Other'
+    ? allProviders.filter(provider => provider.mainService === categoryParam)
+    : allProviders;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -184,11 +157,11 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
           ) : (
             <div className="text-center py-12">
               <h3 className="text-2xl font-semibold mb-4">No Providers Found</h3>
-              <p className="text-muted-foreground">Try adjusting your search criteria or filters.</p>
+              <p className="text-muted-foreground">Try adjusting your search criteria or filters, or check back later as we grow our network!</p>
             </div>
           )}
           {/* Pagination (conceptual) */}
-          {filteredProviders.length > 0 && (
+          {filteredProviders.length > 10 && ( // Show pagination if more than 10 results
             <div className="mt-12 flex justify-center">
               <Button variant="outline" className="mr-2">Previous</Button>
               <Button variant="outline">Next</Button>
@@ -199,5 +172,3 @@ export default function SearchPage({ searchParams }: { searchParams?: { category
     </div>
   );
 }
-
-    

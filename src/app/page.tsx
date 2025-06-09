@@ -1,9 +1,13 @@
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, MapPin } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
+import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { ProviderProfile } from '@/models/provider';
 
 // Tier 1 services for homepage browsing
 const serviceCategories: ServiceCategory[] = [
@@ -13,46 +17,42 @@ const serviceCategories: ServiceCategory[] = [
   'Garbage Collection',
 ];
 
-const featuredProviders: Provider[] = [
-  {
-    id: '1',
-    name: 'John Doe Electrics',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.8,
-    reviewsCount: 120,
-    location: 'Nairobi CBD',
-    mainService: 'Electrical',
-    isVerified: true,
-    verificationAuthority: 'EPRA',
-    bioSummary: 'Certified electrician with 10+ years of experience in residential and commercial projects. Your safety is my priority.',
-  },
-  {
-    id: '2',
-    name: 'Jane Aqua Plumbers',
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.5,
-    reviewsCount: 85,
-    location: 'Westlands, Nairobi',
-    mainService: 'Plumbing',
-    isVerified: true,
-    verificationAuthority: 'NCA',
-    bioSummary: 'Quick and reliable plumbing services. From leaky faucets to full installations, we handle it all with professionalism.',
-  },
-  {
-    id: '3',
-    name: 'FixIt Appliance Masters', // Updated provider to match 'Appliance Repair'
-    profilePictureUrl: 'https://placehold.co/600x400.png',
-    rating: 4.7,
-    reviewsCount: 75,
-    location: 'Kilimani, Nairobi',
-    mainService: 'Appliance Repair',
-    isVerified: true,
-    verificationAuthority: 'Technician Guild',
-    bioSummary: 'Expert repairs for all major home appliances. Fast, reliable, and affordable service.',
-  },
-];
+async function getFeaturedProviders(): Promise<Provider[]> {
+  try {
+    const providersRef = collection(db, 'providerProfiles');
+    const q = query(
+      providersRef,
+      where('isVerified', '==', true),
+      orderBy('rating', 'desc'),
+      limit(3)
+    );
+    const querySnapshot = await getDocs(q);
+    const providers: Provider[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data() as ProviderProfile;
+      providers.push({
+        id: doc.id,
+        name: data.businessName,
+        profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/600x400.png',
+        rating: data.rating,
+        reviewsCount: data.reviewsCount,
+        location: data.location,
+        mainService: data.mainService,
+        isVerified: data.isVerified,
+        verificationAuthority: data.verificationAuthority,
+        bioSummary: data.bio.substring(0, 150) + (data.bio.length > 150 ? '...' : ''), // Truncate bio for summary
+      });
+    });
+    return providers;
+  } catch (error) {
+    console.error("Error fetching featured providers:", error);
+    return []; // Return empty array on error
+  }
+}
 
-export default function HomePage() {
+export default async function HomePage() {
+  const featuredProviders = await getFeaturedProviders();
+
   return (
     <div className="flex flex-col ">
       {/* Hero Section */}
@@ -118,11 +118,15 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold font-headline text-center mb-10">
             Top Rated Providers
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {featuredProviders.map((provider) => (
-              <ProviderCard key={provider.id} provider={provider} />
-            ))}
-          </div>
+          {featuredProviders.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {featuredProviders.map((provider) => (
+                <ProviderCard key={provider.id} provider={provider} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground">Could not load featured providers at this time.</p>
+          )}
           <div className="text-center mt-12">
             <Button asChild size="lg" variant="outline" className="border-primary text-primary hover:bg-primary/10 hover:text-primary">
               <Link href="/search">View All Providers</Link>
