@@ -8,4 +8,9 @@ export interface Review {
   comment: string;
   reviewDate: Date;
   isEdited?: boolean;
-  edited
+  editedAt?: Date; // Add this field
+  clientDetails?: { // Optional: Denormalized client info for display
+    name: string | null;
+    photoURL?: string | null;
+  };
+}

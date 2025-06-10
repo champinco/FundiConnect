@@ -36,13 +36,14 @@ export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClie
       return;
     }
     if (currentJobStatus !== 'assigned' && currentJobStatus !== 'in_progress') {
-      toast({ title: "Invalid Action", description: `Job cannot be marked as completed from status: ${currentJobStatus}.`, variant: "destructive" });
+      toast({ title: "Invalid Action", description: `Job cannot be marked as completed from status: ${currentJobStatus.replace('_',' ')}.`, variant: "destructive" });
       return;
     }
 
     setIsLoading(true);
     try {
-      const result = await markJobAsCompletedAction(jobId, jobClientId);
+      // Pass currentUser.uid as expectedClientId to the action for server-side verification
+      const result = await markJobAsCompletedAction(jobId, currentUser.uid);
       if (result.success) {
         toast({ title: "Job Status Updated", description: result.message });
         router.refresh(); // Refresh server components on the page to reflect new job status
@@ -64,7 +65,8 @@ export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClie
   }
 
   return (
-    <div className="mt-6">
+    <div className="mt-6 py-6 border-t">
+      <h3 className="text-lg font-semibold mb-3">Confirm Job Completion</h3>
       <Button
         onClick={handleMarkAsCompleted}
         disabled={isLoading}
@@ -77,7 +79,8 @@ export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClie
         )}
       </Button>
       <p className="text-xs text-muted-foreground mt-2 text-center">
-        Marking this job as completed will indicate that the Fundi has finished the work to your satisfaction.
+        Marking this job as completed will indicate that the Fundi has finished the work to your satisfaction. 
+        You will then be able to leave a review.
       </p>
     </div>
   );

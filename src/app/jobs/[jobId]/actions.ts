@@ -99,6 +99,8 @@ interface SubmitReviewResult {
 }
 export async function submitReviewAction(data: ReviewData): Promise<SubmitReviewResult> {
   try {
+    // Note: Server-side validation of 'data' (e.g., using Zod) would be good practice here.
+    // For MVP, assuming client-side validation is sufficient.
     const reviewId = await submitReview(data);
     return { success: true, message: "Review submitted successfully!", reviewId };
   } catch (error: any) {
@@ -113,21 +115,21 @@ interface MarkJobAsCompletedResult {
 }
 
 export async function markJobAsCompletedAction(jobId: string, expectedClientId: string): Promise<MarkJobAsCompletedResult> {
-  // In a more secure setup, we'd get current user's ID server-side.
+  // In a more secure setup, we'd get current user's ID server-side from a trusted source.
   // For now, client ensures only job owner calls this.
-  // Server-side, we can re-fetch job to double check client ID if needed before update.
+  // Server-side, we re-fetch job to double check client ID.
   try {
     const job = await getJobByIdFromFirestore(jobId);
     if (!job) {
       return { success: false, message: "Job not found." };
     }
     if (job.clientId !== expectedClientId) {
-        // This check relies on the client sending the correct expectedClientId.
-        // A server-side auth check against the caller's identity would be more robust.
+        // This check relies on the client sending the correct expectedClientId (which should be the current user's UID).
+        // A server-side auth check against the caller's actual identity would be more robust if not relying on Firebase Auth context directly here.
         return { success: false, message: "You are not authorized to mark this job as completed." };
     }
     if (job.status !== 'assigned' && job.status !== 'in_progress') {
-        return { success: false, message: `Job cannot be marked as completed. Current status: ${job.status}.` };
+        return { success: false, message: `Job cannot be marked as completed. Current status: ${job.status.replace('_', ' ')}.` };
     }
 
     await updateJobStatus(jobId, 'completed');
