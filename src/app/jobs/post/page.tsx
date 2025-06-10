@@ -14,10 +14,11 @@ import { Upload, Briefcase, Send, Loader2, Paperclip } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { useToast } from "@/hooks/use-toast";
 import { postJobAction } from './actions';
-import { postJobFormSchema, type PostJobFormValues } from './schemas'; // Updated import
+import { postJobFormSchema, type PostJobFormValues } from './schemas'; 
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, analytics } from '@/lib/firebase'; // Added analytics
+import { logEvent } from 'firebase/analytics'; // Added logEvent
 import { uploadFileToStorage } from '@/services/storageService';
 
 
@@ -65,7 +66,6 @@ export default function PostJobPage() {
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      // Limit number of files (e.g., 5)
       const filesArray = Array.from(event.target.files).slice(0, 5);
       setSelectedFiles(filesArray);
     }
@@ -88,7 +88,7 @@ export default function PostJobPage() {
     if (selectedFiles.length > 0) {
       try {
         const uploadPromises = selectedFiles.map(file => 
-          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments`) // Removed Date.now() from here, storageService handles unique names
+          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments`) 
         );
         uploadedPhotoUrls = await Promise.all(uploadPromises);
       } catch (uploadError: any) {
@@ -109,8 +109,16 @@ export default function PostJobPage() {
           title: "Job Posted!",
           description: "Your job has been successfully posted.",
         });
-        reset(); // Reset form fields
-        setSelectedFiles([]); // Clear selected files
+        if (analytics) {
+          logEvent(analytics, 'post_job', { // Custom event name
+            job_id: result.jobId,
+            category: data.serviceCategory,
+            location: data.location,
+            user_id: currentUser.uid
+          });
+        }
+        reset(); 
+        setSelectedFiles([]); 
         router.push(`/jobs/${result.jobId}`); 
       } else {
         toast({
@@ -261,3 +269,5 @@ export default function PostJobPage() {
     </div>
   );
 }
+
+    

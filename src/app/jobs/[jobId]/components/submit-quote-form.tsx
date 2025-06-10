@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, DollarSign } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { submitQuoteAction } from '../actions'; // Server action
+import { submitQuoteAction } from '../actions'; 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { getUserProfileFromFirestore } from '@/services/userService'; // To check account type
+import { auth, analytics } from '@/lib/firebase'; // Added analytics
+import { logEvent } from 'firebase/analytics'; // Added logEvent
+import { getUserProfileFromFirestore } from '@/services/userService'; 
 
 const quoteFormSchema = z.object({
   amount: z.preprocess(
@@ -75,7 +76,7 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
         ...data,
         jobId,
         providerId: currentUser.uid,
-        clientId, // Pass clientId to the action
+        clientId, 
       });
 
       if (result.success && result.quoteId) {
@@ -83,8 +84,16 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
           title: "Quote Submitted!",
           description: "Your quote has been sent to the client.",
         });
+        if (analytics) {
+          logEvent(analytics, 'submit_quote', { // Custom event name
+            job_id: jobId,
+            quote_id: result.quoteId,
+            provider_id: currentUser.uid,
+            client_id: clientId,
+            quote_amount: data.amount
+          });
+        }
         reset();
-        // Optionally, refresh job data or navigate
       } else {
         toast({
           title: "Failed to Submit Quote",
@@ -103,7 +112,7 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
     }
   };
 
-  if (isProviderAccount === null) { // Still loading auth/profile info
+  if (isProviderAccount === null) { 
     return (
       <Card className="mt-6 bg-card/50">
         <CardHeader>
@@ -118,8 +127,6 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
   }
 
   if (!currentUser || !isProviderAccount) {
-    // Don't show the form if not a logged-in provider
-    // The parent page might have already hidden this section, but this is an extra check.
     return null; 
   }
 
@@ -153,7 +160,7 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
                 {...register("currency")}
                 defaultValue="KES"
                 className="mt-1"
-                disabled // Keep KES for now for simplicity in MVP
+                disabled 
               />
               {errors.currency && <p className="text-sm text-destructive mt-1">{errors.currency.message}</p>}
             </div>
@@ -182,3 +189,5 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
     </Card>
   );
 }
+
+    

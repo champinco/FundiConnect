@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label";
 import { LogIn, Mail, KeyRound, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useSearchParams } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import { auth, analytics } from '@/lib/firebase'; // Added analytics
 import { signInWithEmailAndPassword, onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import Link from 'next/link'; // Added for Link component
+import { logEvent } from 'firebase/analytics'; // Added logEvent
+import Link from 'next/link'; 
 
 const loginFormSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -54,6 +55,9 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       toast({ title: "Login Successful!", description: "You are now logged in." });
+      if (analytics) {
+        logEvent(analytics, 'login', { method: 'email' }); // Standard Firebase event
+      }
       const redirectUrl = searchParams.get('redirect') || '/';
       router.push(redirectUrl);
     } catch (error: any) {
@@ -141,3 +145,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    

@@ -13,21 +13,20 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
-import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas'; // For dropdown
+import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas'; 
 
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import { auth, analytics } from '@/lib/firebase'; // Added analytics
 import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, type User as FirebaseUser } from 'firebase/auth';
+import { logEvent } from 'firebase/analytics'; // Added logEvent
 import { signupUserAction } from './actions';
 import { signupFormSchema, type SignupFormValues as ServerSignupFormValues } from './schemas'; 
 import type { z } from 'zod';
-import { uploadFileToStorage } from '@/services/storageService'; // For file uploads
+import { uploadFileToStorage } from '@/services/storageService'; 
 
-// Client-side Zod schema matches server-side for consistent validation messages
 type ClientSignupFormValues = z.infer<typeof signupFormSchema>;
 
-// Service categories for the dropdown
 const providerServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
 
 
@@ -59,7 +58,7 @@ export default function SignupPage() {
       confirmPassword: "",
       accountType: "client",
       businessName: "",
-      mainService: undefined, // Default for select
+      mainService: undefined, 
       providerLocation: "",
       contactPhoneNumber: "",
       yearsOfExperience: 0,
@@ -72,7 +71,6 @@ export default function SignupPage() {
   const handleProfilePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      // Limit file size (e.g., 2MB)
       if (file.size > 2 * 1024 * 1024) {
         toast({ title: "File too large", description: "Profile picture should be less than 2MB.", variant: "destructive" });
         return;
@@ -90,26 +88,15 @@ export default function SignupPage() {
     let profilePictureUrl: string | null = null;
 
     try {
-      // Step 0: Upload profile picture if it's a provider and file is selected
-      if (data.accountType === 'provider' && profilePictureFile && auth.currentUser?.uid) { // Check auth.currentUser.uid before it's set by createUser
-         // This part is tricky because firebaseUser.uid isn't available *before* createUserWithEmailAndPassword
-         // We will upload after user creation, then update the profile or pass URL to action if possible.
-         // For now, let's assume we get the UID first.
-      }
-
-
-      // Step 1: Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
       
-      // Step 1.5: Send verification email
       await sendEmailVerification(firebaseUser);
       toast({ 
         title: "Verification Email Sent!", 
         description: "Your account is almost ready. Please check your email to verify your address." 
       });
 
-      // Step 1.7: Upload profile picture now that we have firebaseUser.uid
       if (data.accountType === 'provider' && profilePictureFile) {
         try {
           profilePictureUrl = await uploadFileToStorage(profilePictureFile, `providerProfiles/${firebaseUser.uid}/profilePictures`);
@@ -119,21 +106,17 @@ export default function SignupPage() {
             description: uploadError.message || "Could not upload profile picture. You can add it later.",
             variant: "destructive",
           });
-          // Continue signup without profile picture if upload fails
         }
       }
       
-      // Prepare data for server action
       const serverActionData: ServerSignupFormValues = {
         ...data,
         profilePictureUrl: profilePictureUrl,
       };
-      if (data.yearsOfExperience === undefined) { // Ensure yearsOfExperience is a number or explicitly undefined for the action if not provided
-        serverActionData.yearsOfExperience = 0; // Or handle as per your model's expectation
+      if (data.yearsOfExperience === undefined) { 
+        serverActionData.yearsOfExperience = 0; 
       }
 
-
-      // Step 2: Call the server action to create Firestore profiles
       const signupResult = await signupUserAction(serverActionData, firebaseUser.uid);
 
       if (signupResult.success) {
@@ -141,7 +124,13 @@ export default function SignupPage() {
           title: "Signup Successful!", 
           description: "Your profile setup is complete. Remember to verify your email. Redirecting to login..." 
         });
-        reset(); // Reset form
+        if (analytics) {
+          logEvent(analytics, 'sign_up', { 
+            method: 'email', // Standard Firebase event parameter
+            account_type: data.accountType 
+          });
+        }
+        reset(); 
         setProfilePictureFile(null);
         setProfilePicturePreview(null);
         router.push('/auth/login'); 
@@ -186,7 +175,6 @@ export default function SignupPage() {
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
-            {/* Common Fields */}
             <div>
               <Label htmlFor="fullName" className="font-semibold flex items-center"><User className="mr-2 h-4 w-4" /> Full Name</Label>
               <Input id="fullName" {...register("fullName")} placeholder="e.g., Juma Otieno" className="mt-1" disabled={isLoading} />
@@ -233,7 +221,6 @@ export default function SignupPage() {
               {errors.accountType && <p className="text-sm text-destructive mt-1">{errors.accountType.message}</p>}
             </div>
 
-            {/* Provider Specific Fields - Conditional Rendering */}
             {accountType === 'provider' && (
               <>
                 <div className="pt-4 border-t mt-6">
@@ -317,3 +304,5 @@ export default function SignupPage() {
     </div>
   );
 }
+
+    
