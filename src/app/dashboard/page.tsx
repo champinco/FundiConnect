@@ -34,12 +34,12 @@ export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setCurrentUser(user);
       if (user) {
+        setCurrentUser(user); // Set Firebase user immediately
         try {
           const userProfile = await getUserProfileFromFirestore(user.uid);
           setAppUser(userProfile);
@@ -57,13 +57,16 @@ export default function DashboardPage() {
           }
         } catch (error) {
           console.error("Error fetching dashboard data:", error);
-          // Handle error appropriately, maybe set an error state
+          // Potentially set an error state to show a message to the user
+        } finally {
+          setIsLoading(false); // Set loading to false after all async ops for a logged-in user
         }
       } else {
+        setCurrentUser(null);
         setAppUser(null);
         setDashboardData(null);
+        setIsLoading(false); // Set loading to false if no user
       }
-      setIsLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -78,6 +81,7 @@ export default function DashboardPage() {
   }
 
   if (!currentUser || !appUser) {
+    // This condition should now be more reliable
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
@@ -97,62 +101,75 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 md:py-12">
       <Card className="mb-8 shadow-lg bg-card">
-        <CardHeader className="flex flex-row items-center space-x-4 pb-4">
-          <Avatar className="h-16 w-16 border-2 border-primary">
+        <CardHeader className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-6 p-6">
+          <Avatar className="h-20 w-20 border-2 border-primary">
             <AvatarImage src={appUser.photoURL || undefined} alt={appUser.fullName || appUser.email} data-ai-hint="user avatar"/>
-            <AvatarFallback>{appUser.fullName ? appUser.fullName.substring(0, 1).toUpperCase() : appUser.email.substring(0,1).toUpperCase()}</AvatarFallback>
+            <AvatarFallback className="text-2xl">{appUser.fullName ? appUser.fullName.substring(0, 1).toUpperCase() : appUser.email.substring(0,1).toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
-            <CardTitle className="text-3xl font-headline">Welcome back, {appUser.fullName || appUser.email}!</CardTitle>
-            <CardDescription className="text-md">Here's your FundiConnect overview.</CardDescription>
+            <CardTitle className="text-3xl lg:text-4xl font-headline">Welcome back, {appUser.fullName || appUser.email}!</CardTitle>
+            <CardDescription className="text-md lg:text-lg mt-1">Here's your FundiConnect overview.</CardDescription>
           </div>
         </CardHeader>
       </Card>
 
       {appUser.accountType === 'client' && dashboardData && 'jobSummary' in dashboardData && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center text-xl"><ListChecks className="mr-2 h-6 w-6 text-primary" />Job Summary</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center text-xl"><ListChecks className="mr-3 h-7 w-7 text-primary" />Job Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <p>Open Jobs: <span className="font-semibold">{dashboardData.jobSummary.open}</span></p>
-              <p>Assigned/In Progress: <span className="font-semibold">{dashboardData.jobSummary.assigned + dashboardData.jobSummary.inProgress}</span></p>
-              <p>Completed Jobs: <span className="font-semibold">{dashboardData.jobSummary.completed}</span></p>
-              <p>Total Jobs Posted: <span className="font-semibold">{dashboardData.jobSummary.total}</span></p>
+            <CardContent className="space-y-3 text-base">
+              <p>Open Jobs: <span className="font-semibold text-lg">{dashboardData.jobSummary.open}</span></p>
+              <p>Assigned/In Progress: <span className="font-semibold text-lg">{dashboardData.jobSummary.assigned + dashboardData.jobSummary.inProgress}</span></p>
+              <p>Completed Jobs: <span className="font-semibold text-lg">{dashboardData.jobSummary.completed}</span></p>
+              <p>Total Jobs Posted: <span className="font-semibold text-lg">{dashboardData.jobSummary.total}</span></p>
             </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row gap-2">
-              <Button asChild className="w-full sm:w-auto bg-accent hover:bg-accent/90">
+            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
+              <Button asChild className="w-full sm:flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Link href="/jobs/post"><PlusCircle className="mr-2" /> Post New Job</Link>
               </Button>
-              <Button asChild variant="outline" className="w-full sm:w-auto">
+              <Button asChild variant="outline" className="w-full sm:flex-1">
                 <Link href="/search?myJobs=true"><Briefcase className="mr-2" /> View My Jobs</Link>
               </Button>
             </CardFooter>
           </Card>
-          {/* Add more client-specific cards here */}
+          {/* Placeholder for another client card if needed */}
+           <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1 bg-primary/5 dark:bg-primary/10">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center text-xl"><Search className="mr-3 h-7 w-7 text-primary" />Find a Fundi</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-base text-foreground/80 mb-4">Ready to start your next project? Search for qualified Fundis now.</p>
+            </CardContent>
+            <CardFooter className="pt-4">
+                <Button asChild className="w-full bg-primary hover:bg-primary/90">
+                    <Link href="/search">Browse Fundis</Link>
+                </Button>
+            </CardFooter>
+          </Card>
         </div>
       )}
 
       {appUser.accountType === 'provider' && dashboardData && 'providerProfile' in dashboardData && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center text-xl"><Star className="mr-2 h-6 w-6 text-yellow-400 fill-yellow-400" />Your Rating</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center text-xl"><Star className="mr-3 h-7 w-7 text-yellow-400 fill-yellow-400" />Your Rating</CardTitle>
             </CardHeader>
             <CardContent>
               {dashboardData.providerProfile ? (
                 <>
-                  <p className="text-3xl font-bold">{dashboardData.providerProfile.rating.toFixed(1)} <span className="text-lg font-normal text-muted-foreground">/ 5.0</span></p>
-                  <p className="text-sm text-muted-foreground">Based on {dashboardData.providerProfile.reviewsCount} reviews</p>
+                  <p className="text-4xl font-bold">{dashboardData.providerProfile.rating.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">/ 5.0</span></p>
+                  <p className="text-sm text-muted-foreground mt-1">Based on {dashboardData.providerProfile.reviewsCount} reviews</p>
                 </>
               ) : (
                 <p className="text-muted-foreground">Profile data not available.</p>
               )}
             </CardContent>
-             <CardFooter>
+             <CardFooter className="pt-4">
                <Button asChild variant="outline" className="w-full">
                  <Link href={`/providers/${appUser.uid}`}><LayoutDashboard className="mr-2" />View My Public Profile</Link>
                </Button>
@@ -160,45 +177,45 @@ export default function DashboardPage() {
           </Card>
 
           <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center text-xl"><FileText className="mr-2 h-6 w-6 text-primary" />Quote Summary</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center text-xl"><FileText className="mr-3 h-7 w-7 text-primary" />Quote Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <p>Pending Quotes Submitted: <span className="font-semibold">{dashboardData.quoteSummary.pending}</span></p>
-              <p>Accepted Quotes (Jobs Won): <span className="font-semibold">{dashboardData.quoteSummary.accepted}</span></p>
-              <p>Total Quotes Submitted: <span className="font-semibold">{dashboardData.quoteSummary.total}</span></p>
+            <CardContent className="space-y-3 text-base">
+              <p>Pending Quotes: <span className="font-semibold text-lg">{dashboardData.quoteSummary.pending}</span></p>
+              <p>Accepted Quotes: <span className="font-semibold text-lg">{dashboardData.quoteSummary.accepted}</span></p>
+              <p>Total Submitted: <span className="font-semibold text-lg">{dashboardData.quoteSummary.total}</span></p>
             </CardContent>
-             <CardFooter className="flex flex-col sm:flex-row gap-2">
-                <Button asChild className="w-full sm:w-auto bg-primary hover:bg-primary/90">
+             <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
+                <Button asChild className="w-full sm:flex-1 bg-primary hover:bg-primary/90">
                   <Link href="/search"><Search className="mr-2" /> Browse Open Jobs</Link>
                 </Button>
-                 <Button asChild variant="outline" className="w-full sm:w-auto">
+                 <Button asChild variant="outline" className="w-full sm:flex-1">
                   <Link href="/profile/edit"><Edit className="mr-2" /> Edit Profile</Link>
                 </Button>
             </CardFooter>
           </Card>
 
           <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="flex items-center text-xl"><Briefcase className="mr-2 h-6 w-6 text-primary" />Active Jobs</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs</CardTitle>
               <CardDescription>Jobs currently assigned to you or in progress.</CardDescription>
             </CardHeader>
             <CardContent>
               {dashboardData.assignedJobs.length > 0 ? (
-                <ul className="space-y-3">
+                <ul className="space-y-4">
                   {dashboardData.assignedJobs.map(job => (
-                    <li key={job.id} className="p-3 border rounded-md hover:bg-muted/50">
-                      <Link href={`/jobs/${job.id}`} className="block">
-                        <h4 className="font-semibold truncate">{job.title}</h4>
-                        <p className="text-sm text-muted-foreground">Status: <span className="capitalize">{job.status.replace('_', ' ')}</span></p>
+                    <li key={job.id} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <Link href={`/jobs/${job.id}`} className="block group">
+                        <h4 className="font-semibold truncate group-hover:text-primary">{job.title}</h4>
+                        <p className="text-sm text-muted-foreground">Status: <span className="capitalize font-medium">{job.status.replace('_', ' ')}</span></p>
                         <p className="text-xs text-muted-foreground">Updated: {format(new Date(job.updatedAt), 'MMM d, yyyy')}</p>
                       </Link>
                     </li>
                   ))}
                 </ul>
               ) : (
-                 <div className="text-center py-4">
-                    <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                 <div className="text-center py-6">
+                    <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
                     <p className="text-muted-foreground">No active jobs assigned to you currently.</p>
                  </div>
               )}
