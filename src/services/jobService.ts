@@ -2,7 +2,7 @@
 /**
  * @fileOverview Service functions for interacting with job data in Firestore.
  */
-import { collection, addDoc, getDoc, doc, query, where, getDocs, serverTimestamp, Timestamp, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, getDoc, doc, query, where, getDocs, serverTimestamp, Timestamp, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Job, JobStatus } from '@/models/job';
 
@@ -20,6 +20,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       updatedAt: now,
       quotesReceived: 0, // Initialize quotesReceived
       status: jobData.status || 'open', // Default status
+      photosOrVideos: jobData.photosOrVideos || [], // Ensure it's an array
     };
     const docRef = await addDoc(collection(db, 'jobs'), jobWithTimestamps);
     return docRef.id;
@@ -109,5 +110,82 @@ export async function updateJobStatus(jobId: string, newStatus: JobStatus, assig
   } catch (error) {
     console.error(`Error updating job ${jobId} to status ${newStatus}:`, error);
     throw new Error(`Could not update job status.`);
+  }
+}
+
+export interface ClientJobSummary {
+  open: number;
+  assigned: number;
+  inProgress: number;
+  completed: number;
+  total: number;
+}
+
+/**
+ * Retrieves a summary of job counts for a specific client.
+ * @param clientId - The UID of the client.
+ * @returns A promise that resolves with a ClientJobSummary object.
+ */
+export async function getJobSummaryForClient(clientId: string): Promise<ClientJobSummary> {
+  const summary: ClientJobSummary = {
+    open: 0,
+    assigned: 0,
+    inProgress: 0,
+    completed: 0,
+    total: 0,
+  };
+  try {
+    const jobsRef = collection(db, 'jobs');
+    const q = query(jobsRef, where('clientId', '==', clientId));
+    const querySnapshot = await getDocs(q);
+
+    querySnapshot.forEach((docSnap) => {
+      const job = docSnap.data() as Job;
+      summary.total++;
+      if (job.status === 'open') summary.open++;
+      else if (job.status === 'assigned') summary.assigned++;
+      else if (job.status === 'in_progress') summary.inProgress++;
+      else if (job.status === 'completed') summary.completed++;
+    });
+    return summary;
+  } catch (error) {
+    console.error('Error fetching job summary for client:', error);
+    // Return default summary on error or throw
+    return summary;
+  }
+}
+
+/**
+ * Retrieves currently assigned jobs for a provider.
+ * @param providerId - The UID of the provider.
+ * @param limitCount - The maximum number of jobs to fetch.
+ * @returns A promise that resolves with an array of Job objects.
+ */
+export async function getAssignedJobsForProvider(providerId: string, limitCount: number = 3): Promise<Job[]> {
+  try {
+    const jobsRef = collection(db, 'jobs');
+    const q = query(
+      jobsRef,
+      where('assignedProviderId', '==', providerId),
+      where('status', 'in', ['assigned', 'in_progress']), // Active jobs
+      orderBy('updatedAt', 'desc'),
+      limit(limitCount)
+    );
+    const querySnapshot = await getDocs(q);
+    const jobs: Job[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const jobData = docSnap.data();
+      jobs.push({
+        ...jobData,
+        id: docSnap.id,
+        postedAt: (jobData.postedAt as Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
+        deadline: (jobData.deadline as Timestamp)?.toDate() || null,
+      } as Job);
+    });
+    return jobs;
+  } catch (error) {
+    console.error('Error fetching assigned jobs for provider:', error);
+    return [];
   }
 }

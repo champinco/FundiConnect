@@ -35,8 +35,12 @@ export default function LoginPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (user) {
-        const redirectUrl = searchParams.get('redirect') || '/';
-        router.push(redirectUrl);
+        const redirectUrl = searchParams.get('redirect');
+        if (redirectUrl) {
+            router.push(redirectUrl);
+        } else {
+            router.push('/dashboard'); // Default to dashboard if logged in
+        }
       }
     });
     return () => unsubscribe();
@@ -54,12 +58,16 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      toast({ title: "Login Successful!", description: "You are now logged in." });
+      toast({ title: "Login Successful!", description: "Redirecting to your dashboard..." });
       if (analytics) {
         logEvent(analytics, 'login', { method: 'email' }); // Standard Firebase event
       }
-      const redirectUrl = searchParams.get('redirect') || '/';
-      router.push(redirectUrl);
+      const redirectUrl = searchParams.get('redirect');
+      if (redirectUrl) {
+        router.push(redirectUrl);
+      } else {
+        router.push('/dashboard');
+      }
     } catch (error: any) {
       console.error("Error logging in:", error);
       let errorMessage = "Failed to login. Please check your credentials and try again.";
@@ -68,7 +76,7 @@ export default function LoginPage() {
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = "Too many login attempts. Please try again later.";
       } else if (error.code) {
-        errorMessage = error.message;
+        errorMessage = error.message.replace('Firebase: ', '').split(' (auth/')[0];
       }
       toast({ title: "Login Error", description: errorMessage, variant: "destructive" });
     } finally {
@@ -76,10 +84,13 @@ export default function LoginPage() {
     }
   };
 
-  if (currentUser) {
+  if (currentUser && !isLoading) { // Ensure loading is false before showing redirecting message
       return (
           <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
-              <p>You are already logged in. Redirecting...</p>
+            <Card className="p-6 text-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
+                <p className="text-muted-foreground">You are already logged in. Redirecting to dashboard...</p>
+            </Card>
           </div>
       );
   }
@@ -145,5 +156,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    

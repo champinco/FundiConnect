@@ -13,7 +13,8 @@ import {
   Timestamp,
   writeBatch,
   increment,
-  getDoc
+  getDoc,
+  orderBy
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Quote, QuoteStatus } from '@/models/quote';
@@ -177,3 +178,42 @@ export async function updateQuoteStatus(quoteId: string, newStatus: QuoteStatus)
 
 // In quoteService.ts, ensure updateDoc is imported
 import { updateDoc } from 'firebase/firestore';
+
+
+export interface ProviderQuoteSummary {
+  pending: number;
+  accepted: number;
+  rejected: number;
+  total: number;
+}
+
+/**
+ * Retrieves a summary of quote counts for a specific provider.
+ * @param providerId - The UID of the provider.
+ * @returns A promise that resolves with a ProviderQuoteSummary object.
+ */
+export async function getSubmittedQuotesSummaryForProvider(providerId: string): Promise<ProviderQuoteSummary> {
+  const summary: ProviderQuoteSummary = {
+    pending: 0,
+    accepted: 0,
+    rejected: 0,
+    total: 0,
+  };
+  try {
+    const quotesRef = collection(db, 'quotes');
+    const q = query(quotesRef, where('providerId', '==', providerId));
+    const querySnapshot = await getDocs(q);
+
+    querySnapshot.forEach((docSnap) => {
+      const quote = docSnap.data() as Quote;
+      summary.total++;
+      if (quote.status === 'pending') summary.pending++;
+      else if (quote.status === 'accepted') summary.accepted++;
+      else if (quote.status === 'rejected') summary.rejected++;
+    });
+    return summary;
+  } catch (error) {
+    console.error('Error fetching quote summary for provider:', error);
+    return summary; // Return default summary on error
+  }
+}
