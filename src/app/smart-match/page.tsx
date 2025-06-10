@@ -12,10 +12,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Sparkles, Lightbulb, Info } from 'lucide-react';
-import type { SmartMatchSuggestionsInput, SmartMatchSuggestionsOutput } from '@/ai/flows/smart-match-suggestions';
+import type { SmartMatchSuggestionsOutput } from '@/ai/flows/smart-match-suggestions';
 import { getSmartMatchSuggestionsAction } from './actions';
-import ProviderCard from '@/components/provider-card'; 
-import type { Provider } from '@/components/provider-card';
+import ProviderCard, { type Provider } from '@/components/provider-card';
+import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton'; // New Import
 
 const smartMatchSchema = z.object({
   jobDescription: z.string().min(20, 'Please provide a detailed job description (min 20 characters).'),
@@ -24,11 +24,6 @@ const smartMatchSchema = z.object({
 });
 
 type SmartMatchFormValues = z.infer<typeof smartMatchSchema>;
-
-// This type is for the AI's output, mapping to what ProviderCard expects.
-// We'll need to fetch the full provider details from Firestore based on the name
-// if we want to display richer info than the AI returns.
-// For now, we adapt what the AI returns.
 
 export default function SmartMatchPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +39,6 @@ export default function SmartMatchPage() {
     setSuggestions(null);
     setError(null);
 
-    // The 'availableProviders' field is now handled by the server action
     const inputForAction = {
       jobDescription: data.jobDescription,
       location: data.location,
@@ -136,35 +130,38 @@ export default function SmartMatchPage() {
         </Alert>
       )}
 
-      {suggestions && suggestions.length > 0 && (
+      {isLoading && !suggestions && !error && (
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold font-headline text-center mb-8 text-muted-foreground">Finding best matches...</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => <ProviderCardSkeleton key={i} />)}
+          </div>
+        </div>
+      )}
+
+      {!isLoading && suggestions && suggestions.length > 0 && (
         <div className="mt-12">
           <h2 className="text-2xl font-bold font-headline text-center mb-8">Recommended Fundis</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {suggestions.map((suggestion, index) => {
-              // The AI output (SmartMatchSuggestionsOutput) gives: { name: string, reason: string }
-              // We need to adapt this to what ProviderCard expects, or fetch more details.
-              // For now, we'll create a simplified Provider object for the card.
-              // In a full app, you'd likely use the 'name' to fetch the full provider profile
-              // from Firestore to get their ID, picture, actual rating, etc.
               const cardProvider: Provider = {
-                id: `suggestion-${suggestion.name.replace(/\s+/g, '-')}-${index}`, // Create a unique-ish ID
+                id: `suggestion-${suggestion.name.replace(/\s+/g, '-')}-${index}`, 
                 name: suggestion.name,
-                profilePictureUrl: 'https://placehold.co/600x400.png', // Placeholder - AI doesn't return this
-                rating: 0, // Placeholder - AI doesn't return this in current format
-                reviewsCount: 0, // Placeholder
-                location: "N/A", // Placeholder - AI doesn't return this directly for the card
-                mainService: 'Other' as any, // Placeholder
-                isVerified: false, // Placeholder
-                bioSummary: suggestion.reason, // Use AI reason as bio summary
+                profilePictureUrl: 'https://placehold.co/600x400.png', 
+                rating: 0, 
+                reviewsCount: 0, 
+                location: "N/A", 
+                mainService: 'Other' as any, 
+                isVerified: false, 
+                bioSummary: suggestion.reason, 
               };
-
               return <ProviderCard key={cardProvider.id} provider={cardProvider} />;
             })}
           </div>
         </div>
       )}
 
-      {suggestions && suggestions.length === 0 && !isLoading && (
+      {!isLoading && suggestions && suggestions.length === 0 && !error && (
          <Alert className="mt-8 max-w-2xl mx-auto" variant="default">
           <Info className="h-5 w-5" />
           <AlertTitle>No Specific AI Suggestions</AlertTitle>

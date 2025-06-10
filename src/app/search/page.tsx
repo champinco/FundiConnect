@@ -3,6 +3,7 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
 import ProviderCard, { type Provider } from '@/components/provider-card';
+import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton'; // New Import
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Filter, Star, MapPin, Search as SearchIcon, Loader2, Info } from 'lucide-react';
 import type { ServiceCategory } from '@/components/service-category-icon';
-import { searchProvidersAction, type SearchParams } from './actions'; // Updated import
+import { searchProvidersAction, type SearchParams } from './actions'; 
 import { useSearchParams } from 'next/navigation';
 
 const tier1ServiceCategories: (ServiceCategory | 'All')[] = [
@@ -32,12 +33,11 @@ export default function SearchPage() {
   
   const [results, setResults] = useState<Provider[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false); // To know if a search has been attempted
 
   const handleSearch = async (event?: FormEvent<HTMLFormElement>) => {
     if (event) event.preventDefault();
     setIsLoading(true);
-    setHasSearched(true);
     
     const params: SearchParams = {
       query: searchQuery,
@@ -49,6 +49,7 @@ export default function SearchPage() {
     
     const providers = await searchProvidersAction(params);
     setResults(providers);
+    setHasSearched(true); // Mark that a search has been made
     setIsLoading(false);
   };
 
@@ -58,7 +59,7 @@ export default function SearchPage() {
       handleSearch();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount if params exist
+  }, []); 
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -102,7 +103,7 @@ export default function SearchPage() {
       <div className="flex flex-col md:flex-row gap-8">
         {/* Filters Sidebar */}
         <aside className="w-full md:w-1/4 lg:w-1/5">
-          <div className="p-6 bg-card rounded-lg shadow space-y-6 sticky top-20"> {/* Added sticky top for filter */}
+          <div className="p-6 bg-card rounded-lg shadow space-y-6 sticky top-20">
             <h2 className="text-xl font-semibold flex items-center">
               <Filter className="mr-2 h-5 w-5 text-primary" /> Filters
             </h2>
@@ -164,9 +165,8 @@ export default function SearchPage() {
         {/* Provider Listings */}
         <main className="w-full md:w-3/4 lg:w-4/5">
           {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="ml-3 text-muted-foreground">Searching for providers...</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => <ProviderCardSkeleton key={i} />)}
             </div>
           ) : hasSearched && results.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -187,13 +187,6 @@ export default function SearchPage() {
               <p className="text-muted-foreground">Enter your search criteria above to find available service providers.</p>
             </div>
           ) : null}
-          {/* Basic Pagination Placeholder - Not functional yet */}
-          {/* {results.length > 10 && (
-            <div className="mt-12 flex justify-center">
-              <Button variant="outline" className="mr-2" disabled>Previous</Button>
-              <Button variant="outline" disabled>Next</Button>
-            </div>
-          )} */}
         </main>
       </div>
     </div>

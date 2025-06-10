@@ -1,57 +1,30 @@
 
-"use client"; // Required for hooks like useRouter, useState, useEffect
+"use client"; 
 
 import Image from 'next/image';
-import { useRouter } from 'next/navigation'; // For navigation
-import { useEffect, useState } from 'react'; // For state and effects
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation'; 
+import { useEffect, useState } from 'react'; 
+import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from '@/components/ui/separator';
-import { useToast } from "@/hooks/use-toast"; // For showing notifications
+import { useToast } from "@/hooks/use-toast"; 
+import { Skeleton } from '@/components/ui/skeleton'; // For basic skeleton usage if needed
+import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton'; // New Import
 
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'; // For auth state
-import { auth } from '@/lib/firebase'; // Firebase auth instance
-import { getOrCreateChat } from '@/services/chatService'; // Chat service
-import type { ProviderProfile } from '@/models/provider'; // Provider model
-import { getProviderProfileFromFirestore } from '@/services/providerService'; // Service to fetch provider
-
-
-// Mock data for fallback - replace with actual data fetching for a specific provider by ID
-const mockProviderFallback: ProviderProfile = {
-  id: '1',
-  userId: 'mockUserId',
-  name: 'John Doe Electrics',
-  businessName: 'John Doe Electrics',
-  profilePictureUrl: 'https://placehold.co/800x600.png',
-  bannerImageUrl: 'https://placehold.co/1200x400.png',
-  rating: 4.8,
-  reviewsCount: 120,
-  location: 'Nairobi CBD, Reliable Towers, 5th Floor',
-  mainService: 'Electrical' as ServiceCategory,
-  specialties: ['Residential Wiring', 'Commercial Installations', 'Appliance Repair', 'Fault Finding'],
-  yearsOfExperience: 10,
-  bio: "Highly skilled and certified electrician with over 10 years of dedicated experience...",
-  isVerified: true,
-  verificationAuthority: 'EPRA',
-  certifications: [
-    { name: 'EPRA License C1', number: 'EPRA/ELC/12345' },
-    { name: 'NCA Certified Technician', number: 'NCA/T/67890' },
-  ],
-  portfolio: [
-    { id: 'p1', imageUrl: 'https://placehold.co/600x400.png', description: 'Complete office lighting setup', dataAiHint: 'office lighting' },
-    { id: 'p2', imageUrl: 'https://placehold.co/600x400.png', description: 'Residential solar panel installation', dataAiHint: 'solar panels' },
-  ],
-  contactPhoneNumber: '+254 7XX XXX XXX',
-  operatingHours: "Mon-Fri 9am-5pm",
-  serviceAreas: ["Nairobi CBD", "Westlands"],
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
-
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'; 
+import { auth } from '@/lib/firebase'; 
+import { getOrCreateChat } from '@/services/chatService'; 
+import type { ProviderProfile } from '@/models/provider'; 
+import { getProviderProfileFromFirestore } from '@/services/providerService'; 
+import type { Review } from '@/models/review';
+import { getReviewsForProvider } from '@/services/reviewService';
+import Link from 'next/link'; // Added for review client name linking
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { formatDistanceToNowStrict } from 'date-fns';
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -59,6 +32,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   const providerId = params.id;
 
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -73,25 +47,25 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   useEffect(() => {
     if (providerId) {
       setIsLoading(true);
-      getProviderProfileFromFirestore(providerId)
-        .then((profile) => {
-          if (profile) {
-            setProvider(profile);
-          } else {
-            // Provider not found, use mock or show error
-            // setProvider(mockProviderFallback); // Or redirect / show not found
-            toast({ title: "Error", description: "Provider profile not found.", variant: "destructive" });
-            // router.push('/search'); // Optionally redirect
-          }
-        })
-        .catch(error => {
-          console.error("Error fetching provider profile:", error);
-          toast({ title: "Error", description: "Could not load provider profile.", variant: "destructive" });
-          // setProvider(mockProviderFallback); // Fallback
-        })
-        .finally(() => setIsLoading(false));
+      Promise.all([
+        getProviderProfileFromFirestore(providerId),
+        getReviewsForProvider(providerId)
+      ])
+      .then(([profile, fetchedReviews]) => {
+        if (profile) {
+          setProvider(profile);
+        } else {
+          toast({ title: "Error", description: "Provider profile not found.", variant: "destructive" });
+        }
+        setReviews(fetchedReviews);
+      })
+      .catch(error => {
+        console.error("Error fetching provider profile or reviews:", error);
+        toast({ title: "Error", description: "Could not load provider data.", variant: "destructive" });
+      })
+      .finally(() => setIsLoading(false));
     }
-  }, [providerId, toast, router]);
+  }, [providerId, toast]);
 
   const handleRequestQuote = async () => {
     if (!currentUser) {
@@ -103,7 +77,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
 
     setIsChatLoading(true);
     try {
-      const chatId = await getOrCreateChat(currentUser.uid, provider.userId); // provider.userId should be the Fundi's UID
+      const chatId = await getOrCreateChat(currentUser.uid, provider.userId); 
       router.push(`/messages/${chatId}`);
     } catch (error: any) {
       console.error("Error creating or getting chat:", error);
@@ -114,12 +88,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   };
   
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-lg">Loading provider profile...</p>
-      </div>
-    );
+    return <ProviderProfileSkeleton />;
   }
 
   if (!provider) {
@@ -134,7 +103,6 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
       </div>
     );
   }
-
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -178,7 +146,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                 <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="about">About</TabsTrigger>
                   <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews (Coming Soon)</TabsTrigger>
+                  <TabsTrigger value="reviews">Reviews ({reviews.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="about">
                   <Card>
@@ -238,29 +206,38 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                     </CardContent>
                   </Card>
                 </TabsContent>
-                <TabsContent value="reviews">
+                 <TabsContent value="reviews">
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-xl">Client Reviews</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {/* Mock or actual reviews would go here */}
-                       <p className="text-muted-foreground">Client reviews will be shown here once available.</p>
-                      {/* {mockProviderFallback.reviews.map(review => (
+                      {reviews.length > 0 ? reviews.map(review => (
                         <div key={review.id} className="border-b pb-4 last:border-b-0 last:pb-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-semibold">{review.clientName}</h4>
-                            <div className="flex items-center">
-                              {[...Array(5)].map((_, i) => (
-                                <Star key={i} className={`h-4 w-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground'}`} />
-                              ))}
+                          <div className="flex items-start space-x-3">
+                            <Avatar className="h-10 w-10">
+                                <AvatarImage src={review.clientDetails?.photoURL || undefined} alt={review.clientDetails?.name || "Client"} data-ai-hint="client avatar" />
+                                <AvatarFallback>{review.clientDetails?.name ? review.clientDetails.name.substring(0,1).toUpperCase() : "C"}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                    <h4 className="font-semibold text-sm">{review.clientDetails?.name || "Anonymous Client"}</h4>
+                                    <div className="flex items-center">
+                                    {[...Array(5)].map((_, i) => (
+                                        <Star key={i} className={`h-4 w-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/50'}`} />
+                                    ))}
+                                    </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground mb-1.5">
+                                    {formatDistanceToNowStrict(new Date(review.reviewDate), { addSuffix: true })}
+                                </p>
+                                <p className="text-sm text-foreground/90 whitespace-pre-line">{review.comment}</p>
                             </div>
                           </div>
-                          <p className="text-sm text-muted-foreground mb-1">{new Date(review.date).toLocaleDateString()}</p>
-                          <p className="text-foreground/90">{review.comment}</p>
                         </div>
-                      ))}
-                      {mockProviderFallback.reviews.length === 0 && <p>No reviews yet.</p>} */}
+                      )) : (
+                        <p className="text-muted-foreground">No reviews yet for this provider.</p>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -329,6 +306,3 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     </div>
   );
 }
-
-// Helper for Clock icon if not already imported
-import { Clock } from 'lucide-react';

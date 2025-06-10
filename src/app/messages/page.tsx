@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { MessageSquareText, Users, Loader2 } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
+import ChatListItemSkeleton from '@/components/skeletons/chat-list-item-skeleton'; // New Import
 
 const MessagesPage: NextPage = () => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
@@ -24,8 +25,6 @@ const MessagesPage: NextPage = () => {
       setCurrentUser(user);
       if (!user) {
         setIsLoading(false);
-        // Optionally redirect to login if auth was enabled
-        // router.push('/auth/login');
       }
     });
     return () => unsubscribeAuth();
@@ -40,8 +39,8 @@ const MessagesPage: NextPage = () => {
       });
       return () => unsubscribeChats();
     } else {
-      setChats([]); // Clear chats if no user
-      if (auth.currentUser === null) setIsLoading(false); // If initial check shows no user
+      setChats([]); 
+      if (auth.currentUser === null) setIsLoading(false); 
     }
   }, [currentUser]);
 
@@ -51,11 +50,11 @@ const MessagesPage: NextPage = () => {
     return otherUid ? chat.participants[otherUid] : null;
   };
 
-  if (isLoading) {
-    return (
+  if (isLoading && !currentUser) { // Initial auth check loading
+     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-lg">Loading chats...</p>
+        <p className="ml-4 text-lg">Verifying authentication...</p>
       </div>
     );
   }
@@ -77,7 +76,7 @@ const MessagesPage: NextPage = () => {
       </div>
     );
   }
-
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <Card className="max-w-3xl mx-auto shadow-xl">
@@ -89,7 +88,11 @@ const MessagesPage: NextPage = () => {
           <CardDescription>View and manage your ongoing chats with Fundis and clients.</CardDescription>
         </CardHeader>
         <CardContent>
-          {chats.length === 0 ? (
+          {isLoading && chats.length === 0 ? ( // Show skeletons while loading chats for an authenticated user
+            <ul className="space-y-3">
+              {[...Array(3)].map((_, i) => <ChatListItemSkeleton key={i} />)}
+            </ul>
+          ) : !isLoading && chats.length === 0 ? (
             <div className="text-center py-10">
               <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground text-lg">You have no active conversations.</p>
@@ -107,9 +110,7 @@ const MessagesPage: NextPage = () => {
                   ? formatDistanceToNowStrict(new Date(chat.lastMessage.timestamp), { addSuffix: true })
                   : '';
                 
-                // Basic unread indicator: if last message is not from current user
                 const isUnread = chat.lastMessage && chat.lastMessage.senderUid !== currentUser.uid;
-
 
                 return (
                   <li key={chat.id}>
