@@ -6,7 +6,7 @@ import type { Quote } from '@/models/quote';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, Edit, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react'; // Added FileText
+import { MapPin, CalendarDays, Briefcase, UserCircle, Edit, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { auth } from '@/lib/firebase';
 import { getUserProfileFromFirestore } from '@/services/userService'; 
 import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
+import MarkAsCompletedButton from './components/mark-as-completed-button'; // New import
 import { getReviewForJobByClient } from '@/services/reviewService';
 
 
@@ -24,15 +25,20 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
   const job = await getJobByIdFromFirestore(jobId);
   const quotes = await getQuotesForJob(jobId);
 
-  const firebaseUser = auth.currentUser; // This will be null in RSC, client components handle auth state
-  let userProfile = null;
+  // Note: auth.currentUser will be null in Server Components.
+  // Client components like AcceptRejectQuoteButtons or MarkAsCompletedButton
+  // will handle their own auth state using onAuthStateChanged.
+  // We fetch userProfile on server only if needed for server-side logic, not for client auth.
   let hasAlreadyReviewed = false;
-  if (firebaseUser) { // This check is mostly for client-side scenarios, not reliable in RSC for current user
-    userProfile = await getUserProfileFromFirestore(firebaseUser.uid);
-    if (job) {
-        hasAlreadyReviewed = !!(await getReviewForJobByClient(job.id, firebaseUser.uid));
-    }
-  }
+  // This logic relies on auth state, which is tricky in RSCs for *current* user.
+  // The SubmitReviewForm will handle its own auth check.
+  // For the initial check here, we'd need a server-side way to get current user if this page were fully server-gated.
+  // For now, we'll assume SubmitReviewForm handles display logic correctly.
+  // To check if review already exists, we need a client ID. If job exists, use job.clientId
+  // const firebaseUser = auth.currentUser; // This is null here.
+  // if (firebaseUser && job) { 
+  //   hasAlreadyReviewed = !!(await getReviewForJobByClient(job.id, firebaseUser.uid));
+  // }
 
 
   if (!job) {
@@ -54,9 +60,9 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
     );
   }
   
-  const isClientOwner = firebaseUser?.uid === job.clientId; // This also relies on client-side auth state for accuracy
-  const canSubmitReview = isClientOwner && job.status === 'completed' && !hasAlreadyReviewed;
-
+  // isClientOwner and canSubmitReview will be primarily determined within client components
+  // that have access to the current user's auth state.
+  // For canSubmitReview, the SubmitReviewForm will check this.
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -118,13 +124,25 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
               </div>
             )}
             
+            {/* Mark as Completed Button - Client Component handles its own auth and visibility */}
+            <MarkAsCompletedButton 
+                jobId={job.id} 
+                currentJobStatus={job.status} 
+                jobClientId={job.clientId} 
+            />
+
+            {/* Submit Quote Form - Client Component handles its own auth and visibility */}
             {job.status === 'open' && (
               <SubmitQuoteForm jobId={jobId} clientId={job.clientId} />
             )}
             
-            {canSubmitReview && (
-              <SubmitReviewForm jobId={job.id} providerId={job.assignedProviderId!} clientId={job.clientId} />
-            )}
+             {/* Submit Review Form - Client Component handles its own auth and visibility */}
+            <SubmitReviewForm 
+                jobId={job.id} 
+                providerId={job.assignedProviderId || ""} // Pass empty string if not assigned; form should handle
+                clientId={job.clientId} 
+                currentJobStatus={job.status} // Pass current job status
+            />
 
 
              {quotes.length > 0 && (
@@ -163,18 +181,14 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                         <CardContent>
                           <p className="text-2xl font-bold text-primary mb-2">{quote.currency} {quote.amount.toLocaleString()}</p>
                           <p className="text-sm text-foreground/80 whitespace-pre-line mb-3">{quote.messageToClient}</p>
+                           {/* Accept/Reject buttons - Client component handles its own auth */}
                            {(job.status === 'open' || job.status === 'pending_quotes') && (
-                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={firebaseUser?.uid || null} />
+                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={null} /> // Pass null, component handles current user
                            )}
                            {quote.status === 'accepted' && job.status !== 'completed' && (
                              <p className="text-sm text-green-600 font-medium">This quote has been accepted.</p>
                            )}
-                           {quote.status === 'accepted' && job.status === 'completed' && !canSubmitReview && isClientOwner && hasAlreadyReviewed && (
-                            <p className="text-sm text-green-600 font-medium">Job completed. Review submitted.</p>
-                           )}
-                           {quote.status === 'accepted' && job.status === 'completed' && !canSubmitReview && isClientOwner && !hasAlreadyReviewed && (
-                            <p className="text-sm text-yellow-600 font-medium">Job completed. Awaiting your review.</p>
-                           )}
+                           {/* Logic for review status in relation to accepted quote can be refined based on SubmitReviewForm's own checks */}
                         </CardContent>
                       </Card>
                     ))}
@@ -212,7 +226,6 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                 )}
                 <div className="flex items-center">
                   <UserCircle className="h-4 w-4 mr-2 text-primary" />
-                  {/* In a real app, you might fetch client's name instead of ID */}
                   <span className="text-muted-foreground">Client: {job.clientId.substring(0, 10)}...</span> 
                 </div>
                 <div className="flex items-center">
@@ -228,21 +241,6 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
               </CardContent>
             </Card>
             
-            {/* Client Actions for "open" jobs */}
-            {/* {isClientOwner && job.status === 'open' && (
-                <Card>
-                    <CardHeader><CardTitle className="text-lg">Manage Job</CardTitle></CardHeader>
-                    <CardContent>
-                        <Button variant="outline" className="w-full">
-                            <Edit className="mr-2 h-4 w-4" /> Edit Job (Coming Soon)
-                        </Button>
-                         <Button variant="destructive" className="w-full mt-2">
-                            <XCircle className="mr-2 h-4 w-4" /> Cancel Job (Coming Soon)
-                        </Button>
-                    </CardContent>
-                </Card>
-             )} */}
-
           </aside>
         </CardContent>
       </Card>
@@ -250,6 +248,7 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
   );
 }
 
+// Re-define minimal Avatar components here if not using ShadCN versions globally for this page
 const Avatar: React.FC<{className?: string, children: React.ReactNode}> = ({ className, children }) => (
   <div className={`relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ${className}`}>
     {children}
@@ -263,5 +262,3 @@ const AvatarFallback: React.FC<{children: React.ReactNode}> = ({children}) => (
     {children}
   </div>
 );
-
-    
