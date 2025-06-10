@@ -20,7 +20,7 @@ const mainNavLinksBase = [
   },
 ];
 
-// Links that appear ONLY for logged-in users
+// Links that appear ONLY for logged-in users, in addition to base links
 const mainNavLinksLoggedInExclusive = [
   {
     title: "Dashboard",
@@ -31,8 +31,8 @@ const mainNavLinksLoggedInExclusive = [
     href: "/messages",
   },
   {
-    title: "My Profile", // Edit Profile for Providers, view for Clients
-    href: "/profile/edit", 
+    title: "My Profile", 
+    href: "/profile", // Changed from /profile/edit to /profile
   },
 ];
 
@@ -46,12 +46,11 @@ export const siteConfig = {
   name: "FundiConnect",
   description:
     "Find certified electricians, plumbers, and more in Kenya. Get quotes and connect with professionals for your home and business needs.",
-  mainNav: mainNavLinksBase, // Base links always visible for all
-  mainNavLoggedIn: mainNavLinksLoggedInExclusive, // Additional links ONLY for logged-in users
-  mainNavLoggedOut: mainNavLinksLoggedOutExclusive, // Additional links ONLY for logged-out users
+  mainNav: mainNavLinksBase, 
+  mainNavLoggedIn: mainNavLinksLoggedInExclusive, 
+  mainNavLoggedOut: mainNavLinksLoggedOutExclusive,
   links: {
-    twitter: "https://twitter.com/shadcn", // Replace with actual links
-    github: "https://github.com/shadcn/ui", // Replace with actual links
+    twitter: "https://twitter.com/shadcn", 
+    github: "https://github.com/shadcn/ui", 
   },
 };
-
