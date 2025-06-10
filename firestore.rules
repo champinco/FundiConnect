@@ -1,52 +1,86 @@
 
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    // Helper function to check if the authenticated user is the owner of a document via a 'userId' field
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // Users collection
-    // - Anyone authenticated can create their own user document.
-    // - Only the owner can read or update their own user document.
-    match /users/{userId} {
-      allow read, update: if isOwner(userId);
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      // Delete is typically handled by backend functions or restricted
-    }
-
-    // ProviderProfiles collection
-    // - Provider profiles can be read by anyone (for discovery).
-    // - Only the authenticated owner (provider) can create or update their profile.
-    match /providerProfiles/{providerId} {
-      allow read: if true; // Publicly readable
-      allow create: if isOwner(providerId) && request.resource.data.userId == request.auth.uid;
-      allow update: if isOwner(providerId);
-      // Delete is typically handled by backend functions or restricted
-    }
-
-    // Jobs collection
-    // - Authenticated users can create jobs (clients).
-    // - Jobs can be read by any authenticated user (providers need to see job listings).
-    // - Only the client who posted the job can update it.
+    // Jobs: Allow logged-in users to create jobs, ensuring they set their own UID as clientId.
+    // Anyone can read jobs for now.
     match /jobs/{jobId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.clientId == request.auth.uid;
-      allow update: if isAuthenticated() && resource.data.clientId == request.auth.uid;
-      // Delete/cancel might need specific status updates rather than direct delete
+      allow read: if true; // Or more restrictive: if request.auth != null;
+      allow create: if request.auth != null && 
+                     request.resource.data.clientId == request.auth.uid;
+      allow update: if request.auth != null && 
+                     (resource.data.clientId == request.auth.uid || resource.data.assignedProviderId == request.auth.uid); // Client or assigned provider can update
+      allow delete: if request.auth != null && 
+                     resource.data.clientId == request.auth.uid; // Only client can delete
     }
 
-    // Default deny all other paths
-    match /{document=**} {
-      allow read, write: if false;
+    // User Profiles:
+    // Allow users to create their own profile document.
+    // Allow users to read any profile (for display names, etc.), but only write to their own.
+    match /users/{userId} {
+      allow read: if true; // Or more specific, e.g., if request.auth != null;
+      allow create: if request.auth != null && 
+                     request.auth.uid == userId && // The document ID must match the authenticated user's UID
+                     request.resource.data.uid == request.auth.uid; // The 'uid' field in the document must also match
+      allow update: if request.auth != null && 
+                     request.auth.uid == userId; // Only the owner can update their profile
+      // allow delete: if request.auth != null && request.auth.uid == userId; // Optional: Allow users to delete their own profile
+    }
+
+    // Provider Profiles:
+    // Allow users to create their own provider profile document.
+    // Allow anyone to read provider profiles. Only the owner can write.
+    match /providerProfiles/{providerId} {
+      allow read: if true;
+      allow create: if request.auth != null &&
+                     request.auth.uid == providerId && // The document ID must match the authenticated user's UID
+                     request.resource.data.userId == request.auth.uid && // The 'userId' field in the document must match
+                     request.resource.data.id == request.auth.uid; // The 'id' field in the document must match
+      allow update: if request.auth != null && 
+                     request.auth.uid == providerId; // Only the owner can update their provider profile
+      // allow delete: if request.auth != null && request.auth.uid == providerId; // Optional: Allow providers to delete their profile
+    }
+
+    // Quotes:
+    // Authenticated users can read quotes (e.g., client seeing quotes for their job, provider seeing their submitted quotes).
+    // Only the provider submitting the quote can create it.
+    // Client (of the job) or the Provider (who submitted) can update (e.g., client accepting/rejecting, provider withdrawing - though withdraw not yet implemented).
+    match /quotes/{quoteId} {
+      allow read: if request.auth != null; 
+      allow create: if request.auth != null && 
+                     request.resource.data.providerId == request.auth.uid &&
+                     // Ensure the client ID in the quote matches the client ID of the job it's for
+                     get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.clientId == request.resource.data.clientId;
+      allow update: if request.auth != null && 
+                      (resource.data.clientId == request.auth.uid || resource.data.providerId == request.auth.uid); 
+    }
+
+    // Reviews:
+    // Anyone can read reviews.
+    // Only the client who posted the job (and whose job it is) can create a review for that job.
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.auth != null && 
+                     request.resource.data.clientId == request.auth.uid &&
+                     // Ensure the job being reviewed was posted by this client
+                     get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.clientId == request.auth.uid &&
+                     // Ensure the job is completed before allowing review
+                     get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.status == 'completed';
+
+      // allow update, delete: if request.auth != null && resource.data.clientId == request.auth.uid; // Optional
+    }
+
+    // Chat System:
+    // Users can read/write to chats they are participants in.
+    // Messages within a chat follow the same rule.
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null && 
+                           request.auth.uid in resource.data.participantUids;
+      match /messages/{messageId} {
+        allow read, write: if request.auth != null && 
+                             request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+      }
     }
   }
 }
