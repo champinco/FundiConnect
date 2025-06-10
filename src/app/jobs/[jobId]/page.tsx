@@ -6,50 +6,57 @@ import type { Quote } from '@/models/quote';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, Edit, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock } from 'lucide-react';
+import { MapPin, CalendarDays, Briefcase, UserCircle, Edit, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react'; // Added FileText
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import SubmitQuoteForm from './components/submit-quote-form';
-import { auth } from '@/lib/firebase'; // We'll need auth to check user role for UI elements
-import { getUserProfileFromFirestore } from '@/services/userService'; // To get account type
+import { auth } from '@/lib/firebase'; 
+import { getUserProfileFromFirestore } from '@/services/userService'; 
 import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
+import SubmitReviewForm from './components/submit-review-form';
+import { getReviewForJobByClient } from '@/services/reviewService';
 
 
 export default async function JobDetailPage({ params }: { params: { jobId: string } }) {
   const jobId = params.jobId;
   const job = await getJobByIdFromFirestore(jobId);
-  const quotes = await getQuotesForJob(jobId); // Fetch quotes for this job
+  const quotes = await getQuotesForJob(jobId);
 
-  // This page is a server component, so direct auth access needs care.
-  // For now, let's assume we'll pass user info or make components client-side for interactions.
-  // const currentUser = auth.currentUser; // This won't work directly in RSC for current session
-  // For MVP, a Fundi sees the submit quote form. A Client sees received quotes.
+  const firebaseUser = auth.currentUser; // This will be null in RSC, client components handle auth state
+  let userProfile = null;
+  let hasAlreadyReviewed = false;
+  if (firebaseUser) { // This check is mostly for client-side scenarios, not reliable in RSC for current user
+    userProfile = await getUserProfileFromFirestore(firebaseUser.uid);
+    if (job) {
+        hasAlreadyReviewed = !!(await getReviewForJobByClient(job.id, firebaseUser.uid));
+    }
+  }
+
 
   if (!job) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-        <Card className="max-w-lg mx-auto">
+        <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
+             <FileText className="h-12 w-12 text-destructive mx-auto mb-2" />
             <CardTitle>Job Not Found</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>The job you are looking for does not exist or could not be loaded.</p>
-            <Button asChild className="mt-4">
-              <Link href="/search">Find Jobs</Link>
+            <p className="text-muted-foreground">The job you are looking for does not exist or could not be loaded.</p>
+            <Button asChild className="mt-6">
+              <Link href="/search">Find Other Jobs</Link>
             </Button>
           </CardContent>
         </Card>
       </div>
     );
   }
+  
+  const isClientOwner = firebaseUser?.uid === job.clientId; // This also relies on client-side auth state for accuracy
+  const canSubmitReview = isClientOwner && job.status === 'completed' && !hasAlreadyReviewed;
 
-  // A simple way to check if the current user (if any, for UI display) is the client who posted.
-  // This would ideally be done in a client component or by passing user data down.
-  // For now, this is a placeholder idea for UI logic separation.
-  // const isClientOwner = currentUser?.uid === job.clientId;
-  // const isProvider = currentUser && !isClientOwner; // Simplified check
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -77,11 +84,11 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
             <Badge 
               variant={job.status === 'open' ? 'secondary' : job.status === 'completed' ? 'default' : 'outline'}
               className={`capitalize text-sm px-3 py-1 ${
-                job.status === 'open' ? 'bg-blue-100 text-blue-700 border-blue-300' : 
-                job.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700 border-yellow-300' :
-                job.status === 'completed' ? 'bg-green-100 text-green-700 border-green-300' :
-                job.status === 'assigned' ? 'bg-purple-100 text-purple-700 border-purple-300' :
-                'bg-gray-100 text-gray-700 border-gray-300' 
+                job.status === 'open' ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-800/30 dark:text-blue-300 dark:border-blue-700' : 
+                job.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-800/30 dark:text-yellow-300 dark:border-yellow-700' :
+                job.status === 'completed' ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-800/30 dark:text-green-300 dark:border-green-700' :
+                job.status === 'assigned' ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-800/30 dark:text-purple-300 dark:border-purple-700' :
+                'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-700' 
               }`}
             >
               {job.status.replace('_', ' ')}
@@ -111,21 +118,21 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
               </div>
             )}
             
-            {/* Placeholder for Provider: Display submit quote form if user is a provider and job is open */}
-            {/* This logic needs to be more robust, likely in a client component with auth context */}
             {job.status === 'open' && (
               <SubmitQuoteForm jobId={jobId} clientId={job.clientId} />
             )}
+            
+            {canSubmitReview && (
+              <SubmitReviewForm jobId={job.id} providerId={job.assignedProviderId!} clientId={job.clientId} />
+            )}
 
 
-            {/* Client: Display received quotes */}
-            {/* This logic also needs to be more robust for client view */}
              {quotes.length > 0 && (
                 <div className="mt-8">
                   <h3 className="text-xl font-semibold mb-4">Received Quotes ({quotes.length})</h3>
                   <div className="space-y-4">
                     {quotes.map(quote => (
-                      <Card key={quote.id} className="bg-muted/50">
+                      <Card key={quote.id} className="bg-muted/20 dark:bg-muted/50">
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
@@ -144,7 +151,11 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                                     </p>
                                 </div>
                             </div>
-                            <Badge variant={quote.status === 'accepted' ? 'default' : 'outline'} className={`capitalize ${quote.status === 'accepted' ? 'bg-green-500 text-white' : ''}`}>
+                            <Badge variant={quote.status === 'accepted' ? 'default' : 'outline'} 
+                                className={`capitalize ${
+                                    quote.status === 'accepted' ? 'bg-green-500 text-white border-green-600 dark:bg-green-600 dark:text-green-50 dark:border-green-700' : 
+                                    quote.status === 'rejected' ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-800/30 dark:text-red-300 dark:border-red-700' : 
+                                    ''}`}>
                                 {quote.status}
                             </Badge>
                           </div>
@@ -152,12 +163,18 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                         <CardContent>
                           <p className="text-2xl font-bold text-primary mb-2">{quote.currency} {quote.amount.toLocaleString()}</p>
                           <p className="text-sm text-foreground/80 whitespace-pre-line mb-3">{quote.messageToClient}</p>
-                           {/* Placeholder for action buttons - only client who posted job & job is open/pending_quotes */}
-                           {job.status === 'open' || job.status === 'pending_quotes' ? (
-                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={"NEEDS_ACTUAL_USER_ID_CLIENT_COMPONENT"} />
-                           ) : quote.status === 'accepted' ? (
+                           {(job.status === 'open' || job.status === 'pending_quotes') && (
+                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={firebaseUser?.uid || null} />
+                           )}
+                           {quote.status === 'accepted' && job.status !== 'completed' && (
                              <p className="text-sm text-green-600 font-medium">This quote has been accepted.</p>
-                           ) : null }
+                           )}
+                           {quote.status === 'accepted' && job.status === 'completed' && !canSubmitReview && isClientOwner && hasAlreadyReviewed && (
+                            <p className="text-sm text-green-600 font-medium">Job completed. Review submitted.</p>
+                           )}
+                           {quote.status === 'accepted' && job.status === 'completed' && !canSubmitReview && isClientOwner && !hasAlreadyReviewed && (
+                            <p className="text-sm text-yellow-600 font-medium">Job completed. Awaiting your review.</p>
+                           )}
                         </CardContent>
                       </Card>
                     ))}
@@ -165,9 +182,10 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                 </div>
               )}
               {job.status === 'open' && quotes.length === 0 && (
-                  <div className="text-center py-6 text-muted-foreground">
-                      <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                      <p>No quotes received yet for this job.</p>
+                  <div className="text-center py-10 my-6 bg-card rounded-lg shadow-sm">
+                      <MessageSquare className="h-12 w-12 mx-auto mb-3 text-primary opacity-70" />
+                      <h4 className="text-lg font-semibold text-foreground mb-1">No Quotes Yet</h4>
+                      <p className="text-sm text-muted-foreground">Providers will be notified about your job. Check back soon for quotes!</p>
                   </div>
               )}
 
@@ -194,11 +212,12 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                 )}
                 <div className="flex items-center">
                   <UserCircle className="h-4 w-4 mr-2 text-primary" />
-                  <span className="text-muted-foreground">Client ID: {job.clientId.substring(0, 10)}...</span> {/* Show partial for privacy/brevity */}
+                  {/* In a real app, you might fetch client's name instead of ID */}
+                  <span className="text-muted-foreground">Client: {job.clientId.substring(0, 10)}...</span> 
                 </div>
                 <div className="flex items-center">
                    <MessageSquare className="h-4 w-4 mr-2 text-primary" />
-                  <span className="text-muted-foreground">Quotes Received: {job.quotesReceived || 0}</span>
+                  <span className="text-muted-foreground">Quotes Received: {quotes.length || 0}</span>
                 </div>
                 {job.assignedProviderId && (
                   <div className="flex items-center">
@@ -208,12 +227,20 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                 )}
               </CardContent>
             </Card>
-
-             {/* Placeholder for Client Actions like Edit Job (if they are the owner and job is open) */}
-             {/* {isClientOwner && job.status === 'open' && (
-                <Button variant="outline" className="w-full mt-4">
-                    <Edit className="mr-2 h-4 w-4" /> Edit Job (Coming Soon)
-                </Button>
+            
+            {/* Client Actions for "open" jobs */}
+            {/* {isClientOwner && job.status === 'open' && (
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">Manage Job</CardTitle></CardHeader>
+                    <CardContent>
+                        <Button variant="outline" className="w-full">
+                            <Edit className="mr-2 h-4 w-4" /> Edit Job (Coming Soon)
+                        </Button>
+                         <Button variant="destructive" className="w-full mt-2">
+                            <XCircle className="mr-2 h-4 w-4" /> Cancel Job (Coming Soon)
+                        </Button>
+                    </CardContent>
+                </Card>
              )} */}
 
           </aside>
@@ -223,7 +250,6 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
   );
 }
 
-// Helper components for Avatar (if not globally available, or use ShadCN's)
 const Avatar: React.FC<{className?: string, children: React.ReactNode}> = ({ className, children }) => (
   <div className={`relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ${className}`}>
     {children}
@@ -237,3 +263,5 @@ const AvatarFallback: React.FC<{children: React.ReactNode}> = ({children}) => (
     {children}
   </div>
 );
+
+    

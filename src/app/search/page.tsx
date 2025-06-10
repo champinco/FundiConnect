@@ -3,16 +3,17 @@
 
 import { useState, useEffect, type FormEvent } from 'react';
 import ProviderCard, { type Provider } from '@/components/provider-card';
-import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton'; // New Import
+import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Filter, Star, MapPin, Search as SearchIcon, Loader2, Info } from 'lucide-react';
+import { Filter, Star, MapPin, Search as SearchIcon, Loader2, Info, PackageOpen } from 'lucide-react'; // Added PackageOpen
 import type { ServiceCategory } from '@/components/service-category-icon';
 import { searchProvidersAction, type SearchParams } from './actions'; 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const tier1ServiceCategories: (ServiceCategory | 'All')[] = [
   'All', 'Plumbing', 'Electrical', 'Appliance Repair', 'Garbage Collection', 'HVAC', 
@@ -22,6 +23,7 @@ const tier1ServiceCategories: (ServiceCategory | 'All')[] = [
 
 export default function SearchPage() {
   const nextSearchParams = useSearchParams();
+  const router = useRouter();
   
   const [searchQuery, setSearchQuery] = useState(nextSearchParams.get('query') || '');
   const [locationQuery, setLocationQuery] = useState(nextSearchParams.get('location') || '');
@@ -29,11 +31,21 @@ export default function SearchPage() {
     (nextSearchParams.get('category') as ServiceCategory | 'All') || 'All'
   );
   const [minRating, setMinRating] = useState<number | null>(null);
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [verifiedOnly, setVerifiedOnly] = useState(nextSearchParams.get('verifiedOnly') === 'true' || false);
   
   const [results, setResults] = useState<Provider[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false); // To know if a search has been attempted
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const updateURLParams = (params: SearchParams) => {
+    const query = new URLSearchParams();
+    if (params.query) query.set('query', params.query);
+    if (params.location) query.set('location', params.location);
+    if (params.category) query.set('category', params.category);
+    if (params.minRating) query.set('minRating', params.minRating.toString());
+    if (params.verifiedOnly) query.set('verifiedOnly', 'true');
+    router.push(`/search?${query.toString()}`, { scroll: false });
+  };
 
   const handleSearch = async (event?: FormEvent<HTMLFormElement>) => {
     if (event) event.preventDefault();
@@ -47,19 +59,43 @@ export default function SearchPage() {
       verifiedOnly: verifiedOnly,
     };
     
+    updateURLParams(params); // Update URL as search is performed
     const providers = await searchProvidersAction(params);
     setResults(providers);
-    setHasSearched(true); // Mark that a search has been made
+    setHasSearched(true);
     setIsLoading(false);
   };
 
-  // Perform initial search if query params are present
   useEffect(() => {
-    if (nextSearchParams.get('query') || nextSearchParams.get('category') || nextSearchParams.get('location')) {
-      handleSearch();
+    // Initialize state from URL params on component mount
+    setSearchQuery(nextSearchParams.get('query') || '');
+    setLocationQuery(nextSearchParams.get('location') || '');
+    setSelectedCategory((nextSearchParams.get('category') as ServiceCategory | 'All') || 'All');
+    setMinRating(nextSearchParams.get('minRating') ? parseFloat(nextSearchParams.get('minRating')!) : null);
+    setVerifiedOnly(nextSearchParams.get('verifiedOnly') === 'true');
+
+    // Perform initial search if any relevant query params are present
+    if (nextSearchParams.get('query') || nextSearchParams.get('category') || nextSearchParams.get('location') || nextSearchParams.get('minRating') || nextSearchParams.get('verifiedOnly')) {
+      // Construct params from URL for initial search
+      const initialParams: SearchParams = {
+        query: nextSearchParams.get('query'),
+        location: nextSearchParams.get('location'),
+        category: (nextSearchParams.get('category') as ServiceCategory | 'All') || null,
+        minRating: nextSearchParams.get('minRating') ? parseFloat(nextSearchParams.get('minRating')!) : null,
+        verifiedOnly: nextSearchParams.get('verifiedOnly') === 'true',
+      };
+       // Debounce or directly call search if params are present
+      const performInitialSearch = async () => {
+        setIsLoading(true);
+        const providers = await searchProvidersAction(initialParams);
+        setResults(providers);
+        setHasSearched(true);
+        setIsLoading(false);
+      }
+      performInitialSearch();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, [nextSearchParams]); // Rerun when searchParams object itself changes
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -73,7 +109,7 @@ export default function SearchPage() {
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 id="service-query" 
-                placeholder="e.g., Electrician, John Doe" 
+                placeholder="e.g., Electrician, Juma's Services" 
                 className="pl-10" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -101,7 +137,6 @@ export default function SearchPage() {
       </form>
 
       <div className="flex flex-col md:flex-row gap-8">
-        {/* Filters Sidebar */}
         <aside className="w-full md:w-1/4 lg:w-1/5">
           <div className="p-6 bg-card rounded-lg shadow space-y-6 sticky top-20">
             <h2 className="text-xl font-semibold flex items-center">
@@ -162,11 +197,10 @@ export default function SearchPage() {
           </div>
         </aside>
 
-        {/* Provider Listings */}
         <main className="w-full md:w-3/4 lg:w-4/5">
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, i) => <ProviderCardSkeleton key={i} />)}
+              {[...Array(6)].map((_, i) => <ProviderCardSkeleton key={i} />)}
             </div>
           ) : hasSearched && results.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -175,14 +209,15 @@ export default function SearchPage() {
               ))}
             </div>
           ) : hasSearched && results.length === 0 ? (
-            <div className="text-center py-12 bg-card rounded-lg shadow">
-              <Info className="mx-auto h-12 w-12 text-primary mb-4" />
+            <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
+              <PackageOpen className="mx-auto h-16 w-16 text-primary mb-4" />
               <h3 className="text-2xl font-semibold mb-2">No Providers Found</h3>
-              <p className="text-muted-foreground">Try adjusting your search criteria or filters.</p>
+              <p className="text-muted-foreground mb-4">We couldn't find any providers matching your current filters.</p>
+              <p className="text-sm text-muted-foreground">Try adjusting your search criteria or <Link href="/jobs/post" className="text-primary hover:underline">post a job</Link> to get quotes.</p>
             </div>
           ) : !hasSearched ? (
-             <div className="text-center py-12 bg-card rounded-lg shadow">
-              <SearchIcon className="mx-auto h-12 w-12 text-primary mb-4" />
+             <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
+              <SearchIcon className="mx-auto h-16 w-16 text-primary mb-4" />
               <h3 className="text-2xl font-semibold mb-2">Find Your Fundi</h3>
               <p className="text-muted-foreground">Enter your search criteria above to find available service providers.</p>
             </div>
@@ -192,3 +227,5 @@ export default function SearchPage() {
     </div>
   );
 }
+
+    

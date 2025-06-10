@@ -11,9 +11,9 @@ import type { Chat } from '@/models/chat';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { MessageSquareText, Users, Loader2 } from 'lucide-react';
+import { MessageSquareText, Users, Loader2, Inbox } from 'lucide-react'; // Added Inbox
 import { formatDistanceToNowStrict } from 'date-fns';
-import ChatListItemSkeleton from '@/components/skeletons/chat-list-item-skeleton'; // New Import
+import ChatListItemSkeleton from '@/components/skeletons/chat-list-item-skeleton';
 
 const MessagesPage: NextPage = () => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
@@ -50,7 +50,7 @@ const MessagesPage: NextPage = () => {
     return otherUid ? chat.participants[otherUid] : null;
   };
 
-  if (isLoading && !currentUser) { // Initial auth check loading
+  if (isLoading && !currentUser && currentUser !== null) { // Initial auth check loading, but not yet determined if null
      return (
       <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -59,15 +59,17 @@ const MessagesPage: NextPage = () => {
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser && !isLoading) { // Auth checked, user is definitely not logged in
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-        <Card className="max-w-md mx-auto">
+        <Card className="max-w-md mx-auto shadow-lg">
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
+            <CardDescription>You need to be logged in to view your messages.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>You need to be logged in to view your messages.</p>
+            <Users className="h-16 w-16 text-primary mx-auto mb-4 opacity-70" />
+            <p className="text-muted-foreground mb-6">Please log in to continue.</p>
             <Button asChild className="mt-4">
               <Link href="/auth/login?redirect=/messages">Login</Link>
             </Button>
@@ -88,15 +90,18 @@ const MessagesPage: NextPage = () => {
           <CardDescription>View and manage your ongoing chats with Fundis and clients.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading && chats.length === 0 ? ( // Show skeletons while loading chats for an authenticated user
+          {isLoading && chats.length === 0 ? (
             <ul className="space-y-3">
               {[...Array(3)].map((_, i) => <ChatListItemSkeleton key={i} />)}
             </ul>
           ) : !isLoading && chats.length === 0 ? (
-            <div className="text-center py-10">
-              <Users className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground text-lg">You have no active conversations.</p>
-              <p className="text-sm text-muted-foreground mt-1">Start a chat by contacting a Fundi or replying to a job quote.</p>
+            <div className="text-center py-10 flex flex-col items-center">
+              <Inbox className="h-20 w-20 text-primary opacity-60 mx-auto mb-6" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No Conversations Yet</h3>
+              <p className="text-muted-foreground mb-4">Your message inbox is empty.</p>
+              <p className="text-sm text-muted-foreground">
+                Start a chat by contacting a Fundi from their profile or by replying to a job quote.
+              </p>
                <Button asChild className="mt-6">
                  <Link href="/search">Find a Fundi</Link>
                </Button>
@@ -110,7 +115,8 @@ const MessagesPage: NextPage = () => {
                   ? formatDistanceToNowStrict(new Date(chat.lastMessage.timestamp), { addSuffix: true })
                   : '';
                 
-                const isUnread = chat.lastMessage && chat.lastMessage.senderUid !== currentUser.uid;
+                const isUnread = chat.lastMessage && chat.lastMessage.senderUid !== currentUser?.uid && !chat.lastMessage.isReadBy?.[currentUser?.uid || ''];
+
 
                 return (
                   <li key={chat.id}>
@@ -135,7 +141,7 @@ const MessagesPage: NextPage = () => {
                               )}
                             </div>
                             <p className={`text-sm text-muted-foreground truncate ${isUnread ? 'font-medium' : ''}`}>
-                              {chat.lastMessage?.senderUid === currentUser.uid ? "You: " : ""}
+                              {chat.lastMessage?.senderUid === currentUser?.uid ? "You: " : ""}
                               {lastMessageText}
                             </p>
                           </div>
@@ -157,3 +163,5 @@ const MessagesPage: NextPage = () => {
 };
 
 export default MessagesPage;
+
+    
