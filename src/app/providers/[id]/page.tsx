@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation'; 
 import { useEffect, useState } from 'react'; 
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp } from 'lucide-react'; // Added Icons
+import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from '@/components/ui/separator';
 import { useToast } from "@/hooks/use-toast"; 
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Ensured Avatar components are imported
 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'; 
 import { auth } from '@/lib/firebase'; 
@@ -22,7 +23,6 @@ import { getProviderProfileFromFirestore } from '@/services/providerService';
 import type { Review } from '@/models/review';
 import { getReviewsForProvider } from '@/services/reviewService';
 import Link from 'next/link'; 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNowStrict } from 'date-fns';
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
@@ -33,6 +33,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true); // For reviews specifically
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
 
@@ -45,24 +46,33 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
 
   useEffect(() => {
     if (providerId) {
-      setIsLoading(true);
-      Promise.all([
-        getProviderProfileFromFirestore(providerId),
-        getReviewsForProvider(providerId)
-      ])
-      .then(([profile, fetchedReviews]) => {
-        if (profile) {
-          setProvider(profile);
-        } else {
-          toast({ title: "Error", description: "Provider profile not found.", variant: "destructive" });
-        }
-        setReviews(fetchedReviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime())); // Sort reviews newest first
-      })
-      .catch(error => {
-        console.error("Error fetching provider profile or reviews:", error);
-        toast({ title: "Error", description: "Could not load provider data.", variant: "destructive" });
-      })
-      .finally(() => setIsLoading(false));
+      setIsLoading(true); // For overall profile
+      setIsLoadingReviews(true); // For reviews part
+
+      getProviderProfileFromFirestore(providerId)
+        .then((profile) => {
+          if (profile) {
+            setProvider(profile);
+          } else {
+            toast({ title: "Error", description: "Provider profile not found.", variant: "destructive" });
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching provider profile:", error);
+          toast({ title: "Error", description: "Could not load provider profile.", variant: "destructive" });
+        })
+        .finally(() => setIsLoading(false)); // Overall profile loading done
+
+      getReviewsForProvider(providerId)
+        .then((fetchedReviews) => {
+           // Sort reviews by date, newest first
+          setReviews(fetchedReviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime()));
+        })
+        .catch(error => {
+          console.error("Error fetching reviews:", error);
+          toast({ title: "Error", description: "Could not load reviews for this provider.", variant: "destructive" });
+        })
+        .finally(() => setIsLoadingReviews(false)); // Reviews loading done
     }
   }, [providerId, toast]);
 
@@ -76,7 +86,6 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
 
     setIsChatLoading(true);
     try {
-      // Ensure provider.userId is used, as provider.id is the profile document ID (which should be the same as userId for providers)
       const chatId = await getOrCreateChat(currentUser.uid, provider.userId); 
       router.push(`/messages/${chatId}`);
     } catch (error: any) {
@@ -87,7 +96,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     }
   };
   
-  if (isLoading) {
+  if (isLoading) { // Show main skeleton if provider profile is still loading
     return <ProviderProfileSkeleton />;
   }
 
@@ -148,7 +157,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                 <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="about">About</TabsTrigger>
                   <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews ({reviews.length})</TabsTrigger>
+                  <TabsTrigger value="reviews">Reviews ({isLoadingReviews ? '...' : reviews.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="about">
                   <Card>
@@ -220,7 +229,24 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       <CardTitle className="text-xl">Client Reviews</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {reviews.length > 0 ? reviews.map(review => (
+                      {isLoadingReviews ? (
+                        <div className="space-y-4">
+                          {[...Array(3)].map((_, i) => (
+                            <div key={i} className="flex space-x-3 border-b pb-4 last:border-b-0">
+                              <Avatar className="h-10 w-10 opacity-50"><AvatarFallback>C</AvatarFallback></Avatar>
+                              <div className="flex-1 space-y-1.5">
+                                <div className="flex justify-between items-center">
+                                   <div className="h-4 bg-muted rounded w-1/3 animate-pulse"></div> {/* Name skeleton */}
+                                   <div className="h-3 bg-muted rounded w-1/4 animate-pulse"></div> {/* Stars skeleton */}
+                                </div>
+                                <div className="h-3 bg-muted rounded w-1/5 animate-pulse mb-1.5"></div> {/* Date skeleton */}
+                                <div className="h-4 bg-muted rounded w-full animate-pulse"></div> {/* Comment line 1 */}
+                                <div className="h-4 bg-muted rounded w-5/6 animate-pulse"></div> {/* Comment line 2 */}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : reviews.length > 0 ? reviews.map(review => (
                         <div key={review.id} className="border-b pb-4 last:border-b-0 last:pb-0">
                           <div className="flex items-start space-x-3">
                             <Avatar className="h-10 w-10">
@@ -300,20 +326,6 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                   )}
                 </CardContent>
               </Card>
-              {/* Direct Job Post Card - Placeholder */}
-              {/* <Card>
-                <CardHeader>
-                    <CardTitle className="text-xl">Post a Job for {provider.businessName.split(' ')[0]}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground mb-3">Need specific work done by this provider? Describe your job.</p>
-                    <Textarea className="w-full p-2 border rounded-md min-h-[80px] mb-3 bg-input" placeholder="Describe the work needed..."/>
-                    <Button variant="outline" className="w-full mb-3" onClick={() => toast({title: "Feature Coming Soon"})}>
-                        <Upload className="mr-2 h-4 w-4" /> Upload Photos/Videos
-                    </Button>
-                    <Button className="w-full bg-accent hover:bg-accent/90" onClick={() => toast({title: "Feature Coming Soon"})}>Send Direct Job Request</Button>
-                </CardContent>
-              </Card> */}
             </div>
           </div>
         </CardContent>
