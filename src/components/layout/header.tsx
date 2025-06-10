@@ -11,12 +11,13 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase'; 
 import { useRouter } from 'next/navigation';
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"; // Added SheetHeader etc.
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus } from "lucide-react"; // Added more icons
+import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; // For user avatar in mobile
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { NavItem } from "@/types"; // Assuming or creating this type
 
 
 export function SiteHeader() {
@@ -36,24 +37,26 @@ export function SiteHeader() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setCurrentUser(null); // Ensure state updates immediately
+      setCurrentUser(null); 
       router.push('/auth/login');
-      setMobileNavOpen(false); // Close mobile nav on logout
+      setMobileNavOpen(false); 
     } catch (error) {
       console.error("Error logging out:", error);
     }
   };
 
-  const navItems = [
-    ...siteConfig.mainNav,
-    ...(currentUser ? siteConfig.mainNavLoggedIn : siteConfig.mainNavLoggedOut)
-  ].filter(item => {
-    // Example: Don't show "My Profile" if logged out, even if it was in mainNavLoggedIn
-    if (item.href === "/profile/edit" && !currentUser) return false;
-    if (item.href === "/dashboard" && !currentUser) return false;
-    if (item.href === "/messages" && !currentUser) return false;
-    return true;
-  });
+  // Construct navigation items based on authentication state
+  let mainNavDisplayItems: NavItem[] = [...siteConfig.mainNav];
+  let mobileNavDisplayItems: NavItem[] = [...siteConfig.mainNav];
+
+  if (currentUser) {
+    mainNavDisplayItems = [...mainNavDisplayItems, ...siteConfig.mainNavLoggedIn.filter(item => !mainNavDisplayItems.find(i => i.href === item.href))];
+    mobileNavDisplayItems = [...mobileNavDisplayItems, ...siteConfig.mainNavLoggedIn.filter(item => !mobileNavDisplayItems.find(i => i.href === item.href))];
+  } else {
+    // For logged-out users, we might have specific links (though mainNavLoggedOut is empty in current config)
+    mainNavDisplayItems = [...mainNavDisplayItems, ...siteConfig.mainNavLoggedOut.filter(item => !mainNavDisplayItems.find(i => i.href === item.href))];
+    mobileNavDisplayItems = [...mobileNavDisplayItems, ...siteConfig.mainNavLoggedOut.filter(item => !mobileNavDisplayItems.find(i => i.href === item.href))];
+  }
 
 
   if (loadingAuth) {
@@ -72,18 +75,20 @@ export function SiteHeader() {
     );
   }
 
-
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
       <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
-        {/* MainNav now receives dynamic items based on auth state */}
-        <MainNav items={navItems.filter(item => !['/dashboard', '/messages', '/profile/edit'].includes(item.href) || currentUser)} />
+        <MainNav items={mainNavDisplayItems.filter(item => 
+            // Filter out items that are handled by dedicated buttons like Login/Logout/Signup or special user links
+            !["/auth/login", "/auth/signup"].includes(item.href) &&
+            (currentUser ? !["My Profile", "Messages", "Dashboard"].includes(item.title) : true) // Example: don't show these in MainNav if handled by specific buttons
+        )} />
         
         <div className="flex flex-1 items-center justify-end space-x-1 md:space-x-4">
           <nav className="hidden items-center space-x-1 md:flex">
             {currentUser ? (
               <>
-                {siteConfig.mainNavLoggedIn.map((item) => (
+                {siteConfig.mainNavLoggedIn.map((item) => ( // These are specific user action links
                   item.href && (
                     <Link
                       key={item.href}
@@ -107,20 +112,8 @@ export function SiteHeader() {
               </>
             ) : (
               <>
-                {siteConfig.mainNavLoggedOut.map((item) => (
-                   item.href && (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        buttonVariants({ variant: "ghost" }),
-                        "text-sm font-medium"
-                      )}
-                    >
-                      {item.title}
-                    </Link>
-                  )
-                ))}
+                {/* Add any specific logged-out links from siteConfig.mainNavLoggedOut here if needed, 
+                    otherwise MainNav already handles common links like Smart Match */}
                 <Link
                   href="/auth/login"
                   className={buttonVariants({ variant: "ghost" })}
@@ -175,14 +168,14 @@ export function SiteHeader() {
                 )}
 
                 <nav className="flex-grow p-4 space-y-1">
-                  {navItems.map((item) => (
+                  {/* Use mobileNavDisplayItems for the mobile menu */}
+                  {mobileNavDisplayItems.map((item) => (
                     item.href && (
                       <Link
-                        key={item.href}
+                        key={`mobile-${item.href}`}
                         href={item.href}
                         className={cn(
                           "block rounded-md px-3 py-2 text-base font-medium hover:bg-muted",
-                          // Highlight active link if needed
                         )}
                         onClick={() => setMobileNavOpen(false)}
                       >
@@ -222,3 +215,15 @@ export function SiteHeader() {
     </header>
   );
 }
+
+// Define NavItem type if not already defined in src/types/index.d.ts or similar
+// For example:
+// export interface NavItem {
+//   title: string
+//   href: string
+//   disabled?: boolean
+//   external?: boolean
+//   icon?: React.ComponentType<{ className?: string }>
+//   label?: string
+//   description?: string
+// }
