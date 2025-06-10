@@ -5,7 +5,7 @@ import { createUserProfileInFirestore } from '@/services/userService';
 import { createProviderProfileInFirestore } from '@/services/providerService';
 import type { User, AccountType } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
-import type { SignupFormValues } from './schemas'; // This now includes email, not phoneNumber
+import type { SignupFormValues } from './schemas'; // This now includes more fields
 
 interface SignupResult {
   success: boolean;
@@ -16,37 +16,38 @@ interface SignupResult {
 
 export async function signupUserAction(values: SignupFormValues, firebaseUserId: string): Promise<SignupResult> {
   try {
-    // Firebase user creation (now email/password) happens on the client-side.
+    // Firebase user creation (email/password) happens on the client-side.
     // This action receives the firebaseUserId after successful client-side auth.
 
-    // Step 1: Create user profile in Firestore using the actual Firebase UID
     const userProfileData: Omit<User, 'createdAt' | 'updatedAt' | 'uid'> = {
-      email: values.email, // Email is now primary
+      email: values.email,
       fullName: values.fullName,
-      phoneNumber: null, // Phone number is no longer collected at signup
+      phoneNumber: values.accountType === 'provider' ? values.contactPhoneNumber : null, // Use contactPhoneNumber for provider's main phone
       accountType: values.accountType as AccountType,
-      photoURL: null,
+      photoURL: values.accountType === 'provider' ? values.profilePictureUrl : null,
       providerProfileId: values.accountType === 'provider' ? firebaseUserId : undefined,
     };
     await createUserProfileInFirestore(userProfileData, firebaseUserId);
 
-    // Step 2: If account type is provider, create a basic provider profile
     if (values.accountType === 'provider') {
-      const providerProfileData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount'> = {
+      // Ensure all required provider fields from the form are passed, or have defaults if not made mandatory in schema for provider
+      const providerProfileData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount' | 'isVerified' | 'certifications' | 'portfolio' | 'operatingHours' | 'serviceAreas'> & Partial<Pick<ProviderProfile, 'operatingHours' | 'serviceAreas'>> = {
         id: firebaseUserId,
         userId: firebaseUserId,
-        businessName: values.fullName, // Default to full name
-        mainService: 'Other', // Default, user can update later
-        specialties: [],
-        bio: `Fundi specializing in various services. Profile for ${values.fullName}.`,
-        location: 'Nairobi', // Default, user can update later
-        yearsOfExperience: 0,
+        businessName: values.businessName || values.fullName, // Default to full name if businessName not provided
+        mainService: values.mainService || 'Other', 
+        specialties: [], // Keep empty for now, can be updated in profile management
+        bio: values.bio || `Fundi specializing in ${values.mainService || 'various services'}. Profile for ${values.businessName || values.fullName}.`,
+        location: values.providerLocation || 'Nairobi', 
+        yearsOfExperience: values.yearsOfExperience !== undefined ? Number(values.yearsOfExperience) : 0,
+        contactPhoneNumber: values.contactPhoneNumber || "", 
+        profilePictureUrl: values.profilePictureUrl || undefined, // Use uploaded URL
+        // Default other fields not collected at signup
         isVerified: false,
         certifications: [],
         portfolio: [],
-        contactPhoneNumber: "", // No phone collected at signup, provider can add later
-        operatingHours: "Mon-Fri 9am-5pm", // Default
-        serviceAreas: ["Nairobi"], // Default
+        operatingHours: "Mon-Fri 9am-5pm", 
+        serviceAreas: values.providerLocation ? [values.providerLocation] : ["Nairobi"], 
       };
       await createProviderProfileInFirestore(providerProfileData);
     }
@@ -54,8 +55,6 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
     return { success: true, message: "Account profiles created successfully!", userId: firebaseUserId, firebaseUserId: firebaseUserId };
   } catch (error: any) {
     console.error("Signup Action Error (Firestore Profile Creation):", error);
-    // Potentially, if profile creation fails after auth user is made, we might want to delete the auth user.
-    // For now, returning an error.
     return { success: false, message: error.message || "An unexpected error occurred while creating your profile." };
   }
 }

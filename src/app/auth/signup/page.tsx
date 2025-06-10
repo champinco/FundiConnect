@@ -1,58 +1,103 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useForm } from "react-hook-form";
+import { useState, useEffect, type ChangeEvent } from 'react';
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload } from 'lucide-react';
+import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
+import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas'; // For dropdown
+
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, type User as FirebaseUser } from 'firebase/auth';
 import { signupUserAction } from './actions';
-import { signupFormSchema, type SignupFormValues as SignupFormValuesType } from './schemas'; // Renamed to avoid conflict
+import { signupFormSchema, type SignupFormValues as ServerSignupFormValues } from './schemas'; 
 import type { z } from 'zod';
+import { uploadFileToStorage } from '@/services/storageService'; // For file uploads
 
-// Define the Zod schema including confirmPassword for client-side validation
-const clientSignupFormSchema = signupFormSchema;
-type ClientSignupFormValues = z.infer<typeof clientSignupFormSchema>;
+// Client-side Zod schema matches server-side for consistent validation messages
+type ClientSignupFormValues = z.infer<typeof signupFormSchema>;
+
+// Service categories for the dropdown
+const providerServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
+
 
 export default function SignupPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(auth.currentUser);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (user) {
-        // If user is already signed up and logged in, redirect to home
         router.push('/');
       }
     });
     return () => unsubscribe();
   }, [router]);
 
-  const { control, register, handleSubmit, formState: { errors } } = useForm<ClientSignupFormValues>({
-    resolver: zodResolver(clientSignupFormSchema),
+  const { control, register, handleSubmit, formState: { errors }, watch, reset } = useForm<ClientSignupFormValues>({
+    resolver: zodResolver(signupFormSchema),
     defaultValues: {
       fullName: "",
       email: "",
       password: "",
       confirmPassword: "",
       accountType: "client",
+      businessName: "",
+      mainService: undefined, // Default for select
+      providerLocation: "",
+      contactPhoneNumber: "",
+      yearsOfExperience: 0,
+      bio: "",
     },
   });
 
+  const accountType = watch("accountType");
+
+  const handleProfilePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      // Limit file size (e.g., 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast({ title: "File too large", description: "Profile picture should be less than 2MB.", variant: "destructive" });
+        return;
+      }
+      setProfilePictureFile(file);
+      setProfilePicturePreview(URL.createObjectURL(file));
+    } else {
+      setProfilePictureFile(null);
+      setProfilePicturePreview(null);
+    }
+  };
+
   const onSubmit = async (data: ClientSignupFormValues) => {
     setIsLoading(true);
+    let profilePictureUrl: string | null = null;
+
     try {
+      // Step 0: Upload profile picture if it's a provider and file is selected
+      if (data.accountType === 'provider' && profilePictureFile && auth.currentUser?.uid) { // Check auth.currentUser.uid before it's set by createUser
+         // This part is tricky because firebaseUser.uid isn't available *before* createUserWithEmailAndPassword
+         // We will upload after user creation, then update the profile or pass URL to action if possible.
+         // For now, let's assume we get the UID first.
+      }
+
+
       // Step 1: Create Firebase Auth user
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
@@ -64,26 +109,44 @@ export default function SignupPage() {
         description: "Your account is almost ready. Please check your email to verify your address." 
       });
 
-      // Prepare data for server action (excluding passwords)
-      const profileData: SignupFormValuesType = {
-        fullName: data.fullName,
-        email: data.email,
-        accountType: data.accountType,
+      // Step 1.7: Upload profile picture now that we have firebaseUser.uid
+      if (data.accountType === 'provider' && profilePictureFile) {
+        try {
+          profilePictureUrl = await uploadFileToStorage(profilePictureFile, `providerProfiles/${firebaseUser.uid}/profilePictures`);
+        } catch (uploadError: any) {
+          toast({
+            title: "Profile Picture Upload Failed",
+            description: uploadError.message || "Could not upload profile picture. You can add it later.",
+            variant: "destructive",
+          });
+          // Continue signup without profile picture if upload fails
+        }
+      }
+      
+      // Prepare data for server action
+      const serverActionData: ServerSignupFormValues = {
+        ...data,
+        profilePictureUrl: profilePictureUrl,
       };
+      if (data.yearsOfExperience === undefined) { // Ensure yearsOfExperience is a number or explicitly undefined for the action if not provided
+        serverActionData.yearsOfExperience = 0; // Or handle as per your model's expectation
+      }
+
 
       // Step 2: Call the server action to create Firestore profiles
-      const signupResult = await signupUserAction(profileData, firebaseUser.uid);
+      const signupResult = await signupUserAction(serverActionData, firebaseUser.uid);
 
       if (signupResult.success) {
         toast({ 
-          title: "Profile Setup Complete!", 
-          description: "Remember to verify your email. You will be redirected shortly." 
+          title: "Signup Successful!", 
+          description: "Your profile setup is complete. Remember to verify your email. Redirecting to login..." 
         });
-        // router.push('/'); // Redirect to home or dashboard after a short delay or explicitly on verified email
-        // For now, we'll let them log in, but ideally, we'd encourage verification.
+        reset(); // Reset form
+        setProfilePictureFile(null);
+        setProfilePicturePreview(null);
+        router.push('/auth/login'); 
       } else {
         toast({ title: "Profile Creation Failed", description: signupResult.message, variant: "destructive" });
-        // Consider what to do if Firestore profile creation fails. User auth account exists.
       }
     } catch (error: any) {
       console.error("Error during signup:", error);
@@ -110,19 +173,20 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] py-12 px-4">
-      <Card className="w-full max-w-lg shadow-xl">
+    <div className="container mx-auto px-4 py-12">
+      <Card className="w-full max-w-2xl mx-auto shadow-xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 p-3 bg-primary/10 rounded-full w-fit">
             <UserPlus className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-3xl font-headline">Create an Account</CardTitle>
           <CardDescription>
-            Join FundiConnect by providing your details.
+            Join FundiConnect. Select your account type and fill in your details.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
+            {/* Common Fields */}
             <div>
               <Label htmlFor="fullName" className="font-semibold flex items-center"><User className="mr-2 h-4 w-4" /> Full Name</Label>
               <Input id="fullName" {...register("fullName")} placeholder="e.g., Juma Otieno" className="mt-1" disabled={isLoading} />
@@ -145,23 +209,98 @@ export default function SignupPage() {
             </div>
             <div>
               <Label className="font-semibold flex items-center mb-1"><Briefcase className="mr-2 h-4 w-4" /> Account Type</Label>
-              <RadioGroup
-                onValueChange={(value) => control._formValues.accountType = value as "client" | "provider"}
-                defaultValue={control._formValues.accountType}
-                className="flex space-x-4 mt-1"
-                {...register("accountType")} 
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="client" id="client" disabled={isLoading} />
-                  <Label htmlFor="client">I'm a Client (Looking for Fundis)</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="provider" id="provider" disabled={isLoading} />
-                  <Label htmlFor="provider">I'm a Fundi (Service Provider)</Label>
-                </div>
-              </RadioGroup>
+              <Controller
+                name="accountType"
+                control={control}
+                render={({ field }) => (
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    className="flex space-x-4 mt-1"
+                    disabled={isLoading}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="client" id="client" />
+                      <Label htmlFor="client">I'm a Client (Looking for Fundis)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="provider" id="provider" />
+                      <Label htmlFor="provider">I'm a Fundi (Service Provider)</Label>
+                    </div>
+                  </RadioGroup>
+                )}
+              />
               {errors.accountType && <p className="text-sm text-destructive mt-1">{errors.accountType.message}</p>}
             </div>
+
+            {/* Provider Specific Fields - Conditional Rendering */}
+            {accountType === 'provider' && (
+              <>
+                <div className="pt-4 border-t mt-6">
+                  <h3 className="text-lg font-semibold mb-4 text-primary">Provider Details</h3>
+                </div>
+                <div>
+                  <Label htmlFor="businessName" className="font-semibold flex items-center"><Building className="mr-2 h-4 w-4" /> Business Name</Label>
+                  <Input id="businessName" {...register("businessName")} placeholder="e.g., Juma's Electrical Services" className="mt-1" disabled={isLoading}/>
+                  {errors.businessName && <p className="text-sm text-destructive mt-1">{errors.businessName.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="mainService" className="font-semibold flex items-center"><Briefcase className="mr-2 h-4 w-4" /> Main Service Category</Label>
+                  <Controller
+                    name="mainService"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                        <SelectTrigger id="mainService" className="mt-1">
+                          <SelectValue placeholder="Select your main service" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providerServiceCategories.map(category => (
+                            <SelectItem key={category} value={category}>
+                              <div className="flex items-center">
+                                <ServiceCategoryIcon category={category} iconOnly className="mr-2 h-4 w-4" />
+                                {category}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.mainService && <p className="text-sm text-destructive mt-1">{errors.mainService.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="providerLocation" className="font-semibold flex items-center"><MapPinIcon className="mr-2 h-4 w-4" /> Primary Location</Label>
+                  <Input id="providerLocation" {...register("providerLocation")} placeholder="e.g., Westlands, Nairobi" className="mt-1" disabled={isLoading}/>
+                  {errors.providerLocation && <p className="text-sm text-destructive mt-1">{errors.providerLocation.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="contactPhoneNumber" className="font-semibold flex items-center"><Phone className="mr-2 h-4 w-4" /> Business Phone Number</Label>
+                  <Input id="contactPhoneNumber" type="tel" {...register("contactPhoneNumber")} placeholder="e.g., +2547XXXXXXXX" className="mt-1" disabled={isLoading}/>
+                  {errors.contactPhoneNumber && <p className="text-sm text-destructive mt-1">{errors.contactPhoneNumber.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="yearsOfExperience" className="font-semibold flex items-center"><Award className="mr-2 h-4 w-4" /> Years of Experience</Label>
+                  <Input id="yearsOfExperience" type="number" {...register("yearsOfExperience")} placeholder="e.g., 5" className="mt-1" disabled={isLoading}/>
+                  {errors.yearsOfExperience && <p className="text-sm text-destructive mt-1">{errors.yearsOfExperience.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="bio" className="font-semibold flex items-center"><FileText className="mr-2 h-4 w-4" /> Short Bio / Business Description</Label>
+                  <Textarea id="bio" {...register("bio")} placeholder="Tell clients about your services, experience, and what makes you stand out (min 20 characters)." className="mt-1 min-h-[100px]" disabled={isLoading}/>
+                  {errors.bio && <p className="text-sm text-destructive mt-1">{errors.bio.message}</p>}
+                </div>
+                 <div>
+                    <Label htmlFor="profilePicture" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Profile Picture (Optional)</Label>
+                    <Input id="profilePicture" type="file" onChange={handleProfilePictureChange} accept="image/png, image/jpeg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isLoading}/>
+                    {profilePicturePreview && (
+                        <div className="mt-2">
+                            <img src={profilePicturePreview} alt="Profile preview" className="h-24 w-24 rounded-full object-cover border" data-ai-hint="profile image preview" />
+                        </div>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">Max 2MB. Recommended: Square image.</p>
+                </div>
+              </>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col">
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
@@ -178,5 +317,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    
