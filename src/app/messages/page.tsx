@@ -6,12 +6,12 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { subscribeToUserChats } from '@/services/chatService';
+import { subscribeToUserChats, markMessagesAsRead } from '@/services/chatService';
 import type { Chat } from '@/models/chat';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { MessageSquareText, Users, Loader2, Inbox } from 'lucide-react'; // Added Inbox
+import { MessageSquareText, Users, Loader2, Inbox } from 'lucide-react'; 
 import { formatDistanceToNowStrict } from 'date-fns';
 import ChatListItemSkeleton from '@/components/skeletons/chat-list-item-skeleton';
 
@@ -47,10 +47,17 @@ const MessagesPage: NextPage = () => {
   const getOtherParticipant = (chat: Chat) => {
     if (!currentUser) return null;
     const otherUid = chat.participantUids.find(uid => uid !== currentUser.uid);
-    return otherUid ? chat.participants[otherUid] : null;
+    return otherUid ? chat.participants[otherUid] : { uid: otherUid || 'unknown', displayName: "Unknown User" };
   };
 
-  if (isLoading && !currentUser && currentUser !== null) { // Initial auth check loading, but not yet determined if null
+  const handleChatOpen = (chatId: string) => {
+    if (currentUser?.uid) {
+      markMessagesAsRead(chatId, currentUser.uid);
+    }
+  };
+
+
+  if (isLoading && !currentUser && currentUser !== null) { 
      return (
       <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -59,7 +66,7 @@ const MessagesPage: NextPage = () => {
     );
   }
 
-  if (!currentUser && !isLoading) { // Auth checked, user is definitely not logged in
+  if (!currentUser && !isLoading) { 
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
@@ -115,16 +122,21 @@ const MessagesPage: NextPage = () => {
                   ? formatDistanceToNowStrict(new Date(chat.lastMessage.timestamp), { addSuffix: true })
                   : '';
                 
-                const isUnread = chat.lastMessage && chat.lastMessage.senderUid !== currentUser?.uid && !chat.lastMessage.isReadBy?.[currentUser?.uid || ''];
+                const isUnread = chat.lastMessage && 
+                                 chat.lastMessage.senderUid !== currentUser?.uid && 
+                                 !chat.lastMessage.isReadBy?.[currentUser?.uid || ''];
 
 
                 return (
                   <li key={chat.id}>
                     <Link href={`/messages/${chat.id}`} legacyBehavior passHref>
-                      <a className={`block p-4 rounded-lg hover:bg-muted transition-colors border ${isUnread ? 'border-primary bg-primary/5' : 'bg-card'}`}>
+                      <a 
+                        onClick={() => handleChatOpen(chat.id)} 
+                        className={`block p-4 rounded-lg hover:bg-muted transition-colors border ${isUnread ? 'border-primary bg-primary/5' : 'bg-card'}`}
+                      >
                         <div className="flex items-center space-x-4">
                           <Avatar className="h-12 w-12">
-                            <AvatarImage src={otherParticipant?.photoURL || undefined} alt={otherParticipant?.displayName || 'User'} data-ai-hint="profile avatar" />
+                            <AvatarImage src={otherParticipant?.photoURL || undefined} alt={otherParticipant?.displayName || 'User'} data-ai-hint="profile avatar"/>
                             <AvatarFallback>
                               {otherParticipant?.displayName ? otherParticipant.displayName.substring(0, 2).toUpperCase() : 'U'}
                             </AvatarFallback>
@@ -163,5 +175,3 @@ const MessagesPage: NextPage = () => {
 };
 
 export default MessagesPage;
-
-    

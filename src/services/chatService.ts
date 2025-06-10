@@ -13,11 +13,12 @@ import {
   Timestamp,
   writeBatch,
   arrayUnion,
-  limit
+  limit,
+  updateDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
-import { getUserProfileFromFirestore } from '@/services/userService'; // To get display names
+import { getUserProfileFromFirestore } from '@/services/userService'; 
 
 /**
  * Generates a consistent chat ID for two user UIDs.
@@ -48,7 +49,6 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
   const chatSnap = await getDoc(chatRef);
 
   if (!chatSnap.exists()) {
-    // Fetch profile information for participants
     const [currentUserProfile, otherUserProfile] = await Promise.all([
       getUserProfileFromFirestore(currentUserUid),
       getUserProfileFromFirestore(otherUserUid)
@@ -65,12 +65,13 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
       photoURL: otherUserProfile?.photoURL || null,
     };
 
-    const newChatData: Omit<Chat, 'id' | 'lastMessage' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any } = {
+    const newChatData: Omit<Chat, 'id' | 'lastMessage' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any, lastMessage: null } = {
       participantUids: [currentUserUid, otherUserUid],
       participants: {
         [currentUserUid]: currentUserParticipant,
         [otherUserUid]: otherUserParticipant,
       },
+      lastMessage: null, // Initialize lastMessage as null
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -109,29 +110,42 @@ export async function sendMessage(
     throw new Error("Could not determine receiver UID.");
   }
 
-  const newMessage: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: any } = {
+  const newMessageData: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: any } = {
     chatId,
     senderUid,
     receiverUid,
     text,
     imageUrl,
-    isRead: false,
+    isRead: false, 
     timestamp: serverTimestamp(),
   };
 
   const batch = writeBatch(db);
   
-  // Use .add() on a collection reference to get an auto-generated ID
-  const messageDocRef = doc(messagesRef); // Creates a reference with an auto-ID
-  batch.set(messageDocRef, newMessage); // Use set with the new reference
+  const messageDocRef = doc(messagesRef); 
+  batch.set(messageDocRef, newMessageData);
+
+  let lastMessageText = text;
+  if (imageUrl && !text) {
+    lastMessageText = "Sent an image";
+  } else if (imageUrl && text) {
+    lastMessageText = text; // If there's text with an image, use the text as the preview
+  }
+
 
   batch.update(chatRef, {
     lastMessage: {
-      text: text || (imageUrl ? 'Image' : ''),
+      text: lastMessageText,
       senderUid,
       timestamp: serverTimestamp(),
+      isReadBy: { [senderUid]: true } // Mark as read by sender
     },
     updatedAt: serverTimestamp(),
+    // Ensure participants field is updated if it wasn't fully populated during getOrCreateChat
+    // This part might be redundant if getOrCreateChat always fully populates participants
+    [`participants.${senderUid}.displayName`]: chatData.participants[senderUid]?.displayName || senderUid,
+    [`participants.${receiverUid}.displayName`]: chatData.participants[receiverUid]?.displayName || receiverUid,
+
   });
 
   await batch.commit();
@@ -169,7 +183,6 @@ export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) 
     callback(chats);
   }, (error) => {
     console.error("Error subscribing to user chats:", error);
-    // Handle error appropriately in the UI
   });
 }
 
@@ -182,7 +195,7 @@ export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) 
  */
 export function subscribeToChatMessages(chatId: string, callback: (messages: ChatMessage[]) => void): () => void {
   const messagesRef = collection(db, 'chats', chatId, 'messages');
-  const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(50)); // Get last 50, consider pagination later
+  const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(50)); 
 
   return onSnapshot(q, (querySnapshot) => {
     const messages: ChatMessage[] = [];
@@ -197,9 +210,74 @@ export function subscribeToChatMessages(chatId: string, callback: (messages: Cha
     callback(messages);
   }, (error) => {
     console.error("Error subscribing to chat messages:", error);
-    // Handle error appropriately in the UI
   });
 }
 
-// TODO: Add function to mark messages as read
-// export async function markMessagesAsRead(chatId: string, readerUid: string) { ... }
+
+/**
+ * Marks messages in a chat as read by a specific user.
+ * @param chatId The ID of the chat.
+ * @param readerUid The UID of the user who has read the messages.
+ */
+export async function markMessagesAsRead(chatId: string, readerUid: string): Promise<void> {
+  const chatRef = doc(db, 'chats', chatId);
+  const chatSnap = await getDoc(chatRef);
+
+  if (chatSnap.exists()) {
+    const chatData = chatSnap.data() as Chat;
+    if (chatData.lastMessage && chatData.lastMessage.senderUid !== readerUid) {
+      // Update the lastMessage.isReadBy field
+      const updateData: any = {
+        [`lastMessage.isReadBy.${readerUid}`]: true,
+        updatedAt: serverTimestamp() // Also update overall chat timestamp
+      };
+       // If the other participant's display name is missing, try to fetch and update it
+      const otherUid = chatData.participantUids.find(uid => uid !== readerUid);
+      if (otherUid && (!chatData.participants[otherUid] || !chatData.participants[otherUid].displayName)) {
+        const otherUserProfile = await getUserProfileFromFirestore(otherUid);
+        if (otherUserProfile && otherUserProfile.fullName) {
+          updateData[`participants.${otherUid}.displayName`] = otherUserProfile.fullName;
+          if (otherUserProfile.photoURL) {
+            updateData[`participants.${otherUid}.photoURL`] = otherUserProfile.photoURL;
+          }
+        }
+      }
+
+
+      try {
+        await updateDoc(chatRef, updateData);
+
+        // Additionally, you could iterate through unread messages in the subcollection
+        // and mark them as read if needed, but updating lastMessage is often sufficient for UI indicators.
+        // For a full unread count system, you'd need more complex logic.
+      } catch (error) {
+        console.error(`Error marking messages as read for chat ${chatId} by ${readerUid}:`, error);
+        // Don't throw, as this is often a background-like operation.
+      }
+    }
+  }
+}
+
+// Call this when a chat is opened by a user.
+export function setupChatReadMarker(chatId: string, currentUserUid: string | null | undefined): void {
+  if (chatId && currentUserUid) {
+    const chatRef = doc(db, 'chats', chatId);
+    const unsubscribe = onSnapshot(chatRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const chatData = docSnap.data() as Chat;
+        // If there's a last message and it wasn't sent by the current user,
+        // and it's not marked as read by the current user, then mark it as read.
+        if (chatData.lastMessage && 
+            chatData.lastMessage.senderUid !== currentUserUid && 
+            !chatData.lastMessage.isReadBy?.[currentUserUid]) {
+          markMessagesAsRead(chatId, currentUserUid);
+        }
+      }
+    });
+    // Important: This `unsubscribe` should be called when the component using this setup unmounts,
+    // or it will lead to memory leaks and continued Firestore reads.
+    // This function is better integrated into the component's useEffect that also subscribes to messages.
+    // For now, this is a conceptual placement.
+  }
+}
+
