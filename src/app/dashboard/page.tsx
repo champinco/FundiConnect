@@ -37,35 +37,43 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true); // Start with loading true
 
   useEffect(() => {
+    setIsLoading(true); // Explicitly set loading true at the start of effect
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setCurrentUser(user); // Set Firebase user immediately
+        setCurrentUser(user);
         try {
           const userProfile = await getUserProfileFromFirestore(user.uid);
           setAppUser(userProfile);
 
-          if (userProfile?.accountType === 'client') {
-            const jobSummary = await getJobSummaryForClient(user.uid);
-            setDashboardData({ jobSummary });
-          } else if (userProfile?.accountType === 'provider') {
-            const [providerProfile, quoteSummary, assignedJobs] = await Promise.all([
-              getProviderProfileFromFirestore(user.uid),
-              getSubmittedQuotesSummaryForProvider(user.uid),
-              getAssignedJobsForProvider(user.uid, 3)
-            ]);
-            setDashboardData({ providerProfile, quoteSummary, assignedJobs });
+          if (userProfile) { // Only fetch dashboard data if userProfile exists
+            if (userProfile.accountType === 'client') {
+              const jobSummary = await getJobSummaryForClient(user.uid);
+              setDashboardData({ jobSummary });
+            } else if (userProfile.accountType === 'provider') {
+              const [providerProfileData, quoteSummary, assignedJobs] = await Promise.all([
+                getProviderProfileFromFirestore(user.uid),
+                getSubmittedQuotesSummaryForProvider(user.uid),
+                getAssignedJobsForProvider(user.uid, 3)
+              ]);
+              setDashboardData({ providerProfile: providerProfileData, quoteSummary, assignedJobs });
+            }
+          } else {
+            // User is authenticated but no app profile found.
+            // appUser state is already null, isLoading will be set to false in finally.
+            console.warn("User authenticated but no app profile found for UID:", user.uid);
           }
         } catch (error) {
           console.error("Error fetching dashboard data:", error);
-          // Potentially set an error state to show a message to the user
+          setAppUser(null); // Ensure appUser is null on error
+          setDashboardData(null);
         } finally {
-          setIsLoading(false); // Set loading to false after all async ops for a logged-in user
+          setIsLoading(false);
         }
       } else {
         setCurrentUser(null);
         setAppUser(null);
         setDashboardData(null);
-        setIsLoading(false); // Set loading to false if no user
+        setIsLoading(false);
       }
     });
     return () => unsubscribe();
@@ -80,8 +88,9 @@ export default function DashboardPage() {
     );
   }
 
-  if (!currentUser || !appUser) {
-    // This condition should now be more reliable
+  // After loading:
+  if (!currentUser) {
+    // If, after all checks, there's NO Firebase user, then prompt login.
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
@@ -100,15 +109,39 @@ export default function DashboardPage() {
     );
   }
 
+  if (!appUser) {
+    // If there IS a Firebase user, but NO app user profile, this is an error/incomplete profile state.
+    return (
+       <div className="container mx-auto px-4 py-12 text-center">
+        <Card className="max-w-md mx-auto shadow-lg">
+          <CardHeader>
+             <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-2" />
+            <CardTitle>Profile Error</CardTitle>
+            <CardDescription>Could not load your user profile. This might be a new account still being set up, or an issue occurred. Please try again shortly or contact support if the problem persists.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <Button onClick={() => window.location.reload()} >
+              Refresh Page
+            </Button>
+            <Button onClick={() => auth.signOut().then(() => window.location.href = '/auth/login')} variant="outline">
+              Logout and Login Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // If currentUser and appUser exist, render the dashboard:
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
       <Card className="mb-8 shadow-lg bg-card">
-        <CardHeader className="flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-6 p-6">
-          <Avatar className="h-20 w-20 border-2 border-primary">
+        <CardHeader className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 p-6 md:p-8">
+          <Avatar className="h-24 w-24 border-4 border-primary shadow-md">
             <AvatarImage src={appUser.photoURL || undefined} alt={appUser.fullName || appUser.email} data-ai-hint="user avatar"/>
-            <AvatarFallback className="text-2xl">{appUser.fullName ? appUser.fullName.substring(0, 1).toUpperCase() : appUser.email.substring(0,1).toUpperCase()}</AvatarFallback>
+            <AvatarFallback className="text-3xl">{appUser.fullName ? appUser.fullName.substring(0, 1).toUpperCase() : appUser.email.substring(0,1).toUpperCase()}</AvatarFallback>
           </Avatar>
-          <div>
+          <div className="text-center sm:text-left">
             <CardTitle className="text-3xl lg:text-4xl font-headline">Welcome back, {appUser.fullName || appUser.email}!</CardTitle>
             <CardDescription className="text-md lg:text-lg mt-1">Here's your FundiConnect overview.</CardDescription>
           </div>
@@ -122,12 +155,12 @@ export default function DashboardPage() {
               <CardTitle className="flex items-center text-xl"><ListChecks className="mr-3 h-7 w-7 text-primary" />Job Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-base">
-              <p>Open Jobs: <span className="font-semibold text-lg">{dashboardData.jobSummary.open}</span></p>
-              <p>Assigned/In Progress: <span className="font-semibold text-lg">{dashboardData.jobSummary.assigned + dashboardData.jobSummary.inProgress}</span></p>
-              <p>Completed Jobs: <span className="font-semibold text-lg">{dashboardData.jobSummary.completed}</span></p>
-              <p>Total Jobs Posted: <span className="font-semibold text-lg">{dashboardData.jobSummary.total}</span></p>
+              <p>Open Jobs: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.open}</span></p>
+              <p>Assigned/In Progress: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.assigned + dashboardData.jobSummary.inProgress}</span></p>
+              <p>Completed Jobs: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.completed}</span></p>
+              <p>Total Jobs Posted: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.total}</span></p>
             </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
+            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
               <Button asChild className="w-full sm:flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
                 <Link href="/jobs/post"><PlusCircle className="mr-2" /> Post New Job</Link>
               </Button>
@@ -136,15 +169,15 @@ export default function DashboardPage() {
               </Button>
             </CardFooter>
           </Card>
-          {/* Placeholder for another client card if needed */}
-           <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1 bg-primary/5 dark:bg-primary/10">
+          
+           <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-1 lg:col-span-1 bg-primary/5 dark:bg-primary/10">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center text-xl"><Search className="mr-3 h-7 w-7 text-primary" />Find a Fundi</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-base text-foreground/80 mb-4">Ready to start your next project? Search for qualified Fundis now.</p>
             </CardContent>
-            <CardFooter className="pt-4">
+            <CardFooter className="pt-6">
                 <Button asChild className="w-full bg-primary hover:bg-primary/90">
                     <Link href="/search">Browse Fundis</Link>
                 </Button>
@@ -162,14 +195,14 @@ export default function DashboardPage() {
             <CardContent>
               {dashboardData.providerProfile ? (
                 <>
-                  <p className="text-4xl font-bold">{dashboardData.providerProfile.rating.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">/ 5.0</span></p>
+                  <p className="text-4xl font-bold text-primary">{dashboardData.providerProfile.rating.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">/ 5.0</span></p>
                   <p className="text-sm text-muted-foreground mt-1">Based on {dashboardData.providerProfile.reviewsCount} reviews</p>
                 </>
               ) : (
                 <p className="text-muted-foreground">Profile data not available.</p>
               )}
             </CardContent>
-             <CardFooter className="pt-4">
+             <CardFooter className="pt-6">
                <Button asChild variant="outline" className="w-full">
                  <Link href={`/providers/${appUser.uid}`}><LayoutDashboard className="mr-2" />View My Public Profile</Link>
                </Button>
@@ -181,11 +214,11 @@ export default function DashboardPage() {
               <CardTitle className="flex items-center text-xl"><FileText className="mr-3 h-7 w-7 text-primary" />Quote Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-base">
-              <p>Pending Quotes: <span className="font-semibold text-lg">{dashboardData.quoteSummary.pending}</span></p>
-              <p>Accepted Quotes: <span className="font-semibold text-lg">{dashboardData.quoteSummary.accepted}</span></p>
-              <p>Total Submitted: <span className="font-semibold text-lg">{dashboardData.quoteSummary.total}</span></p>
+              <p>Pending Quotes: <span className="font-semibold text-lg text-primary">{dashboardData.quoteSummary.pending}</span></p>
+              <p>Accepted Quotes: <span className="font-semibold text-lg text-primary">{dashboardData.quoteSummary.accepted}</span></p>
+              <p>Total Submitted: <span className="font-semibold text-lg text-primary">{dashboardData.quoteSummary.total}</span></p>
             </CardContent>
-             <CardFooter className="flex flex-col sm:flex-row gap-3 pt-4">
+             <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
                 <Button asChild className="w-full sm:flex-1 bg-primary hover:bg-primary/90">
                   <Link href="/search"><Search className="mr-2" /> Browse Open Jobs</Link>
                 </Button>
@@ -197,16 +230,16 @@ export default function DashboardPage() {
 
           <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs</CardTitle>
+              <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs ({dashboardData.assignedJobs.length})</CardTitle>
               <CardDescription>Jobs currently assigned to you or in progress.</CardDescription>
             </CardHeader>
             <CardContent>
               {dashboardData.assignedJobs.length > 0 ? (
                 <ul className="space-y-4">
                   {dashboardData.assignedJobs.map(job => (
-                    <li key={job.id} className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <li key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
                       <Link href={`/jobs/${job.id}`} className="block group">
-                        <h4 className="font-semibold truncate group-hover:text-primary">{job.title}</h4>
+                        <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
                         <p className="text-sm text-muted-foreground">Status: <span className="capitalize font-medium">{job.status.replace('_', ' ')}</span></p>
                         <p className="text-xs text-muted-foreground">Updated: {format(new Date(job.updatedAt), 'MMM d, yyyy')}</p>
                       </Link>
@@ -214,12 +247,19 @@ export default function DashboardPage() {
                   ))}
                 </ul>
               ) : (
-                 <div className="text-center py-6">
-                    <AlertCircle className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
+                 <div className="text-center py-8">
+                    <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
                     <p className="text-muted-foreground">No active jobs assigned to you currently.</p>
                  </div>
               )}
             </CardContent>
+            {dashboardData.assignedJobs.length > 0 && (
+                 <CardFooter className="pt-6">
+                    <Button asChild variant="outline" className="w-full">
+                        <Link href="/search?myJobs=true&status=assigned">View All My Active Jobs</Link>
+                    </Button>
+                 </CardFooter>
+            )}
           </Card>
         </div>
       )}
