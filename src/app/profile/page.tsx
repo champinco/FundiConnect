@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserProfileFromFirestore } from '@/services/userService';
+import { getUserProfileFromFirestore, createDefaultAppUserProfile } from '@/services/userService';
 import type { User as AppUser } from '@/models/user';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -18,55 +18,55 @@ export default function ProfilePage() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // Optional: Add a specific error state if needed for fetch errors vs. not found
-  // const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
-    // setFetchError(null); // Reset fetch error on new attempt
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
         try {
-          const userProfile = await getUserProfileFromFirestore(user.uid);
-          if (userProfile) {
-            setAppUser(userProfile);
-            if (userProfile.accountType === 'provider') {
-              router.replace('/profile/edit');
-              // isLoading will remain true, and this component instance will likely unmount
-              // or be superseded by the new page's rendering. No need to set isLoading false here.
-            } else {
-              // It's a client profile, rendering will proceed on this page.
+          let userProfile = await getUserProfileFromFirestore(user.uid);
+
+          if (!userProfile) {
+            console.log(`No Firestore profile found for UID: ${user.uid}. Attempting to create default profile.`);
+            try {
+              userProfile = await createDefaultAppUserProfile(user);
+              console.log(`Default profile created successfully for UID: ${user.uid}`);
+            } catch (creationError) {
+              console.error(`Failed to create default profile for UID: ${user.uid}`, creationError);
+              setAppUser(null); // Ensure appUser is null if creation fails
               setIsLoading(false);
+              return; // Stop further processing if default profile creation fails
             }
+          }
+          
+          setAppUser(userProfile); // Set appUser whether it was fetched or newly created
+
+          if (userProfile.accountType === 'provider') {
+            router.replace('/profile/edit');
+            // isLoading remains true, /profile/edit handles its own loading
           } else {
-            // Firestore document for user not found
-            setAppUser(null);
+            // It's a client profile (either pre-existing or newly created default)
             setIsLoading(false);
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
+        } catch (error) { // Catches errors from getUserProfileFromFirestore if it throws
+          console.error("Error fetching or processing user profile:", error);
           setAppUser(null);
-          // setFetchError("Failed to load profile data. Please try again.");
           setIsLoading(false);
         }
       } else {
         // No Firebase user (logged out)
         setCurrentUser(null);
         setAppUser(null);
-        // setIsLoading(false); // Redirect will happen, login page handles its own loading.
-                               // However, to prevent brief flash of "User Data Not Found" before redirect,
-                               // we might keep isLoading true, or ensure redirect is very fast.
-                               // For now, let's set it to false as the current page's loading cycle is done.
-        setIsLoading(false);
+        setIsLoading(false); // Set loading false before redirect
         router.push('/auth/login?redirect=/profile');
       }
     });
 
     return () => unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]); // router is stable from Next.js
+  }, [router]);
 
   if (isLoading) {
     return (
@@ -77,11 +77,8 @@ export default function ProfilePage() {
     );
   }
 
-  // This case means: not loading, but either currentUser (auth) is missing (should have been redirected)
-  // or appUser (Firestore profile) is missing.
+  // This case means: not loading, but appUser (Firestore profile) is still missing after fetch/creation attempt.
   if (!appUser) { 
-    // If !currentUser, the redirect to /login should have ideally happened.
-    // This primarily catches the scenario where currentUser exists, but appUser (Firestore doc) doesn't.
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <div className="max-w-md mx-auto p-8">
@@ -105,6 +102,7 @@ export default function ProfilePage() {
   }
   
   // If it's a client, display their profile info (provider would have been redirected)
+  // A newly created default profile will also be of accountType 'client'.
   if (appUser.accountType === 'client') {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -140,6 +138,11 @@ export default function ProfilePage() {
                 <span className="font-semibold">Account Type:</span> <span className="capitalize">{appUser.accountType}</span>
               </div>
             </div>
+             {appUser.fullName === 'New User' && (
+                <p className="text-sm text-orange-600 dark:text-orange-400">
+                    It looks like your profile is new! Consider updating your full name.
+                </p>
+            )}
           </CardContent>
           <CardFooter className="flex-col space-y-3 pt-6">
             <Button asChild className="w-full">
@@ -160,10 +163,11 @@ export default function ProfilePage() {
   // Fallback if logic is somehow bypassed (e.g. accountType is neither client nor provider, which shouldn't happen)
   return (
     <div className="container mx-auto px-4 py-12 text-center">
-      <p className="text-muted-foreground">An unexpected error occurred while loading your profile.</p>
+      <p className="text-muted-foreground">An unexpected error occurred while loading your profile. Account type unrecognized.</p>
        <Button asChild className="mt-4">
           <Link href="/">Go to Homepage</Link>
        </Button>
     </div>
   );
 }
+

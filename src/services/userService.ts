@@ -3,7 +3,8 @@
  * @fileOverview Service functions for interacting with user data in Firestore.
  */
 import { doc, setDoc, getDoc, serverTimestamp, Timestamp, type FieldValue } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase'; // Import auth for current user type
+import type { User as FirebaseUser } from 'firebase/auth'; // For Firebase Auth user object
 import type { User, AccountType } from '@/models/user';
 
 /**
@@ -71,11 +72,12 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
  */
 export async function getUserProfileFromFirestore(uid: string): Promise<User | null> {
   if (!uid) {
-    console.error('getUserProfileFromFirestore called with undefined or empty UID.');
-    // It's better to throw an error here if UID is essential, 
+    console.warn('getUserProfileFromFirestore called with undefined or empty UID.');
+    // It's better to throw an error here if UID is essential,
     // or ensure calling code handles null robustly if it's a recoverable scenario.
     // For ProfilePage, an invalid UID means we definitely can't fetch a profile.
-    throw new Error('User UID is required to fetch profile, but was not provided.');
+    // However, returning null is also a valid way to signal not found, which the caller can check.
+    return null;
   }
   try {
     const userRef = doc(db, 'users', uid);
@@ -98,9 +100,45 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
     }
   } catch (error: any) {
     // This block is hit if getDoc fails for reasons like permissions, network, etc.
-    console.error(`Error fetching user profile from Firestore for UID: ${uid}. Original error:`, error);
+    console.error(`Error fetching user profile from Firestore for UID: ${uid}. Original error:`, error.code, error.message, error);
     // Append the original error message to the thrown error for more client-side context.
     throw new Error(`Could not fetch user profile. Original message: ${error.message}`);
   }
 }
 
+
+/**
+ * Creates a default user profile document in Firestore if one doesn't exist.
+ * Primarily intended as a fallback for users who completed Auth but missed Firestore profile creation.
+ * @param firebaseUser - The Firebase Auth user object.
+ * @returns A promise that resolves with the created or existing User object.
+ */
+export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): Promise<User> {
+  const userRef = doc(db, 'users', firebaseUser.uid);
+  const now = Timestamp.now(); // Use Firestore Timestamp for server-side consistency
+
+  const defaultProfileData: Omit<User, 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
+    uid: firebaseUser.uid,
+    email: firebaseUser.email || 'No email provided',
+    fullName: firebaseUser.displayName || 'New User',
+    accountType: 'client', // Default to client
+    photoURL: firebaseUser.photoURL || null,
+    phoneNumber: firebaseUser.phoneNumber || null,
+    // providerProfileId will be undefined, which is fine for a client
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  try {
+    await setDoc(userRef, defaultProfileData, { merge: true }); // Use merge to be safe, though set would also work if truly new
+    console.log(`Default profile created/updated for UID: ${firebaseUser.uid}`);
+    return {
+      ...defaultProfileData,
+      createdAt: defaultProfileData.createdAt.toDate(), // Convert to JS Date for return consistency
+      updatedAt: defaultProfileData.updatedAt.toDate(),
+    };
+  } catch (error) {
+    console.error(`Error creating default user profile for UID ${firebaseUser.uid}:`, error);
+    throw new Error('Could not create default user profile.');
+  }
+}
