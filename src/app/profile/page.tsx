@@ -7,7 +7,7 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import type { User as AppUser } from '@/models/user';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Loader2, UserCircle, Edit, ShieldCheck, Mail, Phone, Briefcase } from 'lucide-react';
@@ -29,22 +29,17 @@ export default function ProfilePage() {
           if (userProfile) {
             setAppUser(userProfile);
             if (userProfile.accountType === 'provider') {
-              // Redirect providers to their specific edit page
               router.replace('/profile/edit');
-              // setIsLoading(false) will be effectively skipped due to redirect
               return;
             }
-          } else {
-            // Handle case where app user profile might not exist yet for an auth user
-            // This could happen if signup process was interrupted
-            console.warn("User authenticated but no app profile found for UID:", user.uid);
-            // Let it fall through to display a message or redirect to login/signup
           }
         } catch (error) {
           console.error("Error fetching user profile:", error);
         } finally {
-          // Only set loading to false if not redirecting
-          if (appUser?.accountType !== 'provider' || !userProfile) { // userProfile might be undefined here if redirect happened
+          // Check if appUser was set or if redirection is happening before setting loading to false.
+          // If appUser is still null and we are not a provider, it implies an issue or incomplete profile.
+          const fetchedUserProfile = await getUserProfileFromFirestore(user.uid).catch(() => null); // Re-fetch or use a state variable if needed for accuracy
+          if (fetchedUserProfile?.accountType !== 'provider' || !fetchedUserProfile) {
              setIsLoading(false);
           }
         }
@@ -57,7 +52,7 @@ export default function ProfilePage() {
     });
     return () => unsubscribe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]); // appUser removed from deps to avoid loop with router.replace
+  }, [router]);
 
   if (isLoading) {
     return (
@@ -69,26 +64,23 @@ export default function ProfilePage() {
   }
 
   if (!currentUser || !appUser) {
-    // This state implies an issue, or the user was redirected away (e.g. to login)
-    // If redirect to login happened, this part might not be hit often.
-    // If appUser is null but currentUser exists, it's an incomplete profile.
+    // Adapted from the user-provided report for the "user data not found" case.
     return (
       <div className="container mx-auto px-4 py-12 text-center">
-        <Card className="max-w-md mx-auto shadow-lg">
-          <CardHeader>
-            <UserCircle className="h-12 w-12 text-destructive mx-auto mb-2" />
-            <CardTitle>Profile Unavailable</CardTitle>
-            <CardDescription>
-              Your profile could not be loaded. This might be due to an incomplete setup or an error.
-              Please try logging out and logging back in, or contact support.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => auth.signOut().then(() => router.push('/auth/login'))} variant="outline">
-              Logout and Login Again
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="max-w-md mx-auto p-8">
+          <UserCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-4 text-foreground">User Data Not Found</h2>
+          <p className="text-muted-foreground mb-6">
+            Your profile information could not be loaded. This might be due to an incomplete setup or an error.
+            Please try logging out and logging back in, or contact support if the issue persists.
+          </p>
+          <Link href="/" className="text-primary hover:underline">
+            Go back to Home
+          </Link>
+          <Button onClick={() => auth.signOut().then(() => router.push('/auth/login'))} variant="outline" className="mt-4 ml-4">
+            Logout & Try Again
+          </Button>
+        </div>
       </div>
     );
   }
