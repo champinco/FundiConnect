@@ -13,11 +13,19 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus } from "lucide-react";
+import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { NavItem } from "@/types"; // Assuming or creating this type
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { NavItem } from "@/types";
 
 
 export function SiteHeader() {
@@ -27,6 +35,7 @@ export function SiteHeader() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
+    setLoadingAuth(true);
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setLoadingAuth(false); 
@@ -37,26 +46,18 @@ export function SiteHeader() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setCurrentUser(null); 
-      router.push('/auth/login');
+      // router.push('/auth/login'); // Let onAuthStateChanged handle redirect implicitly or redirect manually
       setMobileNavOpen(false); 
     } catch (error) {
       console.error("Error logging out:", error);
     }
   };
 
-  // Construct navigation items based on authentication state
-  let mainNavDisplayItems: NavItem[] = [...siteConfig.mainNav];
-  let mobileNavDisplayItems: NavItem[] = [...siteConfig.mainNav];
-
-  if (currentUser) {
-    mainNavDisplayItems = [...mainNavDisplayItems, ...siteConfig.mainNavLoggedIn.filter(item => !mainNavDisplayItems.find(i => i.href === item.href))];
-    mobileNavDisplayItems = [...mobileNavDisplayItems, ...siteConfig.mainNavLoggedIn.filter(item => !mobileNavDisplayItems.find(i => i.href === item.href))];
-  } else {
-    // For logged-out users, we might have specific links (though mainNavLoggedOut is empty in current config)
-    mainNavDisplayItems = [...mainNavDisplayItems, ...siteConfig.mainNavLoggedOut.filter(item => !mainNavDisplayItems.find(i => i.href === item.href))];
-    mobileNavDisplayItems = [...mobileNavDisplayItems, ...siteConfig.mainNavLoggedOut.filter(item => !mobileNavDisplayItems.find(i => i.href === item.href))];
-  }
+  // Base navigation items
+  const baseNavItems: NavItem[] = [...siteConfig.mainNav];
+  
+  // Logged-in specific navigation items (for mobile menu and potentially for dropdown if structured differently)
+  const loggedInSpecificNavItems: NavItem[] = [...siteConfig.mainNavLoggedIn];
 
 
   if (loadingAuth) {
@@ -68,7 +69,8 @@ export function SiteHeader() {
               <span className="inline-block font-bold font-headline text-primary">{siteConfig.name}</span>
             </Link>
              <div className="flex flex-1 items-center justify-end space-x-4">
-               <span className="text-sm text-muted-foreground">Loading...</span>
+                <div className="h-6 w-20 animate-pulse rounded-md bg-muted"></div>
+                <div className="h-8 w-8 animate-pulse rounded-full bg-muted"></div>
              </div>
          </div>
        </header>
@@ -78,51 +80,65 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
       <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
-        <MainNav items={mainNavDisplayItems.filter(item => 
-            // Filter out items that are handled by dedicated buttons like Login/Logout/Signup or special user links
-            !["/auth/login", "/auth/signup"].includes(item.href) &&
-            (currentUser ? !["My Profile", "Messages", "Dashboard"].includes(item.title) : true) // Example: don't show these in MainNav if handled by specific buttons
-        )} />
+        {/* MainNav now only receives base navigation items */}
+        <MainNav items={baseNavItems} />
         
-        <div className="flex flex-1 items-center justify-end space-x-1 md:space-x-4">
+        <div className="flex flex-1 items-center justify-end space-x-1 md:space-x-2">
           <nav className="hidden items-center space-x-1 md:flex">
             {currentUser ? (
-              <>
-                {siteConfig.mainNavLoggedIn.map((item) => ( // These are specific user action links
-                  item.href && (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        buttonVariants({ variant: "ghost" }),
-                        "text-sm font-medium"
-                      )}
-                    >
-                      {item.title}
-                    </Link>
-                  )
-                ))}
-                <Button
-                    variant="ghost"
-                    onClick={handleLogout}
-                    className="text-sm font-medium"
-                  >
-                   Logout
-                 </Button>
-              </>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.displayName || currentUser.email || "User"} data-ai-hint="user avatar" />
+                      <AvatarFallback>
+                        {currentUser.displayName ? currentUser.displayName.substring(0,1).toUpperCase() : currentUser.email ? currentUser.email.substring(0,1).toUpperCase() : "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none truncate">
+                        {currentUser.displayName || currentUser.email}
+                      </p>
+                      <p className="text-xs leading-none text-muted-foreground truncate">
+                        {currentUser.email}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {loggedInSpecificNavItems.map((item) => (
+                     item.href && (
+                        <DropdownMenuItem key={item.href} asChild>
+                            <Link href={item.href}>
+                                {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-4 w-4" />}
+                                {item.title === "Messages" && <MessageSquare className="mr-2 h-4 w-4" />}
+                                {item.title === "My Profile" && <UserCircle className="mr-2 h-4 w-4" />}
+                                {item.title}
+                            </Link>
+                        </DropdownMenuItem>
+                     )
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               <>
-                {/* Add any specific logged-out links from siteConfig.mainNavLoggedOut here if needed, 
-                    otherwise MainNav already handles common links like Smart Match */}
                 <Link
                   href="/auth/login"
-                  className={buttonVariants({ variant: "ghost" })}
+                  className={cn(buttonVariants({ variant: "ghost" }), "text-sm")}
                 >
                   Login
                 </Link>
                 <Link
                   href="/auth/signup"
-                  className={buttonVariants({ variant: "default", size:"sm" })}
+                  className={cn(buttonVariants({ variant: "default", size:"sm" }), "text-sm")}
                 >
                   Sign Up
                 </Link>
@@ -131,11 +147,12 @@ export function SiteHeader() {
             <ThemeToggle />
           </nav>
 
+          {/* Mobile Menu Button & Sheet */}
           <div className="md:hidden flex items-center">
             <ThemeToggle /> 
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="ml-2">
+                <Button variant="ghost" size="icon" className="ml-1">
                   <Menu className="h-6 w-6" />
                   <span className="sr-only">Toggle Menu</span>
                 </Button>
@@ -153,7 +170,7 @@ export function SiteHeader() {
                 {currentUser && (
                   <div className="p-4 border-b">
                     <div className="flex items-center space-x-3">
-                      <Avatar>
+                      <Avatar className="h-10 w-10">
                         <AvatarImage src={currentUser.photoURL || undefined} alt={currentUser.displayName || currentUser.email || "User"} data-ai-hint="user avatar"/>
                         <AvatarFallback>
                           {currentUser.displayName ? currentUser.displayName.substring(0,1).toUpperCase() : currentUser.email ? currentUser.email.substring(0,1).toUpperCase() : "U"}
@@ -168,19 +185,34 @@ export function SiteHeader() {
                 )}
 
                 <nav className="flex-grow p-4 space-y-1">
-                  {/* Use mobileNavDisplayItems for the mobile menu */}
-                  {mobileNavDisplayItems.map((item) => (
+                  {baseNavItems.map((item) => (
                     item.href && (
                       <Link
-                        key={`mobile-${item.href}`}
+                        key={`mobile-base-${item.href}`}
                         href={item.href}
                         className={cn(
                           "block rounded-md px-3 py-2 text-base font-medium hover:bg-muted",
+                           // Add active link styling if desired for mobile
                         )}
                         onClick={() => setMobileNavOpen(false)}
                       >
                         {item.title}
                       </Link>
+                    )
+                  ))}
+                  {currentUser && loggedInSpecificNavItems.map((item) => (
+                    item.href && (
+                        <Link
+                            key={`mobile-user-${item.href}`}
+                            href={item.href}
+                            className="flex items-center rounded-md px-3 py-2 text-base font-medium hover:bg-muted"
+                            onClick={() => setMobileNavOpen(false)}
+                        >
+                            {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-5 w-5" />}
+                            {item.title === "Messages" && <MessageSquare className="mr-2 h-5 w-5" />}
+                            {item.title === "My Profile" && <UserCircle className="mr-2 h-5 w-5" />}
+                            {item.title}
+                        </Link>
                     )
                   ))}
                 </nav>
@@ -192,7 +224,7 @@ export function SiteHeader() {
                       <Button
                         variant="outline"
                         className="w-full justify-start"
-                        onClick={handleLogout}
+                        onClick={() => {handleLogout(); setMobileNavOpen(false);}}
                       >
                         <LogOut className="mr-2 h-4 w-4" /> Logout
                       </Button>
@@ -215,15 +247,5 @@ export function SiteHeader() {
     </header>
   );
 }
-
-// Define NavItem type if not already defined in src/types/index.d.ts or similar
-// For example:
-// export interface NavItem {
-//   title: string
-//   href: string
-//   disabled?: boolean
-//   external?: boolean
-//   icon?: React.ComponentType<{ className?: string }>
-//   label?: string
-//   description?: string
-// }
+    
+    
