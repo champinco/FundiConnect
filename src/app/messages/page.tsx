@@ -61,7 +61,7 @@ const MessagesPage: NextPage = () => {
      return (
       <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-lg">Verifying authentication...</p>
+        <p className="ml-4 text-lg text-muted-foreground">Verifying authentication...</p>
       </div>
     );
   }
@@ -71,11 +71,11 @@ const MessagesPage: NextPage = () => {
       <div className="container mx-auto px-4 py-8 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
           <CardHeader>
-            <CardTitle>Access Denied</CardTitle>
+            <Users className="h-16 w-16 text-primary mx-auto mb-4 opacity-70" />
+            <CardTitle className="text-2xl font-headline">Access Denied</CardTitle>
             <CardDescription>You need to be logged in to view your messages.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Users className="h-16 w-16 text-primary mx-auto mb-4 opacity-70" />
             <p className="text-muted-foreground mb-6">Please log in to continue.</p>
             <Button asChild className="mt-4">
               <Link href="/auth/login?redirect=/messages">Login</Link>
@@ -97,11 +97,11 @@ const MessagesPage: NextPage = () => {
           <CardDescription>View and manage your ongoing chats with Fundis and clients.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading && chats.length === 0 ? (
+          {isLoading && chats.length === 0 && currentUser ? ( // Show skeletons if loading and user is known
             <ul className="space-y-3">
               {[...Array(3)].map((_, i) => <ChatListItemSkeleton key={i} />)}
             </ul>
-          ) : !isLoading && chats.length === 0 ? (
+          ) : !isLoading && chats.length === 0 && currentUser ? ( // Show empty state if logged in, not loading, and no chats
             <div className="text-center py-10 flex flex-col items-center">
               <Inbox className="h-20 w-20 text-primary opacity-60 mx-auto mb-6" />
               <h3 className="text-xl font-semibold text-foreground mb-2">No Conversations Yet</h3>
@@ -113,11 +113,11 @@ const MessagesPage: NextPage = () => {
                  <Link href="/search">Find a Fundi</Link>
                </Button>
             </div>
-          ) : (
+          ) : ( // Display chats if available
             <ul className="space-y-3">
               {chats.map((chat) => {
                 const otherParticipant = getOtherParticipant(chat);
-                const lastMessageText = chat.lastMessage?.text || "No messages yet...";
+                const lastMessageText = chat.lastMessage?.text || (chat.lastMessage?.imageUrl ? "Sent an image" : "No messages yet...");
                 const lastMessageTime = chat.lastMessage?.timestamp 
                   ? formatDistanceToNowStrict(new Date(chat.lastMessage.timestamp), { addSuffix: true })
                   : '';
@@ -132,7 +132,7 @@ const MessagesPage: NextPage = () => {
                     <Link href={`/messages/${chat.id}`} legacyBehavior passHref>
                       <a 
                         onClick={() => handleChatOpen(chat.id)} 
-                        className={`block p-4 rounded-lg hover:bg-muted transition-colors border ${isUnread ? 'border-primary bg-primary/5' : 'bg-card'}`}
+                        className={`block p-4 rounded-lg hover:bg-muted transition-colors border ${isUnread ? 'border-primary bg-primary/5 dark:border-primary/70 dark:bg-primary/10' : 'bg-card'}`}
                       >
                         <div className="flex items-center space-x-4">
                           <Avatar className="h-12 w-12">
