@@ -1,11 +1,13 @@
 
 'use server';
 
-import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint, FieldPath } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint, FieldPath, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider';
 import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
+import type { Job, JobStatus } from '@/models/job'; // Import Job model
+import type { JobCardProps } from '@/components/job-card'; // Import JobCardProps
 
 export interface SearchParams {
   query?: string | null;
@@ -31,11 +33,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     }
 
     // Location filter - check if provided location is in the provider's serviceAreas array
-    // Firestore's array-contains is case-sensitive. Providers should be guided to enter consistent data.
     if (params.location && params.location.trim() !== '') {
-      // To make it slightly more robust for user input, we can try matching common casings.
-      // However, true case-insensitivity for array-contains requires storing lowercase arrays.
-      // For MVP, we'll use the trimmed input directly.
       const locationSearchTerm = params.location.trim();
       queryConstraints.push(where('serviceAreas', 'array-contains', locationSearchTerm));
     }
@@ -50,7 +48,10 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
       }
     }
 
-    if (!queryConstraints.some(c => c.toString().includes("orderBy"))) {
+    if (!queryConstraints.some(c => {
+        const fieldPath = (c as any)._fieldPath;
+        return fieldPath && (fieldPath.isEqual(new FieldPath('rating')) || fieldPath.isEqual(new FieldPath('businessName')))
+    })) {
         queryConstraints.push(orderBy('businessName')); 
     }
     
@@ -77,8 +78,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
       });
     });
 
-    // Text query is still applied post-fetch.
-    // Consider if the text query should also check against serviceAreas for better relevance.
+    // Text query is still applied post-fetch for providers.
     if (params.query && params.query.trim() !== '') {
       const searchTerm = params.query.trim().toLowerCase();
       providersData = providersData.filter(p =>
@@ -93,5 +93,94 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
   } catch (error) {
     console.error("Error searching providers:", error);
     return []; 
+  }
+}
+
+
+// New action for searching jobs
+export interface JobSearchParams {
+  keywords?: string | null;
+  location?: string | null;
+  category?: ServiceCategory | 'All' | null;
+  // postedDateRange?: '24h' | '7d' | '30d' | null; // We can add this later
+}
+
+export async function searchJobsAction(params: JobSearchParams): Promise<JobCardProps['job'][]> {
+  try {
+    const jobsRef = collection(db, 'jobs');
+    const queryConstraints: QueryConstraint[] = [];
+
+    // Filter by job status - only 'open' or 'pending_quotes'
+    queryConstraints.push(where('status', 'in', ['open', 'pending_quotes']));
+
+    // Category filter
+    if (params.category && params.category !== 'All') {
+      queryConstraints.push(where('serviceCategory', '==', params.category));
+    }
+
+    // Location filter (simple text match on job's primary location field for now)
+    // For more advanced location, we'd need to standardize location data or use geoqueries.
+    if (params.location && params.location.trim() !== '') {
+      // Firestore text search capabilities are limited. For a simple start:
+      // This will be a case-sensitive exact match on the location field.
+      // A more robust solution would involve tokenizing location strings or using a search service.
+      // For MVP, we can make users aware of this limitation or try a prefix match if supported easily.
+      // Let's try to filter client-side for location text matching as well for more flexibility
+      // queryConstraints.push(where('location', '>=', params.location.trim()));
+      // queryConstraints.push(where('location', '<=', params.location.trim() + '\uf8ff'));
+      // The above creates a range query, not ideal for partial matches.
+      // For now, we'll rely on a broader fetch and then filter client-side for location and keywords.
+    }
+    
+    queryConstraints.push(orderBy('postedAt', 'desc'));
+    queryConstraints.push(limit(50)); // Limit results
+
+    const firestoreQuery = query(jobsRef, ...queryConstraints);
+    const querySnapshot = await getDocs(firestoreQuery);
+    
+    let jobsData: Job[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      jobsData.push({
+        id: docSnap.id,
+        ...data,
+        postedAt: (data.postedAt as Timestamp)?.toDate(),
+        updatedAt: (data.updatedAt as Timestamp)?.toDate(),
+        deadline: (data.deadline as Timestamp)?.toDate() || null,
+      } as Job);
+    });
+
+    // Client-side filtering for location (case-insensitive partial match)
+    if (params.location && params.location.trim() !== '') {
+      const locationTerm = params.location.trim().toLowerCase();
+      jobsData = jobsData.filter(job => job.location.toLowerCase().includes(locationTerm));
+    }
+    
+    // Client-side filtering for keywords (title and description)
+    if (params.keywords && params.keywords.trim() !== '') {
+      const keywordTerm = params.keywords.trim().toLowerCase();
+      jobsData = jobsData.filter(job => 
+        job.title.toLowerCase().includes(keywordTerm) ||
+        job.description.toLowerCase().includes(keywordTerm)
+      );
+    }
+    
+    // Transform to JobCardProps['job']
+    const jobCardData: JobCardProps['job'][] = jobsData.map(job => ({
+      id: job.id,
+      title: job.title,
+      serviceCategory: job.serviceCategory,
+      otherCategoryDescription: job.otherCategoryDescription,
+      location: job.location,
+      postedAt: job.postedAt, // Will be a Date object
+      status: job.status,
+      description: job.description, // Pass full description for snippet logic in card
+    }));
+
+    return jobCardData;
+
+  } catch (error) {
+    console.error("Error searching jobs:", error);
+    return [];
   }
 }
