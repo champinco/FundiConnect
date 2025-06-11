@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNowStrict, isDate } from 'date-fns';
 
 interface ClientDashboardData {
   jobSummary: ClientJobSummary;
@@ -29,6 +29,23 @@ interface ProviderDashboardData {
 }
 
 type DashboardData = ClientDashboardData | ProviderDashboardData | null;
+
+// Helper function to format dates dynamically
+const formatDynamicDate = (dateInput: Date | string | number | undefined | null): string => {
+  if (!dateInput) return 'N/A';
+  const date = isDate(dateInput) ? dateInput : new Date(dateInput);
+  if (isNaN(date.getTime())) return 'Invalid Date';
+
+  const now = new Date();
+  const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
+  now.setDate(now.getDate() + 1); // Reset now to current
+
+  if (date > oneDayAgo) {
+    return formatDistanceToNowStrict(date, { addSuffix: true });
+  }
+  return format(date, 'MMM d, yyyy');
+};
+
 
 export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
@@ -241,7 +258,7 @@ export default function DashboardPage() {
                       <Link href={`/jobs/${job.id}`} className="block group">
                         <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
                         <p className="text-sm text-muted-foreground">Status: <span className="capitalize font-medium">{job.status.replace('_', ' ')}</span></p>
-                        <p className="text-xs text-muted-foreground">Updated: {format(new Date(job.updatedAt), 'MMM d, yyyy')}</p>
+                        <p className="text-xs text-muted-foreground">Updated: {formatDynamicDate(job.updatedAt)}</p>
                       </Link>
                     </li>
                   ))}

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { MapPin, CalendarDays, Briefcase, UserCircle, Edit, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNowStrict, isDate } from 'date-fns';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
@@ -18,6 +18,22 @@ import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
 import MarkAsCompletedButton from './components/mark-as-completed-button'; 
 // import { getReviewForJobByClient } from '@/services/reviewService'; // Checked inside SubmitReviewForm
+
+// Helper function to format dates dynamically
+const formatDynamicDate = (dateInput: Date | string | number | undefined | null, includeTime: boolean = false): string => {
+  if (!dateInput) return 'N/A';
+  const date = isDate(dateInput) ? dateInput : new Date(dateInput);
+  if (isNaN(date.getTime())) return 'Invalid Date';
+
+  const now = new Date();
+  const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
+   now.setDate(now.getDate() + 1); // Reset now to current day to correctly compare against oneDayAgo
+
+  if (date > oneDayAgo) { // If the date is within the last 24 hours
+    return formatDistanceToNowStrict(date, { addSuffix: true });
+  }
+  return format(date, includeTime ? 'MMM d, yyyy p' : 'PPP');
+};
 
 
 export default async function JobDetailPage({ params }: { params: { jobId: string } }) {
@@ -151,7 +167,7 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                                     {quote.providerDetails?.businessName || 'Provider Profile'}
                                     </Link>
                                     <p className="text-xs text-muted-foreground">
-                                    Sent: {format(new Date(quote.createdAt), 'MMM d, yyyy p')}
+                                    Sent: {formatDynamicDate(quote.createdAt, true)}
                                     </p>
                                 </div>
                             </div>
@@ -204,7 +220,7 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                 </div>
                 <div className="flex items-center">
                   <CalendarDays className="h-4 w-4 mr-2 text-primary" />
-                  <span className="text-muted-foreground">Posted: {format(new Date(job.postedAt), 'PPP')}</span>
+                  <span className="text-muted-foreground">Posted: {formatDynamicDate(job.postedAt)}</span>
                 </div>
                 {job.deadline && (
                    <div className="flex items-center">
