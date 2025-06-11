@@ -5,7 +5,7 @@ import { useState, useEffect, type FormEvent, useMemo } from 'react';
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton';
 import JobCard, { type JobCardProps } from '@/components/job-card'; // Import JobCard
-// import JobCardSkeleton from '@/components/skeletons/job-card-skeleton'; // Optional: Create this if desired
+import JobCardSkeleton from '@/components/skeletons/job-card-skeleton'; // Import JobCardSkeleton
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -335,8 +335,7 @@ export default function SearchPage() {
               {[...Array(searchMode === 'providers' ? 6 : 4)].map((_, i) => 
                 searchMode === 'providers' 
                   ? <ProviderCardSkeleton key={i} /> 
-                  // : <JobCardSkeleton key={i} /> // Create JobCardSkeleton if desired
-                  : <ProviderCardSkeleton key={i} /> // Using ProviderCardSkeleton as temp for jobs
+                  : <JobCardSkeleton key={i} />
               )}
             </div>
           )}
