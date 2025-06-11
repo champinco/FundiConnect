@@ -11,11 +11,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Sparkles, Lightbulb, Info } from 'lucide-react';
+import { Loader2, Sparkles, Lightbulb, Info, PackageOpen } from 'lucide-react';
 import type { SmartMatchSuggestionsOutput } from '@/ai/flows/smart-match-suggestions';
 import { getSmartMatchSuggestionsAction } from './actions';
 import ProviderCard, { type Provider } from '@/components/provider-card';
-import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton'; // New Import
+import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton'; 
+import Link from 'next/link';
 
 const smartMatchSchema = z.object({
   jobDescription: z.string().min(20, 'Please provide a detailed job description (min 20 characters).'),
@@ -29,6 +30,7 @@ export default function SmartMatchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<SmartMatchSuggestionsOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<SmartMatchFormValues>({
     resolver: zodResolver(smartMatchSchema),
@@ -38,6 +40,7 @@ export default function SmartMatchPage() {
     setIsLoading(true);
     setSuggestions(null);
     setError(null);
+    setHasSearched(true);
 
     const inputForAction = {
       jobDescription: data.jobDescription,
@@ -65,7 +68,7 @@ export default function SmartMatchPage() {
             <CardTitle className="text-3xl font-headline">Smart Match Tool</CardTitle>
           </div>
           <CardDescription>
-            Let our AI help you find the best Fundi for your job. Provide details below, and we&apos;ll suggest top matches from our verified providers.
+            Let our AI help you find the best Fundi for your job. Provide details below, and we&apos;ll suggest top matches from our available providers.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -130,7 +133,7 @@ export default function SmartMatchPage() {
         </Alert>
       )}
 
-      {isLoading && !suggestions && !error && (
+      {isLoading && hasSearched && (
         <div className="mt-12">
           <h2 className="text-2xl font-bold font-headline text-center mb-8 text-muted-foreground">Finding best matches...</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -139,20 +142,32 @@ export default function SmartMatchPage() {
         </div>
       )}
 
-      {!isLoading && suggestions && suggestions.length > 0 && (
+      {!isLoading && hasSearched && suggestions && suggestions.length > 0 && (
         <div className="mt-12">
-          <h2 className="text-2xl font-bold font-headline text-center mb-8">Recommended Fundis</h2>
+          <h2 className="text-2xl font-bold font-headline text-center mb-8">AI Recommended Fundis</h2>
+          <Alert variant="default" className="mb-6 max-w-2xl mx-auto bg-primary/5 dark:bg-primary/10 border-primary/30">
+            <Lightbulb className="h-5 w-5 text-primary" />
+            <AlertTitle className="text-primary font-semibold">Smart Suggestions</AlertTitle>
+            <AlertDescription>
+              These suggestions are based on our AI analysis of your job requirements and available provider profiles. 
+              Consider these as a starting point, and always verify provider details independently.
+            </AlertDescription>
+          </Alert>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {suggestions.map((suggestion, index) => {
+              // The AI flow currently returns only name and reason.
+              // We need to map this to the ProviderCard structure, which expects more details.
+              // For now, we'll use placeholders. A future enhancement would be to fetch full provider
+              // details based on the names returned by the AI, or have the AI return IDs.
               const cardProvider: Provider = {
                 id: `suggestion-${suggestion.name.replace(/\s+/g, '-')}-${index}`, 
                 name: suggestion.name,
-                profilePictureUrl: 'https://placehold.co/600x400.png', 
-                rating: 0, 
-                reviewsCount: 0, 
-                location: "N/A", 
-                mainService: 'Other' as any, 
-                isVerified: false, 
+                profilePictureUrl: 'https://placehold.co/300x300.png', // Placeholder
+                rating: 0, // Placeholder - AI doesn't directly return this in current flow
+                reviewsCount: 0, // Placeholder
+                location: "See Details", // Placeholder - could be derived if AI returns location
+                mainService: 'Other', // Placeholder - could be derived
+                isVerified: false, // Placeholder - AI doesn't return this
                 bioSummary: suggestion.reason, 
               };
               return <ProviderCard key={cardProvider.id} provider={cardProvider} />;
@@ -161,16 +176,23 @@ export default function SmartMatchPage() {
         </div>
       )}
 
-      {!isLoading && suggestions && suggestions.length === 0 && !error && (
+      {!isLoading && hasSearched && (!suggestions || suggestions.length === 0) && !error && (
          <Alert className="mt-8 max-w-2xl mx-auto" variant="default">
-          <Info className="h-5 w-5" />
-          <AlertTitle>No Specific AI Suggestions</AlertTitle>
+          <PackageOpen className="h-5 w-5" />
+          <AlertTitle>No Specific AI Matches Found</AlertTitle>
           <AlertDescription>
-            We couldn&apos;t find specific AI matches based on your criteria with the current provider pool. 
-            Try broadening your search criteria or <a href="/search" className="underline text-primary hover:text-primary/80">browse all providers directly</a>.
+            Our AI couldn&apos;t pinpoint specific matches this time. This might be due to the uniqueness of your request or the current pool of providers.
+            <ul className="list-disc pl-5 mt-2 space-y-1">
+              <li>Try rephrasing your job description or preferred criteria for more clarity.</li>
+              <li>Consider broadening your criteria if it was very specific.</li>
+              <li>You can also <Link href="/search" className="font-medium text-primary hover:underline">browse all available Fundis</Link> directly.</li>
+              <li>Or <Link href="/jobs/post" className="font-medium text-primary hover:underline">post your job publicly</Link> to receive quotes from interested Fundis.</li>
+            </ul>
           </AlertDescription>
         </Alert>
       )}
     </div>
   );
 }
+
+    
