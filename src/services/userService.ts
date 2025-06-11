@@ -66,6 +66,36 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
 }
 
 /**
+ * Helper function to safely convert Firestore Timestamps or other date representations to JavaScript Date objects.
+ * @param fieldValue - The field value which might be a Firestore Timestamp, JS Date, string, or number.
+ * @returns A JavaScript Date object.
+ */
+const convertPotentialTimestampToDate = (fieldValue: any): Date => {
+  // Check if it's a Firestore Timestamp
+  if (fieldValue && typeof fieldValue.toDate === 'function') {
+    return (fieldValue as Timestamp).toDate();
+  }
+  // Check if it's already a JavaScript Date
+  if (fieldValue instanceof Date) {
+    return fieldValue;
+  }
+  // If it's a string or number, try to parse it
+  // This handles ISO strings or millisecond numbers from epoch
+  if (typeof fieldValue === 'string' || typeof fieldValue === 'number') {
+    const parsedDate = new Date(fieldValue);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate;
+    }
+  }
+  // Fallback for unrecognized format or missing mandatory field
+  // Your User model expects createdAt/updatedAt to be non-nullable Date.
+  // If fieldValue is null/undefined or unparseable here, it indicates a data issue.
+  console.warn(`Invalid or missing timestamp field encountered: ${JSON.stringify(fieldValue)}. Defaulting to current date. This may indicate a data integrity issue.`);
+  return new Date(); // Return current date as a fallback to prevent crashes
+};
+
+
+/**
  * Retrieves a user profile document from Firestore.
  * @param uid - The user's unique ID.
  * @returns A promise that resolves with the User object or null if not found.
@@ -73,10 +103,6 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
 export async function getUserProfileFromFirestore(uid: string): Promise<User | null> {
   if (!uid) {
     console.warn('getUserProfileFromFirestore called with undefined or empty UID.');
-    // It's better to throw an error here if UID is essential,
-    // or ensure calling code handles null robustly if it's a recoverable scenario.
-    // For ProfilePage, an invalid UID means we definitely can't fetch a profile.
-    // However, returning null is also a valid way to signal not found, which the caller can check.
     return null;
   }
   try {
@@ -85,23 +111,19 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
 
     if (userSnap.exists()) {
       const userDataFromDb = userSnap.data();
-      // Convert Firestore Timestamps to Date objects
+      // Convert Firestore Timestamps to Date objects safely
       return {
         ...userDataFromDb,
         uid: userSnap.id, // ensure uid is from doc id
-        createdAt: (userDataFromDb.createdAt as Timestamp)?.toDate(),
-        updatedAt: (userDataFromDb.updatedAt as Timestamp)?.toDate(),
+        createdAt: convertPotentialTimestampToDate(userDataFromDb.createdAt),
+        updatedAt: convertPotentialTimestampToDate(userDataFromDb.updatedAt),
       } as User; // Cast to User, assuming structure matches
     } else {
-      // This case is handled by ProfilePage by showing "User Data Not Found".
-      // This is not an "error" in fetching, but a valid state of data not existing.
       console.warn(`No user profile document found in Firestore for UID: ${uid}`);
       return null;
     }
   } catch (error: any) {
-    // This block is hit if getDoc fails for reasons like permissions, network, etc.
     console.error(`Error fetching user profile from Firestore for UID: ${uid}. Original error:`, error.code, error.message, error);
-    // Append the original error message to the thrown error for more client-side context.
     throw new Error(`Could not fetch user profile. Original message: ${error.message}`);
   }
 }
@@ -124,21 +146,34 @@ export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): P
     accountType: 'client', // Default to client
     photoURL: firebaseUser.photoURL || null,
     phoneNumber: firebaseUser.phoneNumber || null,
-    // providerProfileId will be undefined, which is fine for a client
     createdAt: now,
     updatedAt: now,
   };
 
   try {
-    await setDoc(userRef, defaultProfileData, { merge: true }); // Use merge to be safe, though set would also work if truly new
-    console.log(`Default profile created/updated for UID: ${firebaseUser.uid}`);
+    // Check if profile already exists to avoid overwriting if called concurrently or multiple times
+    const existingProfileSnap = await getDoc(userRef);
+    if (existingProfileSnap.exists()) {
+        console.log(`Profile already exists for UID: ${firebaseUser.uid}. Returning existing profile.`);
+        const existingData = existingProfileSnap.data();
+        return {
+            ...existingData,
+            uid: existingProfileSnap.id,
+            createdAt: convertPotentialTimestampToDate(existingData.createdAt),
+            updatedAt: convertPotentialTimestampToDate(existingData.updatedAt),
+        } as User;
+    }
+
+    await setDoc(userRef, defaultProfileData);
+    console.log(`Default profile created for UID: ${firebaseUser.uid}`);
     return {
       ...defaultProfileData,
       createdAt: defaultProfileData.createdAt.toDate(), // Convert to JS Date for return consistency
       updatedAt: defaultProfileData.updatedAt.toDate(),
     };
   } catch (error) {
-    console.error(`Error creating default user profile for UID ${firebaseUser.uid}:`, error);
-    throw new Error('Could not create default user profile.');
+    console.error(`Error creating or checking default user profile for UID ${firebaseUser.uid}:`, error);
+    throw new Error('Could not create or check default user profile.');
   }
 }
+
