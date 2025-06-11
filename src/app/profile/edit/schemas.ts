@@ -43,10 +43,10 @@ export const providerProfileEditFormSchema = z.object({
   ),
   contactPhoneNumber: z.string().regex(/^\+?[0-9\s-()]{7,20}$/, "Please enter a valid phone number."),
   operatingHours: z.string().optional(),
-  serviceAreas: z.array(z.string().min(2, "Service area must be at least 2 characters.")).optional(),
+  serviceAreas: z.string().optional() // Comma-separated string from form, will be transformed
+    .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
   website: z.string().url("Please enter a valid URL for your website.").optional().or(z.literal('')),
   
-  // Profile picture and banner - handled separately for upload, schema for URL
   profilePictureUrl: z.string().url().optional().nullable(),
   bannerImageUrl: z.string().url().optional().nullable(),
   
@@ -73,11 +73,9 @@ export const providerProfileEditFormSchema = z.object({
     ).optional().nullable(),
   
   certifications: z.array(certificationSchema).optional(),
-  // Portfolio items will be handled similarly if needed, for now focusing on certs
 });
 
 export type ProviderProfileEditFormValues = z.infer<typeof providerProfileEditFormSchema>;
 export type CertificationFormValues = z.infer<typeof certificationSchema>;
 
-// Ensure serviceCategoriesForValidation is properly typed if not already
 export const allServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];

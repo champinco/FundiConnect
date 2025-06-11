@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink } from 'lucide-react';
+import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 
@@ -24,7 +24,7 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
-import { getUserProfileFromFirestore } from '@/services/userService'; // For checking account type
+import { getUserProfileFromFirestore } from '@/services/userService'; 
 import type { ProviderProfile, Certification } from '@/models/provider';
 import type { User as AppUser } from '@/models/user';
 import { uploadFileToStorage } from '@/services/storageService';
@@ -43,6 +43,7 @@ export default function EditProviderProfilePage() {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isClientAccount, setIsClientAccount] = useState(false);
 
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export default function EditProviderProfilePage() {
       yearsOfExperience: 0,
       contactPhoneNumber: "",
       operatingHours: "",
-      serviceAreas: [],
+      serviceAreas: "", // Initialize as empty string for comma-separated input
       website: "",
       certifications: [],
       profilePictureUrl: null,
@@ -83,25 +84,24 @@ export default function EditProviderProfilePage() {
           const fetchedAppUser = await getUserProfileFromFirestore(user.uid);
           setAppUser(fetchedAppUser);
           if (fetchedAppUser?.accountType === 'client') {
-            toast({ title: "Access Denied", description: "Profile editing is for providers.", variant: "destructive" });
-            router.replace('/dashboard');
+            setIsClientAccount(true);
+            setIsLoading(false);
             return;
           }
           
           const profile = await getProviderProfileFromFirestore(user.uid);
           if (profile) {
             setProviderProfile(profile);
-            // Initialize form with fetched profile data
             reset({
               ...profile,
               yearsOfExperience: profile.yearsOfExperience ?? 0,
               specialties: profile.specialties ?? [],
-              serviceAreas: profile.serviceAreas ?? [],
+              serviceAreas: (profile.serviceAreas ?? []).join(', '), // Join array to string for input
               certifications: (profile.certifications ?? []).map(cert => ({
                 ...cert,
                 issueDate: cert.issueDate ? new Date(cert.issueDate) : undefined,
                 expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : undefined,
-                newDocumentFile: undefined, // Ensure this is not pre-filled from DB model
+                newDocumentFile: undefined, 
               })),
             });
             if (profile.profilePictureUrl) setProfilePicturePreview(profile.profilePictureUrl);
@@ -127,7 +127,6 @@ export default function EditProviderProfilePage() {
   const handleProfilePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      // Validation is also in Zod schema, but good for immediate feedback
       if (file.size > 5 * 1024 * 1024) { 
         toast({ title: "File too large", description: "Profile picture should be less than 5MB.", variant: "destructive" });
         return;
@@ -158,23 +157,20 @@ export default function EditProviderProfilePage() {
       return;
     }
     setIsSubmitting(true);
-    let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl; // Keep existing if no new file
-    let uploadedBannerImgUrl: string | null | undefined = data.bannerImageUrl; // Keep existing if no new file
+    let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl; 
+    let uploadedBannerImgUrl: string | null | undefined = data.bannerImageUrl; 
     
     const uploadedCertificationDocuments: Array<{ index: number; url: string | null }> = [];
 
     try {
-      // 1. Upload Profile Picture if new one selected
       if (profilePictureFile) {
         uploadedProfilePicUrl = await uploadFileToStorage(profilePictureFile, `providerProfiles/${currentUser.uid}/profilePictures`);
       }
 
-      // 2. Upload Banner Image if new one selected
       if (bannerImageFile) {
         uploadedBannerImgUrl = await uploadFileToStorage(bannerImageFile, `providerProfiles/${currentUser.uid}/bannerImages`);
       }
 
-      // 3. Upload Certification Documents
       if (data.certifications) {
         for (let i = 0; i < data.certifications.length; i++) {
           const cert = data.certifications[i];
@@ -182,14 +178,15 @@ export default function EditProviderProfilePage() {
             const docUrl = await uploadFileToStorage(cert.newDocumentFile, `providerProfiles/${currentUser.uid}/certifications/${cert.id || uuidv4()}`);
             uploadedCertificationDocuments.push({ index: i, url: docUrl });
           } else {
-            uploadedCertificationDocuments.push({ index: i, url: cert.documentUrl || null }); // Keep existing URL if no new file
+            uploadedCertificationDocuments.push({ index: i, url: cert.documentUrl || null }); 
           }
         }
       }
       
+      // The Zod schema now transforms serviceAreas string to array automatically
       const result = await updateProviderProfileAction(
         currentUser.uid, 
-        data,
+        data, // data.serviceAreas is now string[] due to Zod transform
         uploadedProfilePicUrl,
         uploadedBannerImgUrl,
         uploadedCertificationDocuments
@@ -198,8 +195,6 @@ export default function EditProviderProfilePage() {
       if (result.success) {
         toast({ title: "Profile Updated", description: result.message });
         if(result.updatedProfile?.certifications) {
-            // Update form state with new URLs and statuses from server if needed
-            // This is important if the server modifies data like 'status'
              setValue('certifications', result.updatedProfile.certifications.map(cert => ({
                 ...cert,
                 issueDate: cert.issueDate ? new Date(cert.issueDate) : undefined,
@@ -207,7 +202,6 @@ export default function EditProviderProfilePage() {
                 newDocumentFile: undefined,
             })));
         }
-        // Update local previews if new images were uploaded successfully and URLs returned
         if (uploadedProfilePicUrl) setProfilePicturePreview(uploadedProfilePicUrl);
         if (uploadedBannerImgUrl) setBannerImagePreview(uploadedBannerImgUrl);
 
@@ -222,8 +216,37 @@ export default function EditProviderProfilePage() {
   };
 
   if (isLoading) return <ProviderProfileSkeleton />;
+  
+  if (!currentUser && !isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+        <Card className="max-w-md mx-auto">
+          <CardHeader><CardTitle>Login Required</CardTitle></CardHeader>
+          <CardContent>
+            <p>Please log in to edit your profile.</p>
+            <Button asChild className="mt-4"><Link href="/auth/login?redirect=/profile/edit">Login</Link></Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  if (isClientAccount) {
+    return (
+      <div className="container mx-auto px-4 py-12 text-center">
+         <Card className="max-w-md mx-auto">
+          <CardHeader><CardTitle>Access Denied</CardTitle></CardHeader>
+          <CardContent>
+            <p>Profile editing is only available for provider accounts.</p>
+            <Button asChild className="mt-4"><Link href="/dashboard">Go to Dashboard</Link></Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
   if (fetchError) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error</AlertTitle><AlertDescription>{fetchError}</AlertDescription></Alert>;
-  if (!currentUser || !providerProfile) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error</AlertTitle><AlertDescription>Profile not loaded. Please try again.</AlertDescription></Alert>;
+  if (!providerProfile && !isLoading) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error</AlertTitle><AlertDescription>Provider profile not found. Please ensure your provider account setup was completed correctly.</AlertDescription></Alert>;
 
 
   return (
@@ -240,7 +263,6 @@ export default function EditProviderProfilePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
-            {/* Basic Info Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Basic Information</h3>
               <div className="space-y-4">
@@ -255,7 +277,7 @@ export default function EditProviderProfilePage() {
                   {errors.contactPhoneNumber && <p className="text-sm text-destructive mt-1">{errors.contactPhoneNumber.message}</p>}
                 </div>
                 <div>
-                  <Label htmlFor="location" className="font-semibold flex items-center"><MapPinIcon className="mr-2 h-4 w-4" /> Primary Location</Label>
+                  <Label htmlFor="location" className="font-semibold flex items-center"><MapPinIcon className="mr-2 h-4 w-4" /> Primary Location / Town</Label>
                   <Input id="location" {...register("location")} placeholder="e.g., Westlands, Nairobi" className="mt-1" />
                   {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
                 </div>
@@ -272,7 +294,6 @@ export default function EditProviderProfilePage() {
               </div>
             </section>
 
-            {/* Service Details Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Service Details</h3>
               <div className="space-y-4">
@@ -303,6 +324,12 @@ export default function EditProviderProfilePage() {
                   <Input id="yearsOfExperience" type="number" {...register("yearsOfExperience")} className="mt-1" />
                   {errors.yearsOfExperience && <p className="text-sm text-destructive mt-1">{errors.yearsOfExperience.message}</p>}
                 </div>
+                 <div>
+                  <Label htmlFor="serviceAreas" className="font-semibold flex items-center"><Pin className="mr-2 h-4 w-4" /> Service Areas (Comma-separated)</Label>
+                  <Input id="serviceAreas" {...register("serviceAreas")} placeholder="e.g., Kilimani, Lavington, Kileleshwa" className="mt-1" />
+                  {errors.serviceAreas && <p className="text-sm text-destructive mt-1">{errors.serviceAreas.message}</p>}
+                   <p className="text-xs text-muted-foreground mt-1">List the specific neighborhoods or areas you serve, separated by commas.</p>
+                </div>
                 <div>
                   <Label htmlFor="bio" className="font-semibold flex items-center"><FileText className="mr-2 h-4 w-4" /> Short Bio / Business Description</Label>
                   <Textarea id="bio" {...register("bio")} className="mt-1 min-h-[120px]" />
@@ -313,11 +340,9 @@ export default function EditProviderProfilePage() {
                   <Input id="operatingHours" {...register("operatingHours")} placeholder="e.g., Mon-Fri 9am-5pm, Sat 10am-2pm" className="mt-1" />
                   {errors.operatingHours && <p className="text-sm text-destructive mt-1">{errors.operatingHours.message}</p>}
                 </div>
-                {/* TODO: Add UI for specialties and serviceAreas if needed (e.g. tag input or multi-select) */}
               </div>
             </section>
 
-            {/* Visuals Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Profile Visuals</h3>
                <div className="space-y-4">
@@ -339,7 +364,6 @@ export default function EditProviderProfilePage() {
             </section>
 
 
-            {/* Certifications Section */}
             <section>
               <div className="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 className="text-xl font-semibold text-primary">Certifications</h3>

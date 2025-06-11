@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint, FieldPath } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider';
 import type { Provider } from '@/components/provider-card';
@@ -30,33 +30,31 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
       queryConstraints.push(where('isVerified', '==', true));
     }
 
-    // Location filter - Exact match (case-sensitive by default in Firestore)
-    // For case-insensitive, you would typically store a lowercase version of location and query that.
+    // Location filter - check if provided location is in the provider's serviceAreas array
+    // Firestore's array-contains is case-sensitive. Providers should be guided to enter consistent data.
     if (params.location && params.location.trim() !== '') {
-      queryConstraints.push(where('location', '==', params.location.trim()));
+      // To make it slightly more robust for user input, we can try matching common casings.
+      // However, true case-insensitivity for array-contains requires storing lowercase arrays.
+      // For MVP, we'll use the trimmed input directly.
+      const locationSearchTerm = params.location.trim();
+      queryConstraints.push(where('serviceAreas', 'array-contains', locationSearchTerm));
     }
     
-    // Rating filter
     if (params.minRating && params.minRating > 0) {
       queryConstraints.push(where('rating', '>=', params.minRating));
-      // Firestore requires an orderBy clause on the field used in a range filter (like '>=')
-      // if no other orderBy on that field is present.
-      // If multiple orderBys are needed (e.g. rating desc, then name asc), ensure composite indexes.
-      if (!queryConstraints.some(c => c.toString().includes('orderBy("rating"'))) {
+       if (!queryConstraints.some(c => {
+            const fieldPath = (c as any)._fieldPath; // internal field, use with caution
+            return fieldPath && fieldPath.isEqual(new FieldPath('rating'));
+        })) {
          queryConstraints.push(orderBy('rating', 'desc'));
       }
     }
 
-    // Default ordering if no specific sort is implied by filters (e.g. by rating)
-    // Add a general sort to ensure somewhat consistent results if no rating filter applied.
-    // Firestore requires an orderBy on a field if you use cursors or certain complex queries,
-    // or if you want consistent pagination.
     if (!queryConstraints.some(c => c.toString().includes("orderBy"))) {
-        queryConstraints.push(orderBy('businessName')); // Default sort by business name
+        queryConstraints.push(orderBy('businessName')); 
     }
     
-    // Limit the number of documents fetched
-    queryConstraints.push(limit(50)); // Adjust limit as needed
+    queryConstraints.push(limit(50)); 
 
     const firestoreQuery = query(providersRef, ...queryConstraints);
     
@@ -71,7 +69,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
         profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/600x400.png',
         rating: data.rating || 0,
         reviewsCount: data.reviewsCount || 0,
-        location: data.location,
+        location: data.location, // Primary location for display
         mainService: data.mainService,
         isVerified: data.isVerified || false,
         verificationAuthority: data.verificationAuthority,
@@ -79,21 +77,21 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
       });
     });
 
-    // If a text query is provided, filter the results from Firestore in the action.
-    // This is a client-side style filter but performed on the server after DB fetch.
+    // Text query is still applied post-fetch.
+    // Consider if the text query should also check against serviceAreas for better relevance.
     if (params.query && params.query.trim() !== '') {
       const searchTerm = params.query.trim().toLowerCase();
       providersData = providersData.filter(p =>
         p.name.toLowerCase().includes(searchTerm) ||
         p.mainService.toLowerCase().includes(searchTerm) ||
         (p.bioSummary && p.bioSummary.toLowerCase().includes(searchTerm)) ||
-        (p.location && p.location.toLowerCase().includes(searchTerm)) // also search location text
+        (p.location && p.location.toLowerCase().includes(searchTerm)) 
       );
     }
 
     return providersData;
   } catch (error) {
     console.error("Error searching providers:", error);
-    return []; // Return empty array on error to prevent UI breakage
+    return []; 
   }
 }
