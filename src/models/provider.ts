@@ -1,43 +1,48 @@
+
 import type { ServiceCategory } from '@/components/service-category-icon';
 
 export interface Certification {
+  id: string; // Unique ID for the certification (e.g., UUID generated on client or Firestore ID)
   name: string;
   number: string;
-  issuingBody?: string;
-  issueDate?: Date;
-  expiryDate?: Date;
+  issuingBody: string;
+  issueDate?: Date | null; // Store as Date object
+  expiryDate?: Date | null; // Store as Date object
+  documentUrl: string | null;
+  status: 'pending_review' | 'verified' | 'requires_attention' | 'expired' | 'not_applicable';
+  verificationNotes: string | null;
 }
 
 export interface PortfolioItem {
   id: string;
   imageUrl: string;
   description: string;
-  dataAiHint?: string; // For AI-assisted image searching or description
+  dataAiHint?: string;
 }
 
 export interface ProviderProfile {
-  id: string; // Corresponds to User UID or a dedicated ID
-  userId: string; // Link back to the User document (Firebase Auth UID)
-  businessName: string; // Can be same as user's fullName or a registered business name
+  id: string;
+  userId: string;
+  businessName: string;
   mainService: ServiceCategory;
   specialties: string[];
   bio: string;
-  location: string; // General area, e.g., "Kilimani, Nairobi"
-  fullAddress?: string; // More specific, optional
+  location: string;
+  fullAddress?: string;
   yearsOfExperience: number;
-  isVerified: boolean;
-  verificationAuthority?: string; // e.g., "EPRA", "NCA"
+  isVerified: boolean; // Overall profile verification status
+  verificationAuthority?: string; // e.g., "FundiConnect Admin" for overall
   certifications: Certification[];
   portfolio: PortfolioItem[];
-  rating: number; // Average rating, calculated
-  reviewsCount: number; // Total number of reviews, calculated
-  contactPhoneNumber: string; // Business phone, might differ from user's personal phone
-  operatingHours?: string; // e.g., "Mon-Fri 9am-5pm, Sat 10am-2pm" or structured
-  serviceAreas: string[]; // List of areas they serve
-  profilePictureUrl?: string; // URL for business/provider profile picture
-  bannerImageUrl?: string; // URL for a banner/cover image on their profile
-  website?: string; // Optional link to their website
-  socialMediaLinks?: Record<string, string>; // e.g., { facebook: "url", twitter: "url" }
+  rating: number;
+  reviewsCount: number;
+  contactPhoneNumber: string;
+  operatingHours?: string;
+  serviceAreas: string[];
+  profilePictureUrl?: string;
+  bannerImageUrl?: string;
+  website?: string;
+  socialMediaLinks?: Record<string, string>;
   createdAt: Date;
   updatedAt: Date;
 }
