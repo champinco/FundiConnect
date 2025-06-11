@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation'; 
 import { useEffect, useState } from 'react'; 
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp } from 'lucide-react';
+import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from '@/components/ui/separator';
 import { useToast } from "@/hooks/use-toast"; 
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // Ensured Avatar components are imported
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'; 
 import { auth } from '@/lib/firebase'; 
@@ -23,7 +24,7 @@ import { getProviderProfileFromFirestore } from '@/services/providerService';
 import type { Review } from '@/models/review';
 import { getReviewsForProvider } from '@/services/reviewService';
 import Link from 'next/link'; 
-import { formatDistanceToNowStrict } from 'date-fns';
+import { format, formatDistanceToNowStrict } from 'date-fns';
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingReviews, setIsLoadingReviews] = useState(true); // For reviews specifically
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
 
@@ -46,8 +47,8 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
 
   useEffect(() => {
     if (providerId) {
-      setIsLoading(true); // For overall profile
-      setIsLoadingReviews(true); // For reviews part
+      setIsLoading(true); 
+      setIsLoadingReviews(true); 
 
       getProviderProfileFromFirestore(providerId)
         .then((profile) => {
@@ -61,18 +62,17 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
           console.error("Error fetching provider profile:", error);
           toast({ title: "Error", description: "Could not load provider profile.", variant: "destructive" });
         })
-        .finally(() => setIsLoading(false)); // Overall profile loading done
+        .finally(() => setIsLoading(false)); 
 
       getReviewsForProvider(providerId)
         .then((fetchedReviews) => {
-           // Sort reviews by date, newest first
           setReviews(fetchedReviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime()));
         })
         .catch(error => {
           console.error("Error fetching reviews:", error);
           toast({ title: "Error", description: "Could not load reviews for this provider.", variant: "destructive" });
         })
-        .finally(() => setIsLoadingReviews(false)); // Reviews loading done
+        .finally(() => setIsLoadingReviews(false)); 
     }
   }, [providerId, toast]);
 
@@ -96,7 +96,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     }
   };
   
-  if (isLoading) { // Show main skeleton if provider profile is still loading
+  if (isLoading) { 
     return <ProviderProfileSkeleton />;
   }
 
@@ -168,7 +168,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       <p className="whitespace-pre-line">{provider.bio}</p>
                       {provider.specialties && provider.specialties.length > 0 && (
                         <div>
-                          <h4 className="font-semibold mb-1">Specialties:</h4>
+                          <h4 className="font-semibold mb-1 text-md">Specialties:</h4>
                           <ul className="list-disc list-inside space-y-1">
                             {provider.specialties.map(spec => <li key={spec}>{spec}</li>)}
                           </ul>
@@ -176,18 +176,43 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       )}
                        {provider.yearsOfExperience > 0 && (
                         <div>
-                          <h4 className="font-semibold mb-1">Years of Experience:</h4>
+                          <h4 className="font-semibold mb-1 text-md">Years of Experience:</h4>
                           <p>{provider.yearsOfExperience} years</p>
                         </div>
                        )}
                        {provider.certifications && provider.certifications.length > 0 && (
-                         <div>
-                          <h4 className="font-semibold mb-1">Certifications:</h4>
-                          <ul className="space-y-1">
+                         <div className="pt-4 mt-4 border-t">
+                          <h4 className="font-semibold mb-3 text-lg">Certifications & Licenses</h4>
+                          <ul className="space-y-3">
                             {provider.certifications.map(cert => (
-                              <li key={cert.name} className="flex items-center">
-                                <CheckCircle2 className="h-4 w-4 mr-2 text-green-600 shrink-0" /> 
-                                {cert.name} {cert.number && `(${cert.number})`}
+                              <li key={cert.id || cert.name} className="p-3 border rounded-md bg-card shadow-sm">
+                                <div className="flex justify-between items-start mb-1">
+                                  <div>
+                                    <p className="font-medium text-base">{cert.name}</p>
+                                    <p className="text-xs text-muted-foreground">Number: {cert.number || 'N/A'}</p>
+                                    <p className="text-xs text-muted-foreground">Body: {cert.issuingBody}</p>
+                                  </div>
+                                  <Badge variant={
+                                    cert.status === 'verified' ? 'default' :
+                                    cert.status === 'pending_review' ? 'secondary' :
+                                    cert.status === 'requires_attention' ? 'destructive' :
+                                    cert.status === 'expired' ? 'outline' : 'outline'
+                                  } className="capitalize text-xs shrink-0 ml-2">
+                                    {cert.status.replace('_', ' ')}
+                                  </Badge>
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1 space-x-3">
+                                  {cert.issueDate && <span>Issued: {format(new Date(cert.issueDate), 'MMM d, yyyy')}</span>}
+                                  {cert.expiryDate && <span>Expires: {format(new Date(cert.expiryDate), 'MMM d, yyyy')}</span>}
+                                </div>
+                                {cert.documentUrl && (cert.status === 'verified' || cert.status === 'pending_review') && (
+                                  <a href={cert.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline mt-2 inline-flex items-center">
+                                    <ExternalLink className="h-3 w-3 mr-1" /> View Document
+                                  </a>
+                                )}
+                                {cert.verificationNotes && (cert.status === 'requires_attention' || cert.status === 'expired') && (
+                                  <p className="text-xs text-destructive mt-1">Note: {cert.verificationNotes}</p>
+                                )}
                               </li>
                             ))}
                           </ul>
@@ -236,12 +261,12 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                               <Avatar className="h-10 w-10 opacity-50"><AvatarFallback>C</AvatarFallback></Avatar>
                               <div className="flex-1 space-y-1.5">
                                 <div className="flex justify-between items-center">
-                                   <div className="h-4 bg-muted rounded w-1/3 animate-pulse"></div> {/* Name skeleton */}
-                                   <div className="h-3 bg-muted rounded w-1/4 animate-pulse"></div> {/* Stars skeleton */}
+                                   <div className="h-4 bg-muted rounded w-1/3 animate-pulse"></div>
+                                   <div className="h-3 bg-muted rounded w-1/4 animate-pulse"></div>
                                 </div>
-                                <div className="h-3 bg-muted rounded w-1/5 animate-pulse mb-1.5"></div> {/* Date skeleton */}
-                                <div className="h-4 bg-muted rounded w-full animate-pulse"></div> {/* Comment line 1 */}
-                                <div className="h-4 bg-muted rounded w-5/6 animate-pulse"></div> {/* Comment line 2 */}
+                                <div className="h-3 bg-muted rounded w-1/5 animate-pulse mb-1.5"></div>
+                                <div className="h-4 bg-muted rounded w-full animate-pulse"></div>
+                                <div className="h-4 bg-muted rounded w-5/6 animate-pulse"></div>
                               </div>
                             </div>
                           ))}
@@ -333,5 +358,4 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     </div>
   );
 }
-
     
