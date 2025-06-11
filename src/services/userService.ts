@@ -70,6 +70,13 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
  * @returns A promise that resolves with the User object or null if not found.
  */
 export async function getUserProfileFromFirestore(uid: string): Promise<User | null> {
+  if (!uid) {
+    console.error('getUserProfileFromFirestore called with undefined or empty UID.');
+    // It's better to throw an error here if UID is essential, 
+    // or ensure calling code handles null robustly if it's a recoverable scenario.
+    // For ProfilePage, an invalid UID means we definitely can't fetch a profile.
+    throw new Error('User UID is required to fetch profile, but was not provided.');
+  }
   try {
     const userRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userRef);
@@ -84,11 +91,16 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
         updatedAt: (userDataFromDb.updatedAt as Timestamp)?.toDate(),
       } as User; // Cast to User, assuming structure matches
     } else {
+      // This case is handled by ProfilePage by showing "User Data Not Found".
+      // This is not an "error" in fetching, but a valid state of data not existing.
+      console.warn(`No user profile document found in Firestore for UID: ${uid}`);
       return null;
     }
-  } catch (error) {
-    console.error('Error fetching user profile from Firestore:', error);
-    throw new Error('Could not fetch user profile.');
+  } catch (error: any) {
+    // This block is hit if getDoc fails for reasons like permissions, network, etc.
+    console.error(`Error fetching user profile from Firestore for UID: ${uid}. Original error:`, error);
+    // Append the original error message to the thrown error for more client-side context.
+    throw new Error(`Could not fetch user profile. Original message: ${error.message}`);
   }
 }
 
