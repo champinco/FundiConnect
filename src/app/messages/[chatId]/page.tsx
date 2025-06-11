@@ -26,7 +26,7 @@ const ChatPage: NextPage = () => {
   const { toast } = useToast();
   const chatId = typeof params.chatId === 'string' ? params.chatId : '';
   
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null | undefined>(undefined); // Initialize as undefined
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true); 
@@ -42,23 +42,31 @@ const ChatPage: NextPage = () => {
   const initialLoadDoneRef = useRef(false);
 
   useEffect(() => {
+    setIsLoading(true); // Set loading true when effect runs
+    initialLoadDoneRef.current = false; // Reset for potential re-runs if chatId/currentUser changes
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      if (!user) {
+      setCurrentUser(user); // Can be user or null
+      if (!user && chatId) { // If no user but trying to access a chat, stop loading
         setIsLoading(false); 
       }
     });
     return () => unsubscribeAuth();
-  }, []);
+  }, [chatId]); // Only re-run auth listener if chatId changes (though it's constant for page)
 
   useEffect(() => {
-    if (!chatId || !currentUser?.uid) {
-      if (currentUser === null && !isLoading) setIsLoading(false); 
-      return;
+    // This effect depends on currentUser being determined (not undefined)
+    if (currentUser === undefined || !chatId) {
+      return; 
     }
 
-    setIsLoading(true);
-    initialLoadDoneRef.current = false;
+    if (!currentUser?.uid) { // User is null (logged out)
+      setIsLoading(false);
+      return;
+    }
+    
+    // At this point, currentUser is a FirebaseUser object (logged in)
+    // Proceed to fetch chat details
     const chatRef = doc(db, 'chats', chatId);
     
     getDoc(chatRef).then(chatSnap => {
@@ -69,6 +77,7 @@ const ChatPage: NextPage = () => {
         if (otherUid && chatData.participants[otherUid]) {
           setOtherParticipant(chatData.participants[otherUid]);
         } else {
+          // Fallback if participant details are missing (should ideally not happen)
           const derivedOtherUid = chatId.split('_').find(id => id !== currentUser.uid) || "Unknown User";
           setOtherParticipant({ uid: derivedOtherUid, displayName: derivedOtherUid });
         }
@@ -76,7 +85,7 @@ const ChatPage: NextPage = () => {
         const unsubscribeMessages = subscribeToChatMessages(chatId, (updatedMessages) => {
           setMessages(updatedMessages);
           if (!initialLoadDoneRef.current) {
-            setIsLoading(false); 
+            setIsLoading(false); // Stop loading only after first batch of messages or confirmation of no messages
             initialLoadDoneRef.current = true;
           }
         });
@@ -116,7 +125,7 @@ const ChatPage: NextPage = () => {
     setSelectedFile(null);
     setFilePreview(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Reset file input
+      fileInputRef.current.value = ""; 
     }
   };
 
@@ -155,30 +164,35 @@ const ChatPage: NextPage = () => {
     }
   };
   
-  if (isLoading && chatExists === null && currentUser === undefined) { 
+  // Primary loading state: covers before auth is known or before chat details attempt to load
+  if (isLoading && (currentUser === undefined || chatExists === null)) { 
     return (
       <div className="flex flex-col h-[calc(100vh-4rem)] items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-lg">Initializing chat...</p>
+        <p className="mt-4 text-lg text-muted-foreground">Initializing chat...</p>
       </div>
     );
   }
 
-  if (!currentUser && !isLoading) { 
+  // User is not logged in
+  if (currentUser === null && !isLoading) { 
     return (
       <div className="container mx-auto px-4 py-8 text-center">
-         <p>Please log in to view messages.</p>
+         <UserCircle2 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+         <h2 className="text-2xl font-semibold mb-2">Login Required</h2>
+         <p className="text-muted-foreground mb-6">Please log in to view and send messages.</p>
          <Button asChild className="mt-4">
-           <Link href={`/auth/login?redirect=/messages/${chatId}`}>Login</Link>
+           <Link href={`/auth/login?redirect=/messages/${chatId}`}>Login to Chat</Link>
          </Button>
       </div>
     );
   }
   
+  // Chat doesn't exist or user doesn't have access
   if (chatExists === false && !isLoading) { 
      return (
       <div className="flex flex-col h-[calc(100vh-4rem)] items-center justify-center p-4 text-center">
-        <UserCircle2 className="h-16 w-16 text-muted-foreground mb-4" />
+        <MessageSquareText className="h-16 w-16 text-muted-foreground mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Chat Not Found</h2>
         <p className="text-muted-foreground mb-6">This conversation does not exist or you may not have access to it.</p>
         <Button asChild variant="outline">
@@ -188,13 +202,25 @@ const ChatPage: NextPage = () => {
     );
   }
 
-  if (isLoading && currentUser && chatExists === null ) {
+  // If still loading messages after chat existence is confirmed true (isLoading is true here from initialLoadDoneRef logic)
+  if (isLoading && chatExists === true && messages.length === 0 ) {
      return (
       <div className="flex flex-col h-[calc(100vh-4rem)]">
         <header className="flex items-center p-4 border-b bg-background shadow-sm">
             <Button variant="ghost" size="icon" className="mr-2 opacity-50"><ArrowLeft className="h-6 w-6" /></Button>
-            <Avatar className="h-10 w-10 mr-3 opacity-50"><AvatarFallback>U</AvatarFallback></Avatar>
-            <div className="h-6 w-32 bg-muted rounded-md animate-pulse"></div>
+            {otherParticipant ? (
+                <Avatar className="h-10 w-10 mr-3">
+                    <AvatarImage src={otherParticipant.photoURL || undefined} alt={otherParticipant.displayName || "User"} data-ai-hint="user avatar"/>
+                    <AvatarFallback>{otherParticipant.displayName ? otherParticipant.displayName.substring(0,1).toUpperCase() : "U"}</AvatarFallback>
+                </Avatar>
+            ) : (
+                 <Skeleton className="h-10 w-10 rounded-full mr-3" />
+            )}
+            {otherParticipant ? (
+                <h2 className="text-xl font-semibold font-headline">{otherParticipant.displayName || 'Chat'}</h2>
+            ) : (
+                <Skeleton className="h-6 w-32 rounded-md" />
+            )}
         </header>
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {[...Array(5)].map((_, i) => <ChatMessageSkeleton key={i} isCurrentUser={i % 2 === 0} />)}
@@ -225,11 +251,8 @@ const ChatPage: NextPage = () => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {isLoading && messages.length === 0 ? ( 
-            <div className="space-y-4">
-                {[...Array(5)].map((_, i) => <ChatMessageSkeleton key={i} isCurrentUser={i % 2 === 0} />)}
-            </div>
-        ) : !isLoading && messages.length === 0 && !selectedFile ? ( 
+        {/* This condition means loading is complete, but there are no messages and no file being composed */}
+        {!isLoading && messages.length === 0 && !selectedFile && chatExists ? ( 
           <div className="text-center text-muted-foreground py-10 flex flex-col items-center justify-center h-full">
             <MessageSquareText className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>No messages yet. Start the conversation or send an image!</p>
@@ -309,3 +332,4 @@ const ChatPage: NextPage = () => {
 };
 
 export default ChatPage;
+
