@@ -1,4 +1,6 @@
 
+"use client";
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +10,8 @@ import ProviderCard, { type Provider } from '@/components/provider-card';
 import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 
 // Tier 1 services for homepage browsing
 const serviceCategories: ServiceCategory[] = [
@@ -17,6 +21,12 @@ const serviceCategories: ServiceCategory[] = [
   'Garbage Collection',
 ];
 
+// This function remains a server-side concept but will be called via a mechanism
+// if we were to keep this page as RSC and fetch on server.
+// For client component, we'd fetch this in a useEffect or similar.
+// For simplicity of this change focusing on the form, we'll assume featuredProviders are fetched
+// as they were, but acknowledge the shift to client component means this data fetching
+// might need adjustment in a full refactor (e.g., to an API route or client-side fetch).
 async function getFeaturedProviders(): Promise<Provider[]> {
   try {
     const providersRef = collection(db, 'providerProfiles');
@@ -33,25 +43,51 @@ async function getFeaturedProviders(): Promise<Provider[]> {
       providers.push({
         id: doc.id,
         name: data.businessName,
-        profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/600x400.png',
+        profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/300x300.png',
         rating: data.rating,
         reviewsCount: data.reviewsCount,
         location: data.location,
         mainService: data.mainService,
         isVerified: data.isVerified,
         verificationAuthority: data.verificationAuthority,
-        bioSummary: data.bio.substring(0, 150) + (data.bio.length > 150 ? '...' : ''), // Truncate bio for summary
+        bioSummary: data.bio.substring(0, 150) + (data.bio.length > 150 ? '...' : ''),
       });
     });
     return providers;
   } catch (error) {
     console.error("Error fetching featured providers:", error);
-    return []; // Return empty array on error
+    return [];
   }
 }
 
-export default async function HomePage() {
-  const featuredProviders = await getFeaturedProviders();
+export default function HomePage() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [locationQuery, setLocationQuery] = useState('');
+  const [featuredProviders, setFeaturedProviders] = useState<Provider[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState(true);
+
+  useEffect(() => {
+    async function fetchProviders() {
+      setIsLoadingProviders(true);
+      const providers = await getFeaturedProviders();
+      setFeaturedProviders(providers);
+      setIsLoadingProviders(false);
+    }
+    fetchProviders();
+  }, []);
+
+  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const params = new URLSearchParams();
+    if (searchQuery.trim()) {
+      params.set('query', searchQuery.trim());
+    }
+    if (locationQuery.trim()) {
+      params.set('location', locationQuery.trim());
+    }
+    router.push(`/search?${params.toString()}`);
+  };
 
   return (
     <div className="flex flex-col ">
@@ -65,13 +101,15 @@ export default async function HomePage() {
             Connect with verified electricians, plumbers, and more across Kenya.
             Get your job done right, the first time.
           </p>
-          <form className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3">
+          <form onSubmit={handleSearchSubmit} className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3">
             <div className="relative flex-grow">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="What service do you need? (e.g., Plumber)"
                 className="pl-10 h-12 text-base"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <div className="relative sm:w-1/3">
@@ -80,6 +118,8 @@ export default async function HomePage() {
                 type="text"
                 placeholder="Location"
                 className="pl-10 h-12 text-base"
+                value={locationQuery}
+                onChange={(e) => setLocationQuery(e.target.value)}
               />
             </div>
             <Button type="submit" size="lg" className="h-12 bg-accent hover:bg-accent/90 text-accent-foreground sm:w-auto">
@@ -118,7 +158,9 @@ export default async function HomePage() {
           <h2 className="text-3xl font-bold font-headline text-center mb-10">
             Top Rated Providers
           </h2>
-          {featuredProviders.length > 0 ? (
+          {isLoadingProviders ? (
+             <p className="text-center text-muted-foreground">Loading featured providers...</p>
+          ) : featuredProviders.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {featuredProviders.map((provider) => (
                 <ProviderCard key={provider.id} provider={provider} />
