@@ -18,9 +18,6 @@ interface UserDocumentForCreate {
   accountType: AccountType;
   createdAt: FieldValue;
   updatedAt: FieldValue;
-  // These fields are optional in the User model.
-  // `userData` (type Omit<User,...>) will have them as optional (e.g. `phoneNumber?: string | null`).
-  // The calling action `signupUserAction` currently sets phoneNumber and photoURL to `null`.
   phoneNumber?: string | null;
   photoURL?: string | null;
   providerProfileId?: string;
@@ -42,16 +39,12 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
       email: userData.email,
       fullName: userData.fullName,
       accountType: userData.accountType,
-      // userData.phoneNumber is `null` as passed from signupUserAction
-      // userData.photoURL is `null` as passed from signupUserAction
       phoneNumber: userData.phoneNumber,
       photoURL: userData.photoURL,
       createdAt: now,
       updatedAt: now,
     };
 
-    // Conditionally add providerProfileId only if it's defined in userData
-    // (it will be undefined if accountType is 'client')
     if (userData.providerProfileId !== undefined) {
       profileToSave.providerProfileId = userData.providerProfileId;
     }
@@ -59,8 +52,6 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
     await setDoc(userRef, profileToSave, { merge: true });
   } catch (error) {
     console.error('Error creating user profile in Firestore:', error);
-    // The original error from Firestore will be logged above.
-    // This custom error message is what gets propagated to the client.
     throw new Error('Could not create user profile.');
   }
 }
@@ -71,27 +62,24 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
  * @returns A JavaScript Date object.
  */
 const convertPotentialTimestampToDate = (fieldValue: any): Date => {
-  // Check if it's a Firestore Timestamp
   if (fieldValue && typeof fieldValue.toDate === 'function') {
     return (fieldValue as Timestamp).toDate();
   }
-  // Check if it's already a JavaScript Date
   if (fieldValue instanceof Date) {
     return fieldValue;
   }
-  // If it's a string or number, try to parse it
-  // This handles ISO strings or millisecond numbers from epoch
   if (typeof fieldValue === 'string' || typeof fieldValue === 'number') {
-    const parsedDate = new Date(fieldValue);
-    if (!isNaN(parsedDate.getTime())) {
-      return parsedDate;
+    try {
+      const parsedDate = new Date(fieldValue);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+    } catch (e) {
+      // Ignore parsing errors for strings/numbers if new Date() throws (e.g. invalid date string format)
     }
   }
-  // Fallback for unrecognized format or missing mandatory field
-  // Your User model expects createdAt/updatedAt to be non-nullable Date.
-  // If fieldValue is null/undefined or unparseable here, it indicates a data issue.
-  console.warn(`Invalid or missing timestamp field encountered: ${JSON.stringify(fieldValue)}. Defaulting to current date. This may indicate a data integrity issue.`);
-  return new Date(); // Return current date as a fallback to prevent crashes
+  console.warn(`Invalid or missing timestamp field encountered. Value: ${String(fieldValue)}. Defaulting to current date. This may indicate a data integrity issue.`);
+  return new Date(); 
 };
 
 
@@ -110,21 +98,47 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
     const userSnap = await getDoc(userRef);
 
     if (userSnap.exists()) {
-      const userDataFromDb = userSnap.data();
-      // Convert Firestore Timestamps to Date objects safely
-      return {
-        ...userDataFromDb,
-        uid: userSnap.id, // ensure uid is from doc id
-        createdAt: convertPotentialTimestampToDate(userDataFromDb.createdAt),
-        updatedAt: convertPotentialTimestampToDate(userDataFromDb.updatedAt),
-      } as User; // Cast to User, assuming structure matches
+      const data = userSnap.data();
+      
+      // Explicitly map fields to avoid issues with spread operator and ensure type safety
+      // Also provide defaults for potentially missing fields to align with the User model.
+      const userProfile: User = {
+        uid: userSnap.id,
+        email: data.email || '', 
+        fullName: data.fullName || null,
+        accountType: data.accountType || 'client', 
+        photoURL: data.photoURL || null,
+        phoneNumber: data.phoneNumber || null,
+        providerProfileId: data.providerProfileId || undefined,
+        
+        createdAt: convertPotentialTimestampToDate(data.createdAt),
+        updatedAt: convertPotentialTimestampToDate(data.updatedAt),
+      };
+      
+      // Remove providerProfileId if it was not present, to match User model precisely
+      if (userProfile.providerProfileId === undefined) {
+        delete userProfile.providerProfileId;
+      }
+
+      return userProfile;
+
     } else {
       console.warn(`No user profile document found in Firestore for UID: ${uid}`);
       return null;
     }
   } catch (error: any) {
-    console.error(`Error fetching user profile from Firestore for UID: ${uid}. Original error:`, error.code, error.message, error);
-    throw new Error(`Could not fetch user profile. Original message: ${error.message}`);
+    // Log the full original error for better debugging
+    console.error(`Error in getUserProfileFromFirestore for UID: ${uid}.`);
+    console.error("Original Error Object:", error); 
+    console.error("Original Error Message:", error.message);
+    console.error("Original Error Stack:", error.stack);
+    
+    let errorMessage = "Could not fetch user profile.";
+    if (error && error.message) {
+      // Append the original error message to the new error we throw.
+      errorMessage += ` Original issue: ${error.message}`;
+    }
+    throw new Error(errorMessage);
   }
 }
 
@@ -137,21 +151,22 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
  */
 export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): Promise<User> {
   const userRef = doc(db, 'users', firebaseUser.uid);
-  const now = Timestamp.now(); // Use Firestore Timestamp for server-side consistency
+  
+  // Use Firestore Timestamp for server-side consistency when creating new docs
+  const nowAsFirestoreTimestamp = Timestamp.now(); 
 
-  const defaultProfileData: Omit<User, 'createdAt' | 'updatedAt'> & { createdAt: Timestamp, updatedAt: Timestamp } = {
+  const defaultProfileData = {
     uid: firebaseUser.uid,
     email: firebaseUser.email || 'No email provided',
     fullName: firebaseUser.displayName || 'New User',
-    accountType: 'client', // Default to client
+    accountType: 'client' as AccountType, 
     photoURL: firebaseUser.photoURL || null,
     phoneNumber: firebaseUser.phoneNumber || null,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: nowAsFirestoreTimestamp, // Store as Firestore Timestamp
+    updatedAt: nowAsFirestoreTimestamp, // Store as Firestore Timestamp
   };
 
   try {
-    // Check if profile already exists to avoid overwriting if called concurrently or multiple times
     const existingProfileSnap = await getDoc(userRef);
     if (existingProfileSnap.exists()) {
         console.log(`Profile already exists for UID: ${firebaseUser.uid}. Returning existing profile.`);
@@ -170,10 +185,9 @@ export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): P
       ...defaultProfileData,
       createdAt: defaultProfileData.createdAt.toDate(), // Convert to JS Date for return consistency
       updatedAt: defaultProfileData.updatedAt.toDate(),
-    };
+    } as User; // Cast because providerProfileId is missing, which is fine for client type
   } catch (error) {
     console.error(`Error creating or checking default user profile for UID ${firebaseUser.uid}:`, error);
     throw new Error('Could not create or check default user profile.');
   }
 }
-
