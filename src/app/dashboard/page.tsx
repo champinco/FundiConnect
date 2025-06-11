@@ -134,7 +134,7 @@ export default function DashboardPage() {
           <CardHeader>
              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-2" />
             <CardTitle>Profile Error</CardTitle>
-            <CardDescription>Could not load your user profile. This might be a new account still being set up, or an issue occurred. Please try again shortly or contact support if the problem persists.</CardDescription>
+            <CardDescription>We couldn't find your application profile details. This can happen if account setup didn't complete fully. Please try refreshing the page, or logging out and then logging back in. If the issue continues, please contact support.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Button onClick={() => window.location.reload()} >
@@ -283,3 +283,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
