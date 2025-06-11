@@ -1,3 +1,4 @@
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Star, MapPin } from 'lucide-react';
@@ -29,7 +30,7 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
       <CardHeader className="p-0">
         <div className="relative h-48 w-full">
           <Image
-            src={provider.profilePictureUrl}
+            src={provider.profilePictureUrl || 'https://placehold.co/300x300.png'}
             alt={provider.name}
             fill
             style={{ objectFit: 'cover' }}
