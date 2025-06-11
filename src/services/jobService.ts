@@ -14,19 +14,45 @@ import type { Job, JobStatus } from '@/models/job';
 export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' | 'updatedAt' | 'quotesReceived'>): Promise<string> {
   try {
     const now = serverTimestamp();
-    const jobWithTimestamps = {
-      ...jobData,
+
+    // Explicitly construct the object to be saved to Firestore
+    const dataToSave: any = {
+      clientId: jobData.clientId,
+      title: jobData.title,
+      description: jobData.description,
+      serviceCategory: jobData.serviceCategory,
+      location: jobData.location,
+      status: jobData.status || 'open', // Default status
+      photosOrVideos: jobData.photosOrVideos || [], // Default to empty array
+
+      // Timestamps and initial counts
       postedAt: now,
       updatedAt: now,
-      quotesReceived: 0, // Initialize quotesReceived
-      status: jobData.status || 'open', // Default status
-      photosOrVideos: jobData.photosOrVideos || [], // Ensure it's an array
+      quotesReceived: 0,
+
+      // Handle optional fields explicitly, defaulting to null or omitting if not provided
+      // and model doesn't specify 'null'
+      assignedProviderId: jobData.assignedProviderId || null,
+      deadline: jobData.deadline || null,
+      acceptedQuoteId: jobData.acceptedQuoteId || null,
     };
-    const docRef = await addDoc(collection(db, 'jobs'), jobWithTimestamps);
+
+    // For fields that are purely optional (e.g., `otherCategoryDescription?: string` or `budgetRange?: object`)
+    // only add them if they have a value.
+    if (jobData.otherCategoryDescription) {
+      dataToSave.otherCategoryDescription = jobData.otherCategoryDescription;
+    }
+    if (jobData.budgetRange && (jobData.budgetRange.min != null || jobData.budgetRange.max != null)) {
+      dataToSave.budgetRange = jobData.budgetRange;
+    }
+
+
+    const docRef = await addDoc(collection(db, 'jobs'), dataToSave);
     return docRef.id;
-  } catch (error) {
-    console.error('Error creating job in Firestore:', error);
-    throw new Error('Could not create job.');
+  } catch (error: any) {
+    console.error('Error creating job in Firestore. Original error:', error); // Log the full original error
+    // Throw a new error that includes the original error's message for better client-side debugging
+    throw new Error(`Failed to create job in Firestore. Details: ${error.message || 'Unknown Firestore error'}`);
   }
 }
 
