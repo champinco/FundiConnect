@@ -5,67 +5,47 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserProfileFromFirestore, createDefaultAppUserProfile } from '@/services/userService';
+// Removed direct service imports
 import type { User as AppUser } from '@/models/user';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Loader2, UserCircle, Edit, ShieldCheck, Mail, Phone, Briefcase } from 'lucide-react';
 import Link from 'next/link';
+import { fetchUserProfilePageDataAction } from './actions'; // Import the new action
 
 export default function ProfilePage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
-
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
       if (user) {
-        setCurrentUser(user);
-        try {
-          let userProfile = await getUserProfileFromFirestore(user.uid);
-
-          if (!userProfile) {
-            console.log(`No Firestore profile found for UID: ${user.uid}. Attempting to create default profile.`);
-            try {
-              userProfile = await createDefaultAppUserProfile(user);
-              console.log(`Default profile created successfully for UID: ${user.uid}`);
-            } catch (creationError) {
-              console.error(`Failed to create default profile for UID: ${user.uid}`, creationError);
-              setAppUser(null); // Ensure appUser is null if creation fails
-              setIsLoading(false);
-              return; // Stop further processing if default profile creation fails
-            }
-          }
-          
-          setAppUser(userProfile); // Set appUser whether it was fetched or newly created
-
-          if (userProfile.accountType === 'provider') {
-            router.replace('/profile/edit');
-            // isLoading remains true, /profile/edit handles its own loading
-          } else {
-            // It's a client profile (either pre-existing or newly created default)
-            setIsLoading(false);
-          }
-        } catch (error) { // Catches errors from getUserProfileFromFirestore if it throws
-          console.error("Error fetching or processing user profile:", error);
+        const result = await fetchUserProfilePageDataAction(user.uid, user);
+        if (result.error) {
+          setError(result.error);
           setAppUser(null);
-          setIsLoading(false);
+        } else if (result.wasRedirectedToEdit) {
+          router.replace('/profile/edit');
+          // Keep isLoading true as redirection is happening
+          return; 
+        } else {
+          setAppUser(result.appUser);
         }
       } else {
-        // No Firebase user (logged out)
-        setCurrentUser(null);
         setAppUser(null);
-        setIsLoading(false); // Set loading false before redirect
+        setError(null);
         router.push('/auth/login?redirect=/profile');
       }
+      setIsLoading(false);
     });
 
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
   if (isLoading) {
@@ -77,16 +57,14 @@ export default function ProfilePage() {
     );
   }
 
-  // This case means: not loading, but appUser (Firestore profile) is still missing after fetch/creation attempt.
-  if (!appUser) { 
+  if (error || !appUser) { 
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <div className="max-w-md mx-auto p-8">
           <UserCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-4 text-foreground">User Data Not Found</h2>
+          <h2 className="text-2xl font-bold mb-4 text-foreground">Profile Error</h2>
           <p className="text-muted-foreground mb-6">
-            Your profile information could not be loaded. This might be due to an incomplete setup or an error.
-            Please try logging out and logging back in, or contact support if the issue persists.
+            {error || "Your profile information could not be loaded. This might be due to an incomplete setup or an error. Please try logging out and logging back in, or contact support if the issue persists."}
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-3">
             <Button asChild variant="outline">
@@ -101,8 +79,7 @@ export default function ProfilePage() {
     );
   }
   
-  // If it's a client, display their profile info (provider would have been redirected)
-  // A newly created default profile will also be of accountType 'client'.
+  // This should only render if appUser exists and accountType is client
   if (appUser.accountType === 'client') {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -150,24 +127,19 @@ export default function ProfilePage() {
                     <Briefcase className="mr-2"/> Go to Dashboard
                 </Link>
             </Button>
-            {/* Add a placeholder for client profile editing if desired in future */}
-            {/* <Button variant="outline" className="w-full" disabled>
-              <Edit className="mr-2 h-4 w-4" /> Edit My Details (Coming Soon)
-            </Button> */}
           </CardFooter>
         </Card>
       </div>
     );
   }
 
-  // Fallback if logic is somehow bypassed (e.g. accountType is neither client nor provider, which shouldn't happen)
+  // Fallback if logic is somehow bypassed (e.g. accountType is neither client nor provider, or redirection didn't occur)
   return (
     <div className="container mx-auto px-4 py-12 text-center">
-      <p className="text-muted-foreground">An unexpected error occurred while loading your profile. Account type unrecognized.</p>
+      <p className="text-muted-foreground">Loading profile or redirecting...</p>
        <Button asChild className="mt-4">
           <Link href="/">Go to Homepage</Link>
        </Button>
     </div>
   );
 }
-

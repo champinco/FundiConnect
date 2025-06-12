@@ -5,10 +5,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserProfileFromFirestore } from '@/services/userService';
-import { getProviderProfileFromFirestore } from '@/services/providerService';
-import { getJobSummaryForClient, getAssignedJobsForProvider, type ClientJobSummary } from '@/services/jobService';
-import { getSubmittedQuotesSummaryForProvider, type ProviderQuoteSummary } from '@/services/quoteService';
 import type { User as AppUser } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
 import type { Job } from '@/models/job';
@@ -17,18 +13,23 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle } from 'lucide-react';
 import { format, formatDistanceToNowStrict, isDate } from 'date-fns';
+import { fetchDashboardDataAction, type DashboardPageData } from './actions';
+import type { ClientJobSummary } from '@/services/jobService';
+import type { ProviderQuoteSummary } from '@/services/quoteService';
 
-interface ClientDashboardData {
+
+interface ClientDashboardDisplayData {
   jobSummary: ClientJobSummary;
 }
 
-interface ProviderDashboardData {
+interface ProviderDashboardDisplayData {
   providerProfile: ProviderProfile | null;
   quoteSummary: ProviderQuoteSummary;
   assignedJobs: Job[];
 }
 
-type DashboardData = ClientDashboardData | ProviderDashboardData | null;
+type DashboardDisplayData = ClientDashboardDisplayData | ProviderDashboardDisplayData | null;
+
 
 // Helper function to format dates dynamically
 const formatDynamicDate = (dateInput: Date | string | number | undefined | null): string => {
@@ -50,48 +51,38 @@ const formatDynamicDate = (dateInput: Date | string | number | undefined | null)
 export default function DashboardPage() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
-  const [dashboardData, setDashboardData] = useState<DashboardData>(null);
-  const [isLoading, setIsLoading] = useState(true); // Start with loading true
+  const [dashboardDisplayData, setDashboardDisplayData] = useState<DashboardDisplayData>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(true); // Explicitly set loading true at the start of effect
+    setIsLoading(true);
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setCurrentUser(user);
-        try {
-          const userProfile = await getUserProfileFromFirestore(user.uid);
-          setAppUser(userProfile);
-
-          if (userProfile) { // Only fetch dashboard data if userProfile exists
-            if (userProfile.accountType === 'client') {
-              const jobSummary = await getJobSummaryForClient(user.uid);
-              setDashboardData({ jobSummary });
-            } else if (userProfile.accountType === 'provider') {
-              const [providerProfileData, quoteSummary, assignedJobs] = await Promise.all([
-                getProviderProfileFromFirestore(user.uid),
-                getSubmittedQuotesSummaryForProvider(user.uid),
-                getAssignedJobsForProvider(user.uid, 3)
-              ]);
-              setDashboardData({ providerProfile: providerProfileData, quoteSummary, assignedJobs });
-            }
+        const result = await fetchDashboardDataAction(user.uid);
+        if (result.error) {
+          setError(result.error);
+          setAppUser(null);
+          setDashboardDisplayData(null);
+        } else {
+          setAppUser(result.appUser);
+          // Explicitly cast result.dashboardData based on appUser.accountType
+          if (result.appUser?.accountType === 'client' && result.dashboardData && 'jobSummary' in result.dashboardData) {
+            setDashboardDisplayData(result.dashboardData as ClientDashboardDisplayData);
+          } else if (result.appUser?.accountType === 'provider' && result.dashboardData && 'providerProfile' in result.dashboardData) {
+             setDashboardDisplayData(result.dashboardData as ProviderDashboardDisplayData);
           } else {
-            // User is authenticated but no app profile found.
-            // appUser state is already null, isLoading will be set to false in finally.
-            console.warn("User authenticated but no app profile found for UID:", user.uid);
+            setDashboardDisplayData(null); // Or handle unknown type
           }
-        } catch (error) {
-          console.error("Error fetching dashboard data:", error);
-          setAppUser(null); // Ensure appUser is null on error
-          setDashboardData(null);
-        } finally {
-          setIsLoading(false);
         }
       } else {
         setCurrentUser(null);
         setAppUser(null);
-        setDashboardData(null);
-        setIsLoading(false);
+        setDashboardDisplayData(null);
+        setError(null); // Clear error on logout
       }
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -105,9 +96,7 @@ export default function DashboardPage() {
     );
   }
 
-  // After loading:
   if (!currentUser) {
-    // If, after all checks, there's NO Firebase user, then prompt login.
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
@@ -126,15 +115,14 @@ export default function DashboardPage() {
     );
   }
 
-  if (!appUser) {
-    // If there IS a Firebase user, but NO app user profile, this is an error/incomplete profile state.
+  if (error || !appUser) {
     return (
        <div className="container mx-auto px-4 py-12 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
           <CardHeader>
              <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-2" />
-            <CardTitle>Profile Error</CardTitle>
-            <CardDescription>We couldn't find your application profile details. This can happen if account setup didn't complete fully. Please try refreshing the page, or logging out and then logging back in. If the issue continues, please contact support.</CardDescription>
+            <CardTitle>Dashboard Error</CardTitle>
+            <CardDescription>{error || "We couldn't find your application profile details. This can happen if account setup didn't complete fully. Please try refreshing the page, or logging out and then logging back in. If the issue continues, please contact support."}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <Button onClick={() => window.location.reload()} >
@@ -148,8 +136,11 @@ export default function DashboardPage() {
       </div>
     );
   }
+  
+  const clientData = appUser.accountType === 'client' && dashboardDisplayData && 'jobSummary' in dashboardDisplayData ? dashboardDisplayData as ClientDashboardDisplayData : null;
+  const providerData = appUser.accountType === 'provider' && dashboardDisplayData && 'providerProfile' in dashboardDisplayData ? dashboardDisplayData as ProviderDashboardDisplayData : null;
 
-  // If currentUser and appUser exist, render the dashboard:
+
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
       <Card className="mb-8 shadow-lg bg-card">
@@ -165,17 +156,17 @@ export default function DashboardPage() {
         </CardHeader>
       </Card>
 
-      {appUser.accountType === 'client' && dashboardData && 'jobSummary' in dashboardData && (
+      {appUser.accountType === 'client' && clientData && (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center text-xl"><ListChecks className="mr-3 h-7 w-7 text-primary" />Job Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-base">
-              <p>Open Jobs: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.open}</span></p>
-              <p>Assigned/In Progress: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.assigned + dashboardData.jobSummary.inProgress}</span></p>
-              <p>Completed Jobs: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.completed}</span></p>
-              <p>Total Jobs Posted: <span className="font-semibold text-lg text-primary">{dashboardData.jobSummary.total}</span></p>
+              <p>Open Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.open}</span></p>
+              <p>Assigned/In Progress: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.assigned + clientData.jobSummary.inProgress}</span></p>
+              <p>Completed Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.completed}</span></p>
+              <p>Total Jobs Posted: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.total}</span></p>
             </CardContent>
             <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
               <Button asChild className="w-full sm:flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
@@ -203,17 +194,17 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {appUser.accountType === 'provider' && dashboardData && 'providerProfile' in dashboardData && (
+      {appUser.accountType === 'provider' && providerData && (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center text-xl"><Star className="mr-3 h-7 w-7 text-yellow-400 fill-yellow-400" />Your Rating</CardTitle>
             </CardHeader>
             <CardContent>
-              {dashboardData.providerProfile ? (
+              {providerData.providerProfile ? (
                 <>
-                  <p className="text-4xl font-bold text-primary">{dashboardData.providerProfile.rating.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">/ 5.0</span></p>
-                  <p className="text-sm text-muted-foreground mt-1">Based on {dashboardData.providerProfile.reviewsCount} reviews</p>
+                  <p className="text-4xl font-bold text-primary">{providerData.providerProfile.rating.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">/ 5.0</span></p>
+                  <p className="text-sm text-muted-foreground mt-1">Based on {providerData.providerProfile.reviewsCount} reviews</p>
                 </>
               ) : (
                 <p className="text-muted-foreground">Profile data not available.</p>
@@ -231,9 +222,9 @@ export default function DashboardPage() {
               <CardTitle className="flex items-center text-xl"><FileText className="mr-3 h-7 w-7 text-primary" />Quote Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 text-base">
-              <p>Pending Quotes: <span className="font-semibold text-lg text-primary">{dashboardData.quoteSummary.pending}</span></p>
-              <p>Accepted Quotes: <span className="font-semibold text-lg text-primary">{dashboardData.quoteSummary.accepted}</span></p>
-              <p>Total Submitted: <span className="font-semibold text-lg text-primary">{dashboardData.quoteSummary.total}</span></p>
+              <p>Pending Quotes: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.pending}</span></p>
+              <p>Accepted Quotes: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.accepted}</span></p>
+              <p>Total Submitted: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.total}</span></p>
             </CardContent>
              <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
                 <Button asChild className="w-full sm:flex-1 bg-primary hover:bg-primary/90">
@@ -247,13 +238,13 @@ export default function DashboardPage() {
 
           <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
             <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs ({dashboardData.assignedJobs.length})</CardTitle>
+              <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs ({providerData.assignedJobs.length})</CardTitle>
               <CardDescription>Jobs currently assigned to you or in progress.</CardDescription>
             </CardHeader>
             <CardContent>
-              {dashboardData.assignedJobs.length > 0 ? (
+              {providerData.assignedJobs.length > 0 ? (
                 <ul className="space-y-4">
-                  {dashboardData.assignedJobs.map(job => (
+                  {providerData.assignedJobs.map(job => (
                     <li key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
                       <Link href={`/jobs/${job.id}`} className="block group">
                         <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
@@ -270,7 +261,7 @@ export default function DashboardPage() {
                  </div>
               )}
             </CardContent>
-            {dashboardData.assignedJobs.length > 0 && (
+            {providerData.assignedJobs.length > 0 && (
                  <CardFooter className="pt-6">
                     <Button asChild variant="outline" className="w-full">
                         <Link href="/search?myJobs=true&status=assigned">View All My Active Jobs</Link>
@@ -283,4 +274,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

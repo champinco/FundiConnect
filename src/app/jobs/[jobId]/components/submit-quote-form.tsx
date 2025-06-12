@@ -12,11 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Send, DollarSign } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { submitQuoteAction } from '../actions'; 
+import { submitQuoteAction, checkUserAccountTypeAction } from '../actions'; 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth, analytics } from '@/lib/firebase'; // Added analytics
-import { logEvent } from 'firebase/analytics'; // Added logEvent
-import { getUserProfileFromFirestore } from '@/services/userService'; 
+import { auth, analytics } from '@/lib/firebase'; 
+import { logEvent } from 'firebase/analytics'; 
+
 
 const quoteFormSchema = z.object({
   amount: z.preprocess(
@@ -39,19 +39,29 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isProviderAccount, setIsProviderAccount] = useState<boolean | null>(null);
+  const [isLoadingAccountType, setIsLoadingAccountType] = useState(true);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        const userProfile = await getUserProfileFromFirestore(user.uid);
-        setIsProviderAccount(userProfile?.accountType === 'provider');
+        setIsLoadingAccountType(true);
+        const result = await checkUserAccountTypeAction(user.uid);
+        if (result.error) {
+          toast({ title: "Error", description: "Could not verify account type.", variant: "destructive" });
+          setIsProviderAccount(false);
+        } else {
+          setIsProviderAccount(result.accountType === 'provider');
+        }
+        setIsLoadingAccountType(false);
       } else {
         setIsProviderAccount(false);
+        setIsLoadingAccountType(false);
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [toast]);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<QuoteFormValues>({
     resolver: zodResolver(quoteFormSchema),
@@ -85,7 +95,7 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
           description: "Your quote has been sent to the client.",
         });
         if (analytics) {
-          logEvent(analytics, 'submit_quote', { // Custom event name
+          logEvent(analytics, 'submit_quote', { 
             job_id: jobId,
             quote_id: result.quoteId,
             provider_id: currentUser.uid,
@@ -112,7 +122,7 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
     }
   };
 
-  if (isProviderAccount === null) { 
+  if (isLoadingAccountType || isProviderAccount === null) { 
     return (
       <Card className="mt-6 bg-card/50">
         <CardHeader>
@@ -189,5 +199,3 @@ export default function SubmitQuoteForm({ jobId, clientId }: SubmitQuoteFormProp
     </Card>
   );
 }
-
-    

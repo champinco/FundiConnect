@@ -5,8 +5,9 @@ import { submitQuoteForJob, type SubmitQuoteData, updateQuoteStatus, getQuoteByI
 import { updateJobStatus, getJobByIdFromFirestore } from '@/services/jobService';
 import type { QuoteStatus } from '@/models/quote';
 import type { JobStatus } from '@/models/job';
-import { submitReview, type ReviewData } from '@/services/reviewService';
-import { auth } from '@/lib/firebase'; // We might not be able to use this directly for user auth in server actions without specific setup
+import { submitReview, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
+import type { User as AppUser } from '@/models/user';
+import { getUserProfileFromFirestore } from '@/services/userService';
 
 
 interface SubmitQuoteResult {
@@ -44,10 +45,6 @@ interface UpdateQuoteStatusResult {
 
 export async function acceptQuoteAction(jobId: string, quoteId: string, providerIdToAssign: string): Promise<UpdateQuoteStatusResult> {
   try {
-    // Transaction: Update quote, update job, (optional: archive other quotes)
-    // For MVP, we'll do them sequentially. A transaction would be better for production.
-    
-    // 1. Get the quote to ensure it's still pending
     const quoteToAccept = await getQuoteById(quoteId);
     if (!quoteToAccept) {
         return { success: false, message: "Quote not found." };
@@ -59,12 +56,9 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
         return { success: false, message: "Quote does not belong to this job." };
     }
 
-
     await updateQuoteStatus(quoteId, 'accepted');
     await updateJobStatus(jobId, 'assigned', providerIdToAssign);
-    // TODO: Consider archiving other quotes for this job.
-    // e.g., await archiveOtherQuotesForJob(jobId, quoteId);
-
+    
     return { success: true, message: "Quote accepted and job assigned!" };
   } catch (error: any) {
     console.error("Accept Quote Action Error:", error);
@@ -74,7 +68,6 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
 
 export async function rejectQuoteAction(quoteId: string): Promise<UpdateQuoteStatusResult> {
   try {
-     // 1. Get the quote to ensure it's still pending
     const quoteToReject = await getQuoteById(quoteId);
     if (!quoteToReject) {
         return { success: false, message: "Quote not found." };
@@ -99,8 +92,6 @@ interface SubmitReviewResult {
 }
 export async function submitReviewAction(data: ReviewData): Promise<SubmitReviewResult> {
   try {
-    // Note: Server-side validation of 'data' (e.g., using Zod) would be good practice here.
-    // For MVP, assuming client-side validation is sufficient.
     const reviewId = await submitReview(data);
     return { success: true, message: "Review submitted successfully!", reviewId };
   } catch (error: any) {
@@ -115,17 +106,12 @@ interface MarkJobAsCompletedResult {
 }
 
 export async function markJobAsCompletedAction(jobId: string, expectedClientId: string): Promise<MarkJobAsCompletedResult> {
-  // In a more secure setup, we'd get current user's ID server-side from a trusted source.
-  // For now, client ensures only job owner calls this.
-  // Server-side, we re-fetch job to double check client ID.
   try {
     const job = await getJobByIdFromFirestore(jobId);
     if (!job) {
       return { success: false, message: "Job not found." };
     }
     if (job.clientId !== expectedClientId) {
-        // This check relies on the client sending the correct expectedClientId (which should be the current user's UID).
-        // A server-side auth check against the caller's actual identity would be more robust if not relying on Firebase Auth context directly here.
         return { success: false, message: "You are not authorized to mark this job as completed." };
     }
     if (job.status !== 'assigned' && job.status !== 'in_progress') {
@@ -138,4 +124,27 @@ export async function markJobAsCompletedAction(jobId: string, expectedClientId: 
     console.error("Mark Job As Completed Action Error:", error);
     return { success: false, message: error.message || "Failed to mark job as completed." };
   }
+}
+
+
+export async function checkUserAccountTypeAction(userId: string): Promise<{ accountType: AppUser['accountType'] | null, error?: string }> {
+    if (!userId) return { accountType: null, error: "User ID not provided" };
+    try {
+        const userProfile = await getUserProfileFromFirestore(userId);
+        return { accountType: userProfile?.accountType || null };
+    } catch (error: any) {
+        console.error("Error in checkUserAccountTypeAction:", error);
+        return { accountType: null, error: error.message || "Failed to get user account type." };
+    }
+}
+
+export async function checkExistingReviewAction(jobId: string, clientId: string): Promise<{ hasReviewed: boolean, error?: string }> {
+    if (!jobId || !clientId) return { hasReviewed: false, error: "Job ID or Client ID not provided." };
+    try {
+        const existingReview = await getReviewForJobByClient(jobId, clientId);
+        return { hasReviewed: !!existingReview };
+    } catch (error: any) {
+        console.error("Error in checkExistingReviewAction:", error);
+        return { hasReviewed: false, error: error.message || "Failed to check for existing review." };
+    }
 }

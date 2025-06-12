@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react'; 
 import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
-import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
+import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,11 +20,11 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase'; 
 import { getOrCreateChat } from '@/services/chatService'; 
 import type { ProviderProfile } from '@/models/provider'; 
-import { getProviderProfileFromFirestore } from '@/services/providerService'; 
+// Removed direct service imports: getProviderProfileFromFirestore, getReviewsForProvider
 import type { Review } from '@/models/review';
-import { getReviewsForProvider } from '@/services/reviewService';
 import Link from 'next/link'; 
 import { format, formatDistanceToNowStrict } from 'date-fns';
+import { fetchPublicProviderProfileDataAction } from './actions'; // Import the new action
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -34,9 +34,10 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  // isLoadingReviews is now part of overall isLoading
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -48,31 +49,28 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   useEffect(() => {
     if (providerId) {
       setIsLoading(true); 
-      setIsLoadingReviews(true); 
-
-      getProviderProfileFromFirestore(providerId)
-        .then((profile) => {
-          if (profile) {
-            setProvider(profile);
+      setError(null);
+      fetchPublicProviderProfileDataAction(providerId)
+        .then((data) => {
+          if (data.error) {
+            setError(data.error);
+            toast({ title: "Error", description: data.error, variant: "destructive" });
+            setProvider(null);
+            setReviews([]);
           } else {
-            toast({ title: "Error", description: "Provider profile not found.", variant: "destructive" });
+            setProvider(data.provider);
+            setReviews(data.reviews);
           }
         })
-        .catch(error => {
-          console.error("Error fetching provider profile:", error);
-          toast({ title: "Error", description: "Could not load provider profile.", variant: "destructive" });
+        .catch(err => {
+          // This catch is for unexpected errors from the action itself, though the action should handle its own.
+          const errorMessage = err.message || "An unexpected error occurred while loading provider data.";
+          setError(errorMessage);
+          toast({ title: "Error", description: errorMessage, variant: "destructive" });
+          setProvider(null);
+          setReviews([]);
         })
         .finally(() => setIsLoading(false)); 
-
-      getReviewsForProvider(providerId)
-        .then((fetchedReviews) => {
-          setReviews(fetchedReviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime()));
-        })
-        .catch(error => {
-          console.error("Error fetching reviews:", error);
-          toast({ title: "Error", description: "Could not load reviews for this provider.", variant: "destructive" });
-        })
-        .finally(() => setIsLoadingReviews(false)); 
     }
   }, [providerId, toast]);
 
@@ -86,6 +84,8 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
 
     setIsChatLoading(true);
     try {
+      // getOrCreateChat now primarily uses clientDb and is safer to call from client.
+      // Participant details might be minimal initially.
       const chatId = await getOrCreateChat(currentUser.uid, provider.userId); 
       router.push(`/messages/${chatId}`);
     } catch (error: any) {
@@ -100,14 +100,14 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     return <ProviderProfileSkeleton />;
   }
 
-  if (!provider) {
+  if (error || !provider) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
-            <CardHeader><CardTitle>Provider Not Found</CardTitle></CardHeader>
+            <CardHeader><CardTitle>{error ? "Error Loading Profile" : "Provider Not Found"}</CardTitle></CardHeader>
             <CardContent>
                 <MessageCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-                <p className="text-muted-foreground">The provider profile you are looking for does not exist or could not be loaded.</p>
+                <p className="text-muted-foreground">{error || "The provider profile you are looking for does not exist or could not be loaded."}</p>
                 <Button asChild className="mt-6"><Link href="/search">Back to Search</Link></Button>
             </CardContent>
         </Card>
@@ -157,7 +157,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                 <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="about">About</TabsTrigger>
                   <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews ({isLoadingReviews ? '...' : reviews.length})</TabsTrigger>
+                  <TabsTrigger value="reviews">Reviews ({reviews.length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="about">
                   <Card>
@@ -254,7 +254,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       <CardTitle className="text-xl">Client Reviews</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {isLoadingReviews ? (
+                      {isLoading ? ( // Changed from isLoadingReviews
                         <div className="space-y-4">
                           {[...Array(3)].map((_, i) => (
                             <div key={i} className="flex space-x-3 border-b pb-4 last:border-b-0">
@@ -358,4 +358,3 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     </div>
   );
 }
-    

@@ -10,11 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, Star, Send, ThumbsUp } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { submitReviewAction } from '../actions';
+import { submitReviewAction, checkExistingReviewAction } from '../actions'; // Added checkExistingReviewAction
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { JobStatus } from '@/models/job';
-import { getReviewForJobByClient } from '@/services/reviewService';
+// Removed direct import: getReviewForJobByClient
 import { useRouter } from 'next/navigation';
 
 const reviewFormSchema = z.object({
@@ -26,8 +26,8 @@ type ReviewFormValues = z.infer<typeof reviewFormSchema>;
 
 interface SubmitReviewFormProps {
   jobId: string;
-  providerId: string | null | undefined; // Can be null/undefined if job not yet assigned
-  clientId: string; // The original client who posted the job
+  providerId: string | null | undefined; 
+  clientId: string; 
   currentJobStatus: JobStatus;
 }
 
@@ -49,29 +49,29 @@ export default function SubmitReviewForm({ jobId, providerId, clientId, currentJ
     }
   });
   
-  const ratingValue = watch("rating"); // Watch the rating value for dynamic star updates
+  const ratingValue = watch("rating"); 
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user && user.uid === clientId && currentJobStatus === 'completed' && providerId) {
         setIsCheckingReview(true);
-        try {
-            const existingReview = await getReviewForJobByClient(jobId, user.uid);
-            setHasAlreadyReviewed(!!existingReview);
-        } catch (error) {
-            console.error("Error checking for existing review:", error);
-            setHasAlreadyReviewed(false); // Assume not reviewed if check fails, to allow submission
-        } finally {
-            setIsCheckingReview(false);
+        const result = await checkExistingReviewAction(jobId, user.uid);
+        if (result.error) {
+            console.error("Error checking for existing review:", result.error);
+            toast({ title: "Error", description: "Could not check previous review status.", variant: "destructive" });
+            setHasAlreadyReviewed(false); 
+        } else {
+            setHasAlreadyReviewed(result.hasReviewed);
         }
+        setIsCheckingReview(false);
       } else {
         setHasAlreadyReviewed(false); 
         setIsCheckingReview(false);
       }
     });
     return () => unsubscribe();
-  }, [jobId, clientId, currentJobStatus, providerId]);
+  }, [jobId, clientId, currentJobStatus, providerId, toast]);
 
 
   const onSubmit = async (data: ReviewFormValues) => {
@@ -107,10 +107,9 @@ export default function SubmitReviewForm({ jobId, providerId, clientId, currentJ
 
       if (result.success) {
         toast({ title: "Review Submitted!", description: "Thank you for your feedback." });
-        setHasAlreadyReviewed(true); // Prevent further submissions
-        reset({ rating: 0, comment: ""}); // Reset form with rating 0
-        setCurrentRating(0); // Reset visual stars
-        // router.refresh(); // Refresh server components if review list is on the same page. For now, just update form state.
+        setHasAlreadyReviewed(true); 
+        reset({ rating: 0, comment: ""}); 
+        setCurrentRating(0); 
       } else {
         toast({ title: "Failed to Submit Review", description: result.message, variant: "destructive" });
       }
@@ -121,7 +120,6 @@ export default function SubmitReviewForm({ jobId, providerId, clientId, currentJ
     }
   };
 
-  // Conditional rendering logic for the form
   if (isCheckingReview) { 
     return (
         <div className="mt-8 p-6 border rounded-lg shadow-md bg-background text-center">
@@ -132,7 +130,7 @@ export default function SubmitReviewForm({ jobId, providerId, clientId, currentJ
   }
 
   if (!currentUser || currentUser.uid !== clientId || currentJobStatus !== 'completed' || !providerId) {
-    return null; // Don't show the form if not eligible
+    return null; 
   }
 
   if (hasAlreadyReviewed) {

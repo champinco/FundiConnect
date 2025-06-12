@@ -23,25 +23,26 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getProviderProfileFromFirestore } from '@/services/providerService';
-import { getUserProfileFromFirestore } from '@/services/userService'; 
+// Removed direct service imports: getProviderProfileFromFirestore, getUserProfileFromFirestore
 import type { ProviderProfile, Certification } from '@/models/provider';
 import type { User as AppUser } from '@/models/user';
 import { uploadFileToStorage } from '@/services/storageService';
 
 import { providerProfileEditFormSchema, type ProviderProfileEditFormValues, allServiceCategories } from './schemas';
-import { updateProviderProfileAction } from './actions';
+import { updateProviderProfileAction, fetchProviderEditPageDataAction } from './actions'; // Added fetch action
 import Image from 'next/image';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 export default function EditProviderProfilePage() {
   const { toast } = useToast();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPage, setIsLoadingPage] = useState(true); // Changed from isLoading
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [appUser, setAppUser] = useState<AppUser | null>(null);
-  const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
+  // AppUser and ProviderProfile will be set by fetchProviderEditPageDataAction
+  // const [appUser, setAppUser] = useState<AppUser | null>(null); 
+  // const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isClientAccount, setIsClientAccount] = useState(false);
 
@@ -63,7 +64,7 @@ export default function EditProviderProfilePage() {
       yearsOfExperience: 0,
       contactPhoneNumber: "",
       operatingHours: "",
-      serviceAreas: "", // Initialize as empty string for comma-separated input
+      serviceAreas: "", 
       website: "",
       certifications: [],
       profilePictureUrl: null,
@@ -80,45 +81,37 @@ export default function EditProviderProfilePage() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        try {
-          const fetchedAppUser = await getUserProfileFromFirestore(user.uid);
-          setAppUser(fetchedAppUser);
-          if (fetchedAppUser?.accountType === 'client') {
+        setIsLoadingPage(true);
+        const result = await fetchProviderEditPageDataAction(user.uid);
+        if (result.error) {
+          setFetchError(result.error);
+          toast({ title: "Loading Error", description: result.error, variant: "destructive" });
+        } else {
+          if (result.appUser?.accountType === 'client') {
             setIsClientAccount(true);
-            setIsLoading(false);
-            return;
-          }
-          
-          const profile = await getProviderProfileFromFirestore(user.uid);
-          if (profile) {
-            setProviderProfile(profile);
+          } else if (result.providerProfile) {
             reset({
-              ...profile,
-              yearsOfExperience: profile.yearsOfExperience ?? 0,
-              specialties: profile.specialties ?? [],
-              serviceAreas: (profile.serviceAreas ?? []).join(', '), // Join array to string for input
-              certifications: (profile.certifications ?? []).map(cert => ({
+              ...result.providerProfile,
+              yearsOfExperience: result.providerProfile.yearsOfExperience ?? 0,
+              specialties: result.providerProfile.specialties ?? [],
+              serviceAreas: (result.providerProfile.serviceAreas ?? []).join(', '),
+              certifications: (result.providerProfile.certifications ?? []).map(cert => ({
                 ...cert,
                 issueDate: cert.issueDate ? new Date(cert.issueDate) : undefined,
                 expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : undefined,
-                newDocumentFile: undefined, 
+                newDocumentFile: undefined,
               })),
             });
-            if (profile.profilePictureUrl) setProfilePicturePreview(profile.profilePictureUrl);
-            if (profile.bannerImageUrl) setBannerImagePreview(profile.bannerImageUrl);
-
-          } else {
-            setFetchError("Provider profile not found. Please ensure your provider setup was completed during signup.");
+            if (result.providerProfile.profilePictureUrl) setProfilePicturePreview(result.providerProfile.profilePictureUrl);
+            if (result.providerProfile.bannerImageUrl) setBannerImagePreview(result.providerProfile.bannerImageUrl);
+          } else if (result.appUser?.accountType === 'provider' && !result.providerProfile) {
+             setFetchError("Provider profile data could not be loaded. It might not exist or there was an issue.");
           }
-        } catch (error: any) {
-          setFetchError(error.message || "Failed to load profile data.");
-          toast({ title: "Loading Error", description: error.message, variant: "destructive" });
-        } finally {
-          setIsLoading(false);
         }
+        setIsLoadingPage(false);
       } else {
         router.push('/auth/login?redirect=/profile/edit');
-        setIsLoading(false);
+        setIsLoadingPage(false);
       }
     });
     return () => unsubscribe();
@@ -183,10 +176,9 @@ export default function EditProviderProfilePage() {
         }
       }
       
-      // The Zod schema now transforms serviceAreas string to array automatically
       const result = await updateProviderProfileAction(
         currentUser.uid, 
-        data, // data.serviceAreas is now string[] due to Zod transform
+        data, 
         uploadedProfilePicUrl,
         uploadedBannerImgUrl,
         uploadedCertificationDocuments
@@ -215,9 +207,9 @@ export default function EditProviderProfilePage() {
     }
   };
 
-  if (isLoading) return <ProviderProfileSkeleton />;
+  if (isLoadingPage) return <ProviderProfileSkeleton />;
   
-  if (!currentUser && !isLoading) {
+  if (!currentUser && !isLoadingPage) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <Card className="max-w-md mx-auto">
@@ -245,8 +237,8 @@ export default function EditProviderProfilePage() {
     );
   }
   
-  if (fetchError) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error</AlertTitle><AlertDescription>{fetchError}</AlertDescription></Alert>;
-  if (!providerProfile && !isLoading) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error</AlertTitle><AlertDescription>Provider profile not found. Please ensure your provider account setup was completed correctly.</AlertDescription></Alert>;
+  if (fetchError) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error Loading Profile</AlertTitle><AlertDescription>{fetchError}</AlertDescription></Alert>;
+  // if (!providerProfile && !isLoadingPage) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error</AlertTitle><AlertDescription>Provider profile not found or could not be loaded. Please ensure your provider account setup was completed correctly.</AlertDescription></Alert>;
 
 
   return (

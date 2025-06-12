@@ -2,16 +2,46 @@
 "use server";
 
 import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebaseAdmin'; // Use adminDb
 import { uploadFileToStorage } from '@/services/storageService';
 import type { ProviderProfile, Certification } from '@/models/provider';
-import type { ProviderProfileEditFormValues, CertificationFormValues } from './schemas';
+import type { ProviderProfileEditFormValues } from './schemas';
 import { revalidatePath } from 'next/cache';
+import { getUserProfileFromFirestore } from '@/services/userService';
+import { getProviderProfileFromFirestore } from '@/services/providerService';
+import type { User as AppUser } from '@/models/user';
+
+interface ProviderEditPageData {
+  appUser: AppUser | null;
+  providerProfile: ProviderProfile | null;
+  error?: string;
+}
+
+export async function fetchProviderEditPageDataAction(userId: string): Promise<ProviderEditPageData> {
+  if (!userId) {
+    return { appUser: null, providerProfile: null, error: "User not authenticated." };
+  }
+  try {
+    const appUser = await getUserProfileFromFirestore(userId);
+    if (!appUser) {
+      return { appUser: null, providerProfile: null, error: "User profile not found." };
+    }
+    if (appUser.accountType !== 'provider') {
+      return { appUser, providerProfile: null, error: "User is not a provider." };
+    }
+    const providerProfile = await getProviderProfileFromFirestore(userId);
+    return { appUser, providerProfile };
+  } catch (error: any) {
+    console.error("Error fetching provider edit page data:", error);
+    return { appUser: null, providerProfile: null, error: error.message || "Failed to load profile data." };
+  }
+}
+
 
 interface UpdateProviderProfileResult {
   success: boolean;
   message: string;
-  updatedProfile?: Partial<ProviderProfile>; // Return the fields that were updated
+  updatedProfile?: Partial<ProviderProfile>; 
 }
 
 export async function updateProviderProfileAction(
@@ -24,31 +54,35 @@ export async function updateProviderProfileAction(
   if (!providerId) {
     return { success: false, message: "Provider ID is missing." };
   }
+  if (!adminDb) {
+    return { success: false, message: "Server error: Admin DB not initialized." };
+  }
 
   try {
-    const providerRef = doc(db, 'providerProfiles', providerId);
-
-    const currentTimestamp = serverTimestamp();
+    const providerRef = doc(adminDb, 'providerProfiles', providerId);
+    const currentTimestamp = serverTimestamp(); // Admin SDK serverTimestamp is just an object
 
     const certificationsToSave: Certification[] = (data.certifications || []).map((certFormValue, index) => {
       const uploadedDocInfo = uploadedCertificationDocuments?.find(doc => doc.index === index);
-      const newDocumentUrl = uploadedDocInfo?.url; // URL from new upload for this cert
-      const existingDocumentUrl = certFormValue.documentUrl; // URL already on the cert
+      const newDocumentUrl = uploadedDocInfo?.url; 
+      const existingDocumentUrl = certFormValue.documentUrl;
 
       return {
-        id: certFormValue.id, // Preserve existing ID or use new client-generated UUID
+        id: certFormValue.id,
         name: certFormValue.name,
         number: certFormValue.number,
         issuingBody: certFormValue.issuingBody,
+        // Ensure dates are converted to Firestore Timestamps for admin SDK
         issueDate: certFormValue.issueDate ? Timestamp.fromDate(new Date(certFormValue.issueDate)).toDate() : null,
         expiryDate: certFormValue.expiryDate ? Timestamp.fromDate(new Date(certFormValue.expiryDate)).toDate() : null,
         documentUrl: newDocumentUrl || existingDocumentUrl || null,
-        status: certFormValue.status || 'pending_review', // Default for new/edited if not set
+        status: certFormValue.status || 'pending_review',
         verificationNotes: certFormValue.verificationNotes || null,
       };
     });
-
-    const updateData: Partial<Omit<ProviderProfile, 'id' | 'userId' | 'createdAt' | 'rating' | 'reviewsCount'>> = {
+    
+    // Construct the update data carefully, ensuring serverTimestamp is used directly for admin SDK
+    const updatePayload: any = { // Use 'any' to allow serverTimestamp directly
       businessName: data.businessName,
       mainService: data.mainService,
       specialties: data.specialties || [],
@@ -58,30 +92,40 @@ export async function updateProviderProfileAction(
       yearsOfExperience: data.yearsOfExperience,
       contactPhoneNumber: data.contactPhoneNumber,
       operatingHours: data.operatingHours || undefined,
-      serviceAreas: data.serviceAreas || [],
+      serviceAreas: data.serviceAreas || [], // Already an array from schema transform
       website: data.website || undefined,
       certifications: certificationsToSave,
-      updatedAt: currentTimestamp as any, // Cast because serverTimestamp is special
+      updatedAt: currentTimestamp, // This is fine, serverTimestamp() returns a sentinel for Admin SDK
     };
 
+
     if (uploadedProfilePictureUrl !== undefined) {
-      updateData.profilePictureUrl = uploadedProfilePictureUrl;
+      updatePayload.profilePictureUrl = uploadedProfilePictureUrl;
     }
     if (uploadedBannerImageUrl !== undefined) {
-      updateData.bannerImageUrl = uploadedBannerImageUrl;
+      updatePayload.bannerImageUrl = uploadedBannerImageUrl;
     }
-
-    await updateDoc(providerRef, updateData);
     
-    revalidatePath(`/providers/${providerId}`); // Revalidate public profile page
-    revalidatePath(`/profile/edit`); // Revalidate edit page
+    await updateDoc(providerRef, updatePayload);
+    
+    revalidatePath(`/providers/${providerId}`);
+    revalidatePath(`/profile/edit`);
+
+    // For updatedProfile, convert Timestamps back to Dates if needed by client
+     const clientSafeCertifications = certificationsToSave.map(cert => ({
+      ...cert,
+      issueDate: cert.issueDate ? new Date(cert.issueDate) : null,
+      expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : null,
+    }));
+
 
     return { 
       success: true, 
       message: "Profile updated successfully!",
-      updatedProfile: { // Return the updated values to potentially update client state
-        ...updateData,
-        certifications: certificationsToSave, // ensure dates are JS Dates if client needs them
+      updatedProfile: { 
+        ...updatePayload,
+        certifications: clientSafeCertifications,
+        // updatedAt will be a sentinel, client should re-fetch or handle this
       } 
     };
 
