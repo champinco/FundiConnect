@@ -68,6 +68,13 @@ export default function PostJobPage() {
   };
 
   const onSubmit = async (data: PostJobFormValues) => {
+    // Debugging logs as requested
+    console.log('Auth state before job post attempt:', {
+      user: !!currentUser,
+      uid: currentUser?.uid,
+      email: currentUser?.email
+    });
+
     if (!currentUser) {
       toast({
         title: "Authentication Required",
