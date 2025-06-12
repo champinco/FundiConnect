@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
         net: false,
         tls: false,
         dns: false,
-        http2: false, // Added http2
+        http2: false, 
         // You can add other Node.js core modules here if they cause issues
       };
     }
