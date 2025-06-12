@@ -23,7 +23,7 @@ const nextConfig: NextConfig = {
     if (!isServer) {
       // Resolve Node.js core modules to false for the client bundle
       config.resolve.fallback = {
-        ...config.resolve.fallback,
+        ...config.resolve.fallback, // Preserve existing fallbacks if any
         child_process: false,
         fs: false,
         net: false,
