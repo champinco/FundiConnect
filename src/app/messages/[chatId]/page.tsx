@@ -5,7 +5,7 @@ import type { NextPage } from 'next';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase'; 
+import { auth, clientDb } from '@/lib/firebase'; // Use clientDb
 import { doc, getDoc } from 'firebase/firestore'; 
 import { subscribeToChatMessages, sendMessage } from '@/services/chatService';
 import type { ChatMessage, ChatParticipant, Chat } from '@/models/chat';
@@ -16,7 +16,7 @@ import { ArrowLeft, Send, Paperclip, Loader2, UserCircle2, MessageSquareText, XC
 import Link from 'next/link';
 import { format } from 'date-fns';
 import ChatMessageSkeleton from '@/components/skeletons/chat-message-skeleton';
-import { Skeleton } from '@/components/ui/skeleton'; // For header skeleton
+import { Skeleton } from '@/components/ui/skeleton'; 
 import { uploadFileToStorage } from '@/services/storageService';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
@@ -62,11 +62,11 @@ const ChatPage: NextPage = () => {
 
     if (!currentUser?.uid) { 
       setIsLoading(false);
-      setChatExists(false); // No user, so no chat access.
+      setChatExists(false); 
       return;
     }
     
-    const chatRef = doc(db, 'chats', chatId);
+    const chatRef = doc(clientDb, 'chats', chatId); // Use clientDb
     
     getDoc(chatRef).then(chatSnap => {
       if (chatSnap.exists()) {
@@ -111,7 +111,7 @@ const ChatPage: NextPage = () => {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 5 * 1024 * 1024) { 
         toast({ title: "File too large", description: "Image should be less than 5MB.", variant: "destructive" });
         return;
       }
@@ -198,7 +198,7 @@ const ChatPage: NextPage = () => {
     );
   }
 
-  if (isLoading && chatExists === true && !initialLoadDoneRef.current) { // Show full page skeleton
+  if (isLoading && chatExists === true && !initialLoadDoneRef.current) { 
      return (
       <div className="flex flex-col h-[calc(100vh-4rem)] bg-card">
         <header className="flex items-center p-4 border-b bg-background shadow-sm">

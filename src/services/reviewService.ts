@@ -9,18 +9,16 @@ import {
   query,
   where,
   getDocs,
-  serverTimestamp,
-  Timestamp,
-  writeBatch,
   runTransaction,
   getDoc,
   orderBy,
-  limit
+  limit,
+  type FieldValue
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import type { Review } from '@/models/review';
 import type { ProviderProfile } from '@/models/provider';
-import { getUserProfileFromFirestore } from './userService'; // To fetch client details
+import { getUserProfileFromFirestore } from './userService'; // This will also use adminDb for reads from server
 
 export interface ReviewData {
   jobId: string;
@@ -31,11 +29,15 @@ export interface ReviewData {
 }
 
 /**
- * Submits a review for a provider and updates the provider's average rating and reviews count.
+ * Submits a review for a provider and updates the provider's average rating and reviews count using Admin SDK.
  * @param reviewData - The data for the review.
  * @returns A promise that resolves with the ID of the newly created review.
  */
 export async function submitReview(reviewData: ReviewData): Promise<string> {
+  if (!adminDb) {
+    console.error("Admin DB not initialized. Review submission failed.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
   if (!reviewData.jobId || !reviewData.providerId || !reviewData.clientId || reviewData.rating == null || !reviewData.comment) {
     throw new Error('Missing required fields for submitting a review.');
   }
@@ -43,21 +45,19 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
     throw new Error('Rating must be between 1 and 5.');
   }
 
-  const providerRef = doc(db, 'providerProfiles', reviewData.providerId);
-  const reviewsRef = collection(db, 'reviews');
-  const newReviewRef = doc(reviewsRef); // Auto-generate ID for the new review
+  const providerRef = doc(adminDb, 'providerProfiles', reviewData.providerId);
+  const reviewsRef = collection(adminDb, 'reviews');
+  const newReviewRef = doc(reviewsRef); 
 
-  // Check if review already exists for this job by this client
   const existingReview = await getReviewForJobByClient(reviewData.jobId, reviewData.clientId);
   if (existingReview) {
     throw new Error('You have already submitted a review for this job.');
   }
   
-  // Fetch client details to store with the review
   const clientProfile = await getUserProfileFromFirestore(reviewData.clientId);
 
   try {
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(adminDb, async (transaction) => { // Use adminDb for transaction
       const providerSnap = await transaction.get(providerRef);
       if (!providerSnap.exists()) {
         throw new Error("Provider profile not found. Cannot submit review.");
@@ -68,30 +68,28 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
       const oldRatingTotal = (providerData.rating || 0) * (providerData.reviewsCount || 0);
       const newAverageRating = (oldRatingTotal + reviewData.rating) / newReviewsCount;
 
-      // Create the new review document
       transaction.set(newReviewRef, {
         jobId: reviewData.jobId,
         providerId: reviewData.providerId,
         clientId: reviewData.clientId,
         rating: reviewData.rating,
         comment: reviewData.comment,
-        reviewDate: serverTimestamp(),
+        reviewDate: AdminFieldValue.serverTimestamp(),
         clientDetails: {
           name: clientProfile?.fullName || "Anonymous",
           photoURL: clientProfile?.photoURL || null,
         }
       });
 
-      // Update provider's profile with new rating and reviews count
       transaction.update(providerRef, {
         rating: newAverageRating,
         reviewsCount: newReviewsCount,
-        updatedAt: serverTimestamp()
+        updatedAt: AdminFieldValue.serverTimestamp()
       });
     });
     return newReviewRef.id;
   } catch (error) {
-    console.error('Error submitting review:', error);
+    console.error('Error submitting review (Admin SDK):', error);
     if (error instanceof Error) {
         throw new Error(`Could not submit review: ${error.message}`);
     }
@@ -101,14 +99,18 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
 
 
 /**
- * Retrieves a review for a specific job submitted by a specific client.
+ * Retrieves a review for a specific job submitted by a specific client using Admin SDK.
  * @param jobId - The ID of the job.
  * @param clientId - The UID of the client.
  * @returns A promise that resolves with the Review object or null if not found.
  */
 export async function getReviewForJobByClient(jobId: string, clientId: string): Promise<Review | null> {
+   if (!adminDb) {
+    console.error("Admin DB not initialized. Cannot fetch review for job by client.");
+    return null;
+  }
   try {
-    const reviewsRef = collection(db, 'reviews');
+    const reviewsRef = collection(adminDb, 'reviews');
     const q = query(
       reviewsRef,
       where('jobId', '==', jobId),
@@ -122,25 +124,29 @@ export async function getReviewForJobByClient(jobId: string, clientId: string): 
       return {
         id: docSnap.id,
         ...data,
-        reviewDate: (data.reviewDate as Timestamp)?.toDate(),
-        editedAt: (data.editedAt as Timestamp)?.toDate() || undefined,
+        reviewDate: (data.reviewDate as AdminTimestamp)?.toDate(),
+        editedAt: (data.editedAt as AdminTimestamp)?.toDate() || undefined,
       } as Review;
     }
     return null;
   } catch (error) {
-    console.error('Error fetching review for job by client:', error);
+    console.error('Error fetching review for job by client (Admin SDK):', error);
     throw new Error('Could not fetch review status.');
   }
 }
 
 /**
- * Retrieves all reviews for a specific provider, ordered by date.
+ * Retrieves all reviews for a specific provider, ordered by date, using Admin SDK.
  * @param providerId - The UID of the provider.
  * @returns A promise that resolves with an array of Review objects.
  */
 export async function getReviewsForProvider(providerId: string): Promise<Review[]> {
+   if (!adminDb) {
+    console.error("Admin DB not initialized. Cannot fetch reviews for provider.");
+    return [];
+  }
   try {
-    const reviewsRef = collection(db, 'reviews');
+    const reviewsRef = collection(adminDb, 'reviews');
     const q = query(reviewsRef, where('providerId', '==', providerId), orderBy('reviewDate', 'desc'));
     const querySnapshot = await getDocs(q);
     const reviews: Review[] = [];
@@ -149,13 +155,13 @@ export async function getReviewsForProvider(providerId: string): Promise<Review[
       reviews.push({
         id: docSnap.id,
         ...data,
-        reviewDate: (data.reviewDate as Timestamp)?.toDate(),
-        editedAt: (data.editedAt as Timestamp)?.toDate() || undefined,
+        reviewDate: (data.reviewDate as AdminTimestamp)?.toDate(),
+        editedAt: (data.editedAt as AdminTimestamp)?.toDate() || undefined,
       } as Review);
     });
     return reviews;
   } catch (error) {
-    console.error('Error fetching reviews for provider:', error);
+    console.error('Error fetching reviews for provider (Admin SDK):', error);
     throw new Error('Could not fetch provider reviews.');
   }
 }

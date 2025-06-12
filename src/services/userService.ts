@@ -2,37 +2,38 @@
 /**
  * @fileOverview Service functions for interacting with user data in Firestore.
  */
-import { doc, setDoc, getDoc, serverTimestamp, Timestamp, type FieldValue } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase'; // Import auth for current user type
-import type { User as FirebaseUser } from 'firebase/auth'; // For Firebase Auth user object
+import { doc, setDoc, getDoc, type UpdateData } from 'firebase/firestore';
+import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import type { User as FirebaseUser } from 'firebase/auth';
 import type { User, AccountType } from '@/models/user';
 
-/**
- * User data structure for creating a document in Firestore.
- * Timestamps are FieldValue. Optional fields from User model are included if provided.
- */
+
 interface UserDocumentForCreate {
   uid: string;
   email: string;
   fullName: string | null;
   accountType: AccountType;
-  createdAt: FieldValue;
-  updatedAt: FieldValue;
+  createdAt: admin.firestore.FieldValue; // For Admin SDK
+  updatedAt: admin.firestore.FieldValue; // For Admin SDK
   phoneNumber?: string | null;
   photoURL?: string | null;
   providerProfileId?: string;
 }
 
 /**
- * Creates or updates a user profile document in Firestore.
- * @param userData - The user data object. Email is now mandatory. Phone number is optional.
+ * Creates or updates a user profile document in Firestore using Admin SDK.
+ * @param userData - The user data object.
  * @param uid - The Firebase Auth UID.
  * @returns A promise that resolves when the operation is complete.
  */
 export async function createUserProfileInFirestore(userData: Omit<User, 'createdAt' | 'updatedAt' | 'uid'>, uid: string): Promise<void> {
+  if (!adminDb) {
+    console.error("Admin DB not initialized. User profile creation failed.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
   try {
-    const userRef = doc(db, 'users', uid);
-    const now = serverTimestamp();
+    const userRef = doc(adminDb, 'users', uid);
+    const now = AdminFieldValue.serverTimestamp();
 
     const profileToSave: UserDocumentForCreate = {
       uid: uid,
@@ -51,19 +52,15 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
 
     await setDoc(userRef, profileToSave, { merge: true });
   } catch (error) {
-    console.error('Error creating user profile in Firestore:', error);
+    console.error('Error creating user profile in Firestore (Admin SDK):', error);
     throw new Error('Could not create user profile.');
   }
 }
 
-/**
- * Helper function to safely convert Firestore Timestamps or other date representations to JavaScript Date objects.
- * @param fieldValue - The field value which might be a Firestore Timestamp, JS Date, string, or number.
- * @returns A JavaScript Date object.
- */
-const convertPotentialTimestampToDate = (fieldValue: any): Date => {
-  if (fieldValue && typeof fieldValue.toDate === 'function') {
-    return (fieldValue as Timestamp).toDate();
+
+const convertPotentialAdminTimestampToDate = (fieldValue: any): Date => {
+  if (fieldValue && fieldValue instanceof AdminTimestamp) { // Check for AdminTimestamp
+    return fieldValue.toDate();
   }
   if (fieldValue instanceof Date) {
     return fieldValue;
@@ -75,33 +72,36 @@ const convertPotentialTimestampToDate = (fieldValue: any): Date => {
         return parsedDate;
       }
     } catch (e) {
-      // Ignore parsing errors for strings/numbers if new Date() throws (e.g. invalid date string format)
+      // Ignore
     }
   }
-  console.warn(`Invalid or missing timestamp field encountered. Value: ${String(fieldValue)}. Defaulting to current date. This may indicate a data integrity issue.`);
+  console.warn(`Invalid or missing admin timestamp field. Value: ${String(fieldValue)}. Defaulting to current date.`);
   return new Date(); 
 };
 
 
 /**
- * Retrieves a user profile document from Firestore.
+ * Retrieves a user profile document from Firestore using Admin SDK.
  * @param uid - The user's unique ID.
  * @returns A promise that resolves with the User object or null if not found.
  */
 export async function getUserProfileFromFirestore(uid: string): Promise<User | null> {
+  if (!adminDb) {
+    console.error("Admin DB not initialized. Cannot fetch user profile.");
+    // Decide on behavior, for now, returning null for reads might be okay
+    return null;
+  }
   if (!uid) {
     console.warn('getUserProfileFromFirestore called with undefined or empty UID.');
     return null;
   }
   try {
-    const userRef = doc(db, 'users', uid);
+    const userRef = doc(adminDb, 'users', uid);
     const userSnap = await getDoc(userRef);
 
     if (userSnap.exists()) {
-      const data = userSnap.data();
+      const data = userSnap.data()!; // data() is never undefined if exists() is true
       
-      // Explicitly map fields to avoid issues with spread operator and ensure type safety
-      // Also provide defaults for potentially missing fields to align with the User model.
       const userProfile: User = {
         uid: userSnap.id,
         email: data.email || '', 
@@ -110,32 +110,25 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
         photoURL: data.photoURL || null,
         phoneNumber: data.phoneNumber || null,
         providerProfileId: data.providerProfileId || undefined,
-        
-        createdAt: convertPotentialTimestampToDate(data.createdAt),
-        updatedAt: convertPotentialTimestampToDate(data.updatedAt),
+        createdAt: convertPotentialAdminTimestampToDate(data.createdAt),
+        updatedAt: convertPotentialAdminTimestampToDate(data.updatedAt),
       };
       
-      // Remove providerProfileId if it was not present, to match User model precisely
       if (userProfile.providerProfileId === undefined) {
         delete userProfile.providerProfileId;
       }
-
       return userProfile;
-
     } else {
-      console.warn(`No user profile document found in Firestore for UID: ${uid}`);
+      console.warn(`No user profile document found in Firestore (Admin SDK) for UID: ${uid}`);
       return null;
     }
   } catch (error: any) {
-    // Log the full original error for better debugging
-    console.error(`Error in getUserProfileFromFirestore for UID: ${uid}.`);
+    console.error(`Error in getUserProfileFromFirestore (Admin SDK) for UID: ${uid}.`);
     console.error("Original Error Object:", error); 
     console.error("Original Error Message:", error.message);
     console.error("Original Error Stack:", error.stack);
-    
-    let errorMessage = "Could not fetch user profile.";
+    let errorMessage = "Could not fetch user profile (Admin SDK).";
     if (error && error.message) {
-      // Append the original error message to the new error we throw.
       errorMessage += ` Original issue: ${error.message}`;
     }
     throw new Error(errorMessage);
@@ -144,50 +137,82 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
 
 
 /**
- * Creates a default user profile document in Firestore if one doesn't exist.
- * Primarily intended as a fallback for users who completed Auth but missed Firestore profile creation.
- * @param firebaseUser - The Firebase Auth user object.
+ * Creates a default user profile document in Firestore if one doesn't exist, using Admin SDK.
+ * @param firebaseUser - The Firebase Auth user object (client-side type).
  * @returns A promise that resolves with the created or existing User object.
  */
 export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): Promise<User> {
-  const userRef = doc(db, 'users', firebaseUser.uid);
-  
-  // Use Firestore Timestamp for server-side consistency when creating new docs
-  const nowAsFirestoreTimestamp = Timestamp.now(); 
+  if (!adminDb) {
+    console.error("Admin DB not initialized. Default user profile creation failed.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
+  const userRef = doc(adminDb, 'users', firebaseUser.uid);
+  const nowAsAdminTimestamp = AdminFieldValue.serverTimestamp();
 
-  const defaultProfileData = {
+  const defaultProfileData: UserDocumentForCreate = {
     uid: firebaseUser.uid,
     email: firebaseUser.email || 'No email provided',
     fullName: firebaseUser.displayName || 'New User',
     accountType: 'client' as AccountType, 
     photoURL: firebaseUser.photoURL || null,
     phoneNumber: firebaseUser.phoneNumber || null,
-    createdAt: nowAsFirestoreTimestamp, // Store as Firestore Timestamp
-    updatedAt: nowAsFirestoreTimestamp, // Store as Firestore Timestamp
+    createdAt: nowAsAdminTimestamp,
+    updatedAt: nowAsAdminTimestamp,
   };
 
   try {
     const existingProfileSnap = await getDoc(userRef);
     if (existingProfileSnap.exists()) {
-        console.log(`Profile already exists for UID: ${firebaseUser.uid}. Returning existing profile.`);
-        const existingData = existingProfileSnap.data();
+        console.log(`Profile already exists for UID (Admin SDK): ${firebaseUser.uid}. Returning existing profile.`);
+        const existingData = existingProfileSnap.data()!;
         return {
             ...existingData,
             uid: existingProfileSnap.id,
-            createdAt: convertPotentialTimestampToDate(existingData.createdAt),
-            updatedAt: convertPotentialTimestampToDate(existingData.updatedAt),
+            createdAt: convertPotentialAdminTimestampToDate(existingData.createdAt),
+            updatedAt: convertPotentialAdminTimestampToDate(existingData.updatedAt),
         } as User;
     }
 
     await setDoc(userRef, defaultProfileData);
-    console.log(`Default profile created for UID: ${firebaseUser.uid}`);
+    console.log(`Default profile created for UID (Admin SDK): ${firebaseUser.uid}`);
+    // For the return value, we can't resolve serverTimestamp() on the client immediately.
+    // Return what we have, knowing the actual timestamp is on the server.
+    // Or fetch it again if precise date is needed, but that's an extra read.
     return {
-      ...defaultProfileData,
-      createdAt: defaultProfileData.createdAt.toDate(), // Convert to JS Date for return consistency
-      updatedAt: defaultProfileData.updatedAt.toDate(),
-    } as User; // Cast because providerProfileId is missing, which is fine for client type
+      uid: defaultProfileData.uid,
+      email: defaultProfileData.email,
+      fullName: defaultProfileData.fullName,
+      accountType: defaultProfileData.accountType,
+      photoURL: defaultProfileData.photoURL,
+      phoneNumber: defaultProfileData.phoneNumber,
+      createdAt: new Date(), // Placeholder, actual value is server timestamp
+      updatedAt: new Date(), // Placeholder
+    } as User;
   } catch (error) {
-    console.error(`Error creating or checking default user profile for UID ${firebaseUser.uid}:`, error);
+    console.error(`Error creating or checking default user profile (Admin SDK) for UID ${firebaseUser.uid}:`, error);
     throw new Error('Could not create or check default user profile.');
+  }
+}
+
+/**
+ * Updates a user's profile photo URL using Admin SDK.
+ * @param uid - The user's unique ID.
+ * @param newPhotoURL - The new URL of the profile picture.
+ */
+export async function updateUserPhotoURL(uid: string, newPhotoURL: string): Promise<void> {
+  if (!adminDb) {
+    console.error("Admin DB not initialized. Cannot update user photo URL.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
+  try {
+    const userRef = doc(adminDb, 'users', uid);
+    const updateData: UpdateData<User> = { // Use UpdateData for type safety
+        photoURL: newPhotoURL,
+        updatedAt: AdminFieldValue.serverTimestamp() as any, // Cast to any to satisfy FieldValue type
+    };
+    await setDoc(userRef, updateData, { merge: true }); // Use set with merge for partial update
+  } catch (error) {
+    console.error('Error updating user photo URL (Admin SDK):', error);
+    throw new Error('Could not update user photo URL.');
   }
 }

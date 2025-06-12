@@ -8,7 +8,7 @@ import { Search, MapPin } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { clientDb } from '@/lib/firebase'; // Use clientDb
 import type { ProviderProfile } from '@/models/provider';
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -21,15 +21,9 @@ const serviceCategories: ServiceCategory[] = [
   'Garbage Collection',
 ];
 
-// This function remains a server-side concept but will be called via a mechanism
-// if we were to keep this page as RSC and fetch on server.
-// For client component, we'd fetch this in a useEffect or similar.
-// For simplicity of this change focusing on the form, we'll assume featuredProviders are fetched
-// as they were, but acknowledge the shift to client component means this data fetching
-// might need adjustment in a full refactor (e.g., to an API route or client-side fetch).
 async function getFeaturedProviders(): Promise<Provider[]> {
   try {
-    const providersRef = collection(db, 'providerProfiles');
+    const providersRef = collection(clientDb, 'providerProfiles'); // Use clientDb
     const q = query(
       providersRef,
       where('isVerified', '==', true),

@@ -16,7 +16,7 @@ import {
   limit,
   updateDoc
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { clientDb } from '@/lib/firebase'; // Use clientDb for client-side operations
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
 import { getUserProfileFromFirestore } from '@/services/userService'; 
 
@@ -31,7 +31,7 @@ export function generateChatId(uid1: string, uid2: string): string {
 }
 
 /**
- * Gets or creates a chat session between two users.
+ * Gets or creates a chat session between two users using Client SDK.
  * @param currentUserUid The UID of the current user.
  * @param otherUserUid The UID of the other participant.
  * @returns The ID of the chat session.
@@ -45,10 +45,15 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
   }
 
   const chatId = generateChatId(currentUserUid, otherUserUid);
-  const chatRef = doc(db, 'chats', chatId);
+  const chatRef = doc(clientDb, 'chats', chatId); // Use clientDb
   const chatSnap = await getDoc(chatRef);
 
   if (!chatSnap.exists()) {
+    // Fetching user profiles might use adminDb if called server-side,
+    // but here it's part of a client-initiated flow.
+    // For consistency within this client-centric service, ensure userService can handle clientDb if needed
+    // or accept that adminDb might be used for profile lookups even from here.
+    // Current userService.getUserProfileFromFirestore uses adminDb.
     const [currentUserProfile, otherUserProfile] = await Promise.all([
       getUserProfileFromFirestore(currentUserUid),
       getUserProfileFromFirestore(otherUserUid)
@@ -71,9 +76,9 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
         [currentUserUid]: currentUserParticipant,
         [otherUserUid]: otherUserParticipant,
       },
-      lastMessage: null, // Initialize lastMessage as null
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      lastMessage: null, 
+      createdAt: serverTimestamp(), // client-side serverTimestamp
+      updatedAt: serverTimestamp(), // client-side serverTimestamp
     };
     await setDoc(chatRef, newChatData);
   }
@@ -81,7 +86,7 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
 }
 
 /**
- * Sends a message in a chat.
+ * Sends a message in a chat using Client SDK.
  * @param chatId The ID of the chat.
  * @param senderUid The UID of the message sender.
  * @param text The message text content.
@@ -97,7 +102,7 @@ export async function sendMessage(
     throw new Error('Message must have text or an image.');
   }
 
-  const chatRef = doc(db, 'chats', chatId);
+  const chatRef = doc(clientDb, 'chats', chatId); // Use clientDb
   const messagesRef = collection(chatRef, 'messages');
   
   const chatSnap = await getDoc(chatRef);
@@ -117,10 +122,10 @@ export async function sendMessage(
     text,
     imageUrl,
     isRead: false, 
-    timestamp: serverTimestamp(),
+    timestamp: serverTimestamp(), // client-side serverTimestamp
   };
 
-  const batch = writeBatch(db);
+  const batch = writeBatch(clientDb); // Use clientDb
   
   const messageDocRef = doc(messagesRef); 
   batch.set(messageDocRef, newMessageData);
@@ -129,38 +134,33 @@ export async function sendMessage(
   if (imageUrl && !text) {
     lastMessageText = "Sent an image";
   } else if (imageUrl && text) {
-    lastMessageText = text; // If there's text with an image, use the text as the preview
+    lastMessageText = text; 
   }
-
 
   batch.update(chatRef, {
     lastMessage: {
       text: lastMessageText,
       senderUid,
-      timestamp: serverTimestamp(),
-      isReadBy: { [senderUid]: true } // Mark as read by sender
+      timestamp: serverTimestamp(), // client-side serverTimestamp
+      isReadBy: { [senderUid]: true } 
     },
-    updatedAt: serverTimestamp(),
-    // Ensure participants field is updated if it wasn't fully populated during getOrCreateChat
-    // This part might be redundant if getOrCreateChat always fully populates participants
+    updatedAt: serverTimestamp(), // client-side serverTimestamp
     [`participants.${senderUid}.displayName`]: chatData.participants[senderUid]?.displayName || senderUid,
     [`participants.${receiverUid}.displayName`]: chatData.participants[receiverUid]?.displayName || receiverUid,
-
   });
 
   await batch.commit();
 }
 
 /**
- * Subscribes to a user's chat sessions.
- * Client-side usage due to onSnapshot.
+ * Subscribes to a user's chat sessions using Client SDK.
  * @param userUid The UID of the user.
  * @param callback Function to call with the array of chats.
  * @returns An unsubscribe function.
  */
 export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) => void): () => void {
   const q = query(
-    collection(db, 'chats'),
+    collection(clientDb, 'chats'), // Use clientDb
     where('participantUids', 'array-contains', userUid),
     orderBy('updatedAt', 'desc')
   );
@@ -187,14 +187,13 @@ export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) 
 }
 
 /**
- * Subscribes to messages in a specific chat.
- * Client-side usage due to onSnapshot.
+ * Subscribes to messages in a specific chat using Client SDK.
  * @param chatId The ID of the chat.
  * @param callback Function to call with the array of messages.
  * @returns An unsubscribe function.
  */
 export function subscribeToChatMessages(chatId: string, callback: (messages: ChatMessage[]) => void): () => void {
-  const messagesRef = collection(db, 'chats', chatId, 'messages');
+  const messagesRef = collection(clientDb, 'chats', chatId, 'messages'); // Use clientDb
   const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(50)); 
 
   return onSnapshot(q, (querySnapshot) => {
@@ -215,23 +214,21 @@ export function subscribeToChatMessages(chatId: string, callback: (messages: Cha
 
 
 /**
- * Marks messages in a chat as read by a specific user.
+ * Marks messages in a chat as read by a specific user using Client SDK.
  * @param chatId The ID of the chat.
  * @param readerUid The UID of the user who has read the messages.
  */
 export async function markMessagesAsRead(chatId: string, readerUid: string): Promise<void> {
-  const chatRef = doc(db, 'chats', chatId);
+  const chatRef = doc(clientDb, 'chats', chatId); // Use clientDb
   const chatSnap = await getDoc(chatRef);
 
   if (chatSnap.exists()) {
     const chatData = chatSnap.data() as Chat;
     if (chatData.lastMessage && chatData.lastMessage.senderUid !== readerUid) {
-      // Update the lastMessage.isReadBy field
       const updateData: any = {
         [`lastMessage.isReadBy.${readerUid}`]: true,
-        updatedAt: serverTimestamp() // Also update overall chat timestamp
+        updatedAt: serverTimestamp() // client-side serverTimestamp
       };
-       // If the other participant's display name is missing, try to fetch and update it
       const otherUid = chatData.participantUids.find(uid => uid !== readerUid);
       if (otherUid && (!chatData.participants[otherUid] || !chatData.participants[otherUid].displayName)) {
         const otherUserProfile = await getUserProfileFromFirestore(otherUid);
@@ -242,31 +239,21 @@ export async function markMessagesAsRead(chatId: string, readerUid: string): Pro
           }
         }
       }
-
-
       try {
         await updateDoc(chatRef, updateData);
-
-        // Additionally, you could iterate through unread messages in the subcollection
-        // and mark them as read if needed, but updating lastMessage is often sufficient for UI indicators.
-        // For a full unread count system, you'd need more complex logic.
       } catch (error) {
         console.error(`Error marking messages as read for chat ${chatId} by ${readerUid}:`, error);
-        // Don't throw, as this is often a background-like operation.
       }
     }
   }
 }
 
-// Call this when a chat is opened by a user.
 export function setupChatReadMarker(chatId: string, currentUserUid: string | null | undefined): void {
   if (chatId && currentUserUid) {
-    const chatRef = doc(db, 'chats', chatId);
+    const chatRef = doc(clientDb, 'chats', chatId); // Use clientDb
     const unsubscribe = onSnapshot(chatRef, (docSnap) => {
       if (docSnap.exists()) {
         const chatData = docSnap.data() as Chat;
-        // If there's a last message and it wasn't sent by the current user,
-        // and it's not marked as read by the current user, then mark it as read.
         if (chatData.lastMessage && 
             chatData.lastMessage.senderUid !== currentUserUid && 
             !chatData.lastMessage.isReadBy?.[currentUserUid]) {
@@ -274,10 +261,6 @@ export function setupChatReadMarker(chatId: string, currentUserUid: string | nul
         }
       }
     });
-    // Important: This `unsubscribe` should be called when the component using this setup unmounts,
-    // or it will lead to memory leaks and continued Firestore reads.
-    // This function is better integrated into the component's useEffect that also subscribes to messages.
-    // For now, this is a conceptual placement.
+    // This unsubscribe should ideally be managed by the calling component's lifecycle.
   }
 }
-
