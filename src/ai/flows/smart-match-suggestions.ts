@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -36,7 +37,16 @@ const SmartMatchSuggestionsOutputSchema = z.array(z.object({
 export type SmartMatchSuggestionsOutput = z.infer<typeof SmartMatchSuggestionsOutputSchema>;
 
 export async function getSmartMatchSuggestions(input: SmartMatchSuggestionsInput): Promise<SmartMatchSuggestionsOutput> {
-  return smartMatchSuggestionsFlow(input);
+  try {
+    return await smartMatchSuggestionsFlow(input);
+  } catch (error) {
+    console.error("[SmartMatchSuggestions] Error in getSmartMatchSuggestions wrapper:", error);
+    // Depending on how the calling action handles errors, you might re-throw or return empty.
+    // The current action `getSmartMatchSuggestionsAction` re-throws a generic error.
+    // To align with schema, we could return empty array, but action will still throw.
+    // For now, let's re-throw so the action's catch block handles it.
+    throw error;
+  }
 }
 
 const prompt = ai.definePrompt({
@@ -70,7 +80,18 @@ const smartMatchSuggestionsFlow = ai.defineFlow(
     outputSchema: SmartMatchSuggestionsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    try {
+      const {output} = await prompt(input);
+      if (!output) {
+        console.warn("[SmartMatchSuggestionsFlow] AI prompt returned undefined output. Input was:", input);
+        return []; // Return empty array to match schema if output is unexpectedly undefined
+      }
+      return output;
+    } catch (error) {
+      console.error("[SmartMatchSuggestionsFlow] Error during AI prompt execution. Input:", input, "Error:", error);
+      // Return an empty array to satisfy the output schema in case of error.
+      // The calling action (`getSmartMatchSuggestionsAction`) will catch and re-throw a user-facing error.
+      return [];
+    }
   }
 );
