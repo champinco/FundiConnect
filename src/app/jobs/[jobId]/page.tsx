@@ -1,23 +1,17 @@
 
-import { getJobByIdFromFirestore } from '@/services/jobService';
-import { getQuotesForJob } from '@/services/quoteService';
-import type { Job } from '@/models/job';
-import type { Quote } from '@/models/quote';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, Edit, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react';
+import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react';
 import { format, formatDistanceToNowStrict, isDate } from 'date-fns';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import SubmitQuoteForm from './components/submit-quote-form';
-// import { auth } from '@/lib/firebase'; // Not used directly in RSC for current user
-// import { getUserProfileFromFirestore } from '@/services/userService'; 
 import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
 import MarkAsCompletedButton from './components/mark-as-completed-button'; 
-// import { getReviewForJobByClient } from '@/services/reviewService'; // Checked inside SubmitReviewForm
+import { fetchJobDetailsPageDataAction } from './actions'; // Updated import
 
 // Helper function to format dates dynamically
 const formatDynamicDate = (dateInput: Date | string | number | undefined | null, includeTime: boolean = false): string => {
@@ -38,23 +32,18 @@ const formatDynamicDate = (dateInput: Date | string | number | undefined | null,
 
 export default async function JobDetailPage({ params }: { params: { jobId: string } }) {
   const jobId = params.jobId;
-  const job = await getJobByIdFromFirestore(jobId);
-  const quotes = await getQuotesForJob(jobId);
+  const { job, quotes, error } = await fetchJobDetailsPageDataAction(jobId);
 
-  // Note: auth.currentUser will be null in Server Components.
-  // Client components like AcceptRejectQuoteButtons, MarkAsCompletedButton, SubmitReviewForm
-  // will handle their own auth state using onAuthStateChanged.
-
-  if (!job) {
+  if (error || !job) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <Card className="max-w-lg mx-auto shadow-lg">
           <CardHeader>
              <FileText className="h-12 w-12 text-destructive mx-auto mb-2" />
-            <CardTitle>Job Not Found</CardTitle>
+            <CardTitle>{error ? "Error Loading Job" : "Job Not Found"}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground">The job you are looking for does not exist or could not be loaded.</p>
+            <p className="text-muted-foreground">{error || "The job you are looking for does not exist or could not be loaded."}</p>
             <Button asChild className="mt-6">
               <Link href="/search">Find Other Jobs</Link>
             </Button>
@@ -124,21 +113,16 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
               </div>
             )}
             
-            {/* Mark as Completed Button - Client Component handles its own auth and visibility */}
             <MarkAsCompletedButton 
                 jobId={job.id} 
                 currentJobStatus={job.status} 
                 jobClientId={job.clientId} 
             />
 
-            {/* Submit Quote Form - Client Component handles its own auth and visibility */}
-            {/* Only show if job is open and user is provider */}
             {job.status === 'open' && (
               <SubmitQuoteForm jobId={jobId} clientId={job.clientId} />
             )}
             
-             {/* Submit Review Form - Client Component handles its own auth and visibility */}
-             {/* Only show if job is completed, user is client, and provider was assigned */}
             <SubmitReviewForm 
                 jobId={job.id} 
                 providerId={job.assignedProviderId} 
@@ -183,9 +167,8 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                         <CardContent>
                           <p className="text-2xl font-bold text-primary mb-2">{quote.currency} {quote.amount.toLocaleString()}</p>
                           <p className="text-sm text-foreground/80 whitespace-pre-line mb-3">{quote.messageToClient}</p>
-                           {/* Accept/Reject buttons - Client component handles its own auth and job status */}
                            {(job.status === 'open' || job.status === 'pending_quotes') && (
-                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={null} /> // Pass null, component handles current user
+                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={null} /> 
                            )}
                            {quote.status === 'accepted' && job.status !== 'completed' && (
                              <p className="text-sm text-green-600 font-medium mt-2">This quote has been accepted for the job.</p>
@@ -230,7 +213,6 @@ export default async function JobDetailPage({ params }: { params: { jobId: strin
                 )}
                 <div className="flex items-center">
                   <UserCircle className="h-4 w-4 mr-2 text-primary" />
-                  {/* Displaying only part of client ID for privacy, consider fetching client name if needed */}
                   <span className="text-muted-foreground">Client ID: {job.clientId.substring(0, 10)}...</span> 
                 </div>
                 <div className="flex items-center">

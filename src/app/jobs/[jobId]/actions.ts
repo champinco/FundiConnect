@@ -1,10 +1,10 @@
 
 "use server";
 
-import { submitQuoteForJob, type SubmitQuoteData, updateQuoteStatus, getQuoteById } from '@/services/quoteService';
+import { submitQuoteForJob, type SubmitQuoteData, updateQuoteStatus, getQuoteById, getQuotesForJob } from '@/services/quoteService';
 import { updateJobStatus, getJobByIdFromFirestore } from '@/services/jobService';
-import type { QuoteStatus } from '@/models/quote';
-import type { JobStatus } from '@/models/job';
+import type { Quote, QuoteStatus } from '@/models/quote';
+import type { Job, JobStatus } from '@/models/job';
 import { submitReview, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
 import type { User as AppUser } from '@/models/user';
 import { getUserProfileFromFirestore } from '@/services/userService';
@@ -147,4 +147,28 @@ export async function checkExistingReviewAction(jobId: string, clientId: string)
         console.error("Error in checkExistingReviewAction:", error);
         return { hasReviewed: false, error: error.message || "Failed to check for existing review." };
     }
+}
+
+export interface JobDetailsPageData {
+  job: Job | null;
+  quotes: Quote[];
+  error?: string;
+}
+
+export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobDetailsPageData> {
+  if (!jobId) {
+    return { job: null, quotes: [], error: "Job ID is missing." };
+  }
+  try {
+    const job = await getJobByIdFromFirestore(jobId);
+    const quotes = job ? await getQuotesForJob(jobId) : [];
+    
+    if (!job) {
+      return { job: null, quotes: [], error: "Job not found." };
+    }
+    return { job, quotes };
+  } catch (error: any) {
+    console.error("Error fetching job details page data:", error);
+    return { job: null, quotes: [], error: error.message || "Failed to load job details." };
+  }
 }
