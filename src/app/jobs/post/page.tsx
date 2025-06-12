@@ -10,33 +10,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Briefcase, Send, Loader2, Paperclip } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Upload, Briefcase, Send, Loader2, Paperclip, DollarSign, AlertTriangle } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { useToast } from "@/hooks/use-toast";
 import { postJobAction } from './actions';
-import { postJobFormSchema, type PostJobFormValues } from './schemas'; 
+import { postJobFormSchema, type PostJobFormValues, jobUrgenciesForValidation, serviceCategoriesForValidation } from './schemas';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth, analytics } from '@/lib/firebase'; // Added analytics
 import { logEvent } from 'firebase/analytics'; // Added logEvent
 import { uploadFileToStorage } from '@/services/storageService';
+import type { JobUrgency } from '@/models/job';
 
-
-// Tier 1 services + Other for job posting
-const serviceCategories: ServiceCategory[] = [
-  'Plumbing',
-  'Electrical',
-  'Appliance Repair',
-  'Garbage Collection',
-  'Other'
-];
 
 // All service categories for the dropdown if needed, or keep it focused on Tier 1
-const allServiceCategories: ServiceCategory[] = [
-  'Plumbing', 'Electrical', 'Appliance Repair', 'Garbage Collection', 
-  'HVAC', 'Solar Installation', 'Painting & Decorating', 'Carpentry & Furniture',
-  'Landscaping', 'Tiling & Masonry', 'Pest Control', 'Locksmith', 'Other'
-];
+const allServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
 
 
 export default function PostJobPage() {
@@ -49,6 +38,10 @@ export default function PostJobPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+      if (!user) {
+        // User is not logged in, redirect them or show a message
+        // For now, the onSubmit will handle this, but you might want an earlier check
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -60,13 +53,16 @@ export default function PostJobPage() {
       serviceCategory: "Other",
       jobDescription: "",
       location: "",
+      budget: undefined,
+      urgency: "medium",
       postingOption: "public",
     },
   });
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const filesArray = Array.from(event.target.files).slice(0, 5);
+      const filesArray = Array.from(event.target.files).slice(0, 5); // Limit to 5 files
+      // You might want to add file size validation here per file
       setSelectedFiles(filesArray);
     }
   };
@@ -87,8 +83,8 @@ export default function PostJobPage() {
 
     if (selectedFiles.length > 0) {
       try {
-        const uploadPromises = selectedFiles.map(file => 
-          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments`) 
+        const uploadPromises = selectedFiles.map(file =>
+          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments`)
         );
         uploadedPhotoUrls = await Promise.all(uploadPromises);
       } catch (uploadError: any) {
@@ -103,6 +99,7 @@ export default function PostJobPage() {
     }
 
     try {
+      // Ensure budget and urgency are correctly passed (they are already part of 'data' due to form structure)
       const result = await postJobAction(data, currentUser.uid, uploadedPhotoUrls);
       if (result.success && result.jobId) {
         toast({
@@ -114,12 +111,14 @@ export default function PostJobPage() {
             job_id: result.jobId,
             category: data.serviceCategory,
             location: data.location,
-            user_id: currentUser.uid
+            user_id: currentUser.uid,
+            budget: data.budget,
+            urgency: data.urgency,
           });
         }
-        reset(); 
-        setSelectedFiles([]); 
-        router.push(`/jobs/${result.jobId}`); 
+        reset();
+        setSelectedFiles([]);
+        router.push(`/jobs/${result.jobId}`);
       } else {
         toast({
           title: "Failed to Post Job",
@@ -154,11 +153,11 @@ export default function PostJobPage() {
           <CardContent className="space-y-6">
             <div>
               <Label htmlFor="jobTitle" className="font-semibold">Job Title</Label>
-              <Input 
-                id="jobTitle" 
+              <Input
+                id="jobTitle"
                 {...register("jobTitle")}
-                placeholder="e.g., Fix Leaking Kitchen Tap, Install New Ceiling Fans" 
-                className="mt-1" 
+                placeholder="e.g., Fix Leaking Kitchen Tap, Install New Ceiling Fans"
+                className="mt-1"
               />
               {errors.jobTitle && <p className="text-sm text-destructive mt-1">{errors.jobTitle.message}</p>}
             </div>
@@ -202,15 +201,53 @@ export default function PostJobPage() {
 
             <div>
               <Label htmlFor="location" className="font-semibold">Location of Job</Label>
-              <Input 
-                id="location" 
+              <Input
+                id="location"
                 {...register("location")}
-                placeholder="e.g., Kilimani, Nairobi (Specific address if comfortable)" 
-                className="mt-1" 
+                placeholder="e.g., Kilimani, Nairobi (Specific address if comfortable)"
+                className="mt-1"
               />
               {errors.location && <p className="text-sm text-destructive mt-1">{errors.location.message}</p>}
             </div>
-            
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="budget" className="font-semibold flex items-center">
+                  <DollarSign className="mr-2 h-4 w-4 text-primary" /> Budget (Optional, KES)
+                </Label>
+                <Input
+                  id="budget"
+                  type="number"
+                  {...register("budget")}
+                  placeholder="e.g., 5000"
+                  className="mt-1"
+                />
+                {errors.budget && <p className="text-sm text-destructive mt-1">{errors.budget.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="urgency" className="font-semibold flex items-center">
+                    <AlertTriangle className="mr-2 h-4 w-4 text-primary"/> Urgency (Optional)
+                </Label>
+                <Controller
+                    name="urgency"
+                    control={control}
+                    render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value || undefined} >
+                        <SelectTrigger id="urgency" className="mt-1">
+                        <SelectValue placeholder="Select urgency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        <SelectItem value="low">Low - Within a few days/weeks</SelectItem>
+                        <SelectItem value="medium">Medium - Within a day or two</SelectItem>
+                        <SelectItem value="high">High - Urgent / ASAP</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    )}
+                />
+                {errors.urgency && <p className="text-sm text-destructive mt-1">{errors.urgency.message}</p>}
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="jobUpload" className="font-semibold">Upload Photos/Videos (Optional)</Label>
               <div className="mt-1 flex items-center justify-center w-full">
@@ -218,7 +255,7 @@ export default function PostJobPage() {
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
                           <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
                           <p className="mb-1 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                          <p className="text-xs text-muted-foreground">Up to 5 images or short videos (e.g., PNG, JPG, MP4)</p>
+                          <p className="text-xs text-muted-foreground">Up to 5 files (PNG, JPG, MP4, etc.)</p>
                       </div>
                       <Input id="dropzone-file" type="file" className="hidden" multiple onChange={handleFileChange} accept="image/*,video/*" />
                   </label>
@@ -269,5 +306,3 @@ export default function PostJobPage() {
     </div>
   );
 }
-
-    

@@ -12,7 +12,7 @@ interface PostJobResult {
 }
 
 export async function postJobAction(
-  values: PostJobFormValues, 
+  values: PostJobFormValues,
   clientId: string | null,
   photoUrls?: string[]
 ): Promise<PostJobResult> {
@@ -21,6 +21,8 @@ export async function postJobAction(
   }
 
   try {
+    // Construct jobData ensuring all relevant fields from PostJobFormValues are mapped
+    // to the structure expected by Omit<Job, 'id' | 'postedAt' | 'updatedAt' | 'quotesReceived'>
     const jobData: Omit<Job, 'id' | 'postedAt' | 'updatedAt' | 'quotesReceived'> = {
       clientId: clientId,
       title: values.jobTitle,
@@ -28,7 +30,12 @@ export async function postJobAction(
       serviceCategory: values.serviceCategory,
       location: values.location,
       status: 'open', // Default status for new jobs
-      photosOrVideos: photoUrls || [], // Ensure it's an array, even if empty
+      photosOrVideos: photoUrls || [],
+      budget: values.budget, // Pass budget from form values
+      urgency: values.urgency, // Pass urgency from form values
+      // otherCategoryDescription and budgetRange would be handled if they were separate form fields
+      // and distinct from the new 'budget' field.
+      // The service function createJobInFirestore should handle these based on its input.
     };
 
     const jobId = await createJobInFirestore(jobData);
@@ -41,4 +48,3 @@ export async function postJobAction(
     return { success: false, message: error.message || "An unexpected error occurred while posting the job." };
   }
 }
-

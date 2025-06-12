@@ -31,17 +31,25 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       quotesReceived: 0,
 
       // Handle optional fields explicitly, defaulting to null or omitting if not provided
-      // and model doesn't specify 'null'
       assignedProviderId: jobData.assignedProviderId || null,
       deadline: jobData.deadline || null,
       acceptedQuoteId: jobData.acceptedQuoteId || null,
     };
+
+    // Add new optional fields if they exist in jobData
+    if (jobData.budget !== undefined && jobData.budget !== null) {
+      dataToSave.budget = jobData.budget;
+    }
+    if (jobData.urgency !== undefined && jobData.urgency !== null) {
+      dataToSave.urgency = jobData.urgency;
+    }
 
     // For fields that are purely optional (e.g., `otherCategoryDescription?: string` or `budgetRange?: object`)
     // only add them if they have a value.
     if (jobData.otherCategoryDescription) {
       dataToSave.otherCategoryDescription = jobData.otherCategoryDescription;
     }
+    // Keep budgetRange logic if it's still intended to be used alongside or instead of numeric budget
     if (jobData.budgetRange && (jobData.budgetRange.min != null || jobData.budgetRange.max != null)) {
       dataToSave.budgetRange = jobData.budgetRange;
     }
@@ -74,6 +82,8 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
         deadline: (jobData.deadline as Timestamp)?.toDate() || null,
+        // budget will be number | null | undefined
+        // urgency will be string | null | undefined
       } as Job;
     } else {
       return null;
