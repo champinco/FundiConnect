@@ -12,12 +12,12 @@ const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
 // Log the presence of environment variables for debugging
-// IMPORTANT: In production, be cautious about logging sensitive details.
-// Here, we only log whether they are present or not.
-console.log("[FirebaseAdmin] Initializing Firebase Admin SDK...");
+console.log("[FirebaseAdmin] Attempting to initialize Firebase Admin SDK...");
 console.log(`[FirebaseAdmin] FIREBASE_PROJECT_ID detected: ${!!projectId}`);
 console.log(`[FirebaseAdmin] FIREBASE_CLIENT_EMAIL detected: ${!!clientEmail}`);
-console.log(`[FirebaseAdmin] FIREBASE_PRIVATE_KEY detected: ${!!privateKey}`);
+// For private key, just confirm its presence without logging its content for security
+console.log(`[FirebaseAdmin] FIREBASE_PRIVATE_KEY detected: ${!!privateKey ? 'Yes' : 'No'}`);
+
 
 if (projectId && clientEmail && privateKey) {
   if (!admin.apps.length) {
@@ -26,6 +26,7 @@ if (projectId && clientEmail && privateKey) {
         credential: admin.credential.cert({
           projectId,
           clientEmail,
+          // Ensure private key newlines are correctly formatted
           privateKey: privateKey.replace(/\\n/g, '\n'),
         }),
       });
@@ -34,12 +35,15 @@ if (projectId && clientEmail && privateKey) {
       adminAuthInstance = getAdminAuth(adminApp);
     } catch (error: any) {
       console.error("[FirebaseAdmin] Firebase Admin SDK initialization error:", error.message);
+      // Log the full error object for more details, especially if it's a credential issue
+      console.error("[FirebaseAdmin] Full error details:", error);
       console.error("[FirebaseAdmin] Ensure service account details (project ID, client email, private key) are correct and the private key format is valid (newlines handled).");
       // adminDb and adminAuth will remain null
     }
   } else {
     adminApp = admin.apps[0] as admin.app.App; // Get the default app if already initialized
     console.log("[FirebaseAdmin] Firebase Admin SDK already initialized. Reusing existing app.");
+    // Ensure instances are (re)assigned if app already exists from a previous hot-reload or context
     adminDbInstance = getFirestore(adminApp);
     adminAuthInstance = getAdminAuth(adminApp);
   }
@@ -54,5 +58,7 @@ export const adminDb = adminDbInstance;
 export const adminAuth = adminAuthInstance;
 
 // Export Timestamp and FieldValue for use in services
-export const AdminTimestamp = admin.firestore.Timestamp;
-export const AdminFieldValue = admin.firestore.FieldValue;
+// Check if admin.apps.length > 0 which implies admin has been initialized at least once.
+// This prevents errors if admin.firestore is accessed when adminApp is null.
+export const AdminTimestamp = admin.apps.length && adminApp ? admin.firestore.Timestamp : undefined;
+export const AdminFieldValue = admin.apps.length && adminApp ? admin.firestore.FieldValue : undefined;
