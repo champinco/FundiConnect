@@ -1,67 +1,58 @@
 
 import * as admin from 'firebase-admin';
-import { App, cert, getApp, getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+import { getFirestore, type Firestore } from 'firebase-admin/firestore'; // Modular import for getFirestore
+import { getAuth as getAdminAuth, type Auth } from 'firebase-admin/auth'; // Modular import for getAuth
 
-let adminApp: App;
+let adminApp: admin.app.App | null = null;
+let adminDbInstance: Firestore | null = null;
+let adminAuthInstance: Auth | null = null;
 
-// Ensure environment variables are defined
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-if (!projectId || !clientEmail || !privateKey) {
-  if (process.env.NODE_ENV === 'development') {
-    console.warn(
-      "Firebase Admin SDK environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are not fully set. " +
-      "Admin SDK features will not be available. This is okay for client-side only development but required for server-side actions."
-    );
+// Log the presence of environment variables for debugging
+// IMPORTANT: In production, be cautious about logging sensitive details.
+// Here, we only log whether they are present or not.
+console.log("[FirebaseAdmin] Initializing Firebase Admin SDK...");
+console.log(`[FirebaseAdmin] FIREBASE_PROJECT_ID detected: ${!!projectId}`);
+console.log(`[FirebaseAdmin] FIREBASE_CLIENT_EMAIL detected: ${!!clientEmail}`);
+console.log(`[FirebaseAdmin] FIREBASE_PRIVATE_KEY detected: ${!!privateKey}`);
+
+if (projectId && clientEmail && privateKey) {
+  if (!admin.apps.length) {
+    try {
+      adminApp = admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId,
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, '\n'),
+        }),
+      });
+      console.log("[FirebaseAdmin] Firebase Admin SDK initialized successfully using process.env variables.");
+      adminDbInstance = getFirestore(adminApp);
+      adminAuthInstance = getAdminAuth(adminApp);
+    } catch (error: any) {
+      console.error("[FirebaseAdmin] Firebase Admin SDK initialization error:", error.message);
+      console.error("[FirebaseAdmin] Ensure service account details (project ID, client email, private key) are correct and the private key format is valid (newlines handled).");
+      // adminDb and adminAuth will remain null
+    }
   } else {
-    // In production, throw an error if not configured, as server actions would fail.
-    // However, for a more graceful approach, you might want to conditionally disable features.
-    // For now, we'll let it proceed and calls to adminDb will fail if not initialized.
-    console.error(
-      "CRITICAL: Firebase Admin SDK environment variables are not set in production environment. " +
-      "Server-side Firestore operations will fail."
-    );
+    adminApp = admin.apps[0] as admin.app.App; // Get the default app if already initialized
+    console.log("[FirebaseAdmin] Firebase Admin SDK already initialized. Reusing existing app.");
+    adminDbInstance = getFirestore(adminApp);
+    adminAuthInstance = getAdminAuth(adminApp);
   }
-}
-
-if (projectId && clientEmail && privateKey && !getApps().length) {
-  try {
-    adminApp = initializeApp({
-      credential: cert({
-        projectId,
-        clientEmail,
-        privateKey: privateKey.replace(/\\n/g, '\n'), // Replace escaped newlines
-      }),
-    });
-    console.log("Firebase Admin SDK initialized successfully.");
-  } catch (error: any) {
-    console.error("Firebase Admin SDK initialization error:", error.message, error.stack);
-    // Depending on your app's needs, you might throw here or handle it.
-    // If admin features are critical, throwing might be appropriate.
-  }
-} else if (getApps().length > 0) {
-  adminApp = getApp();
 } else {
-  // @ts-ignore
-  adminApp = null; // Explicitly set to null if not initialized
-  if (process.env.NODE_ENV === 'development') {
-    console.log("Firebase Admin SDK not initialized due to missing env vars or existing app instance handling.");
-  }
+  console.warn(
+    "[FirebaseAdmin] One or more Firebase Admin SDK environment variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are missing. " +
+    "Admin SDK features will not be available. This is expected if running client-side or if server environment variables are not set."
+  );
 }
 
-// Conditionally export adminDb and adminAuth only if adminApp was initialized
-const adminDb = adminApp! ? getFirestore(adminApp) : null!;
-const adminAuth = adminApp! ? getAdminAuth(adminApp) : null!;
-
+export const adminDb = adminDbInstance;
+export const adminAuth = adminAuthInstance;
 
 // Export Timestamp and FieldValue for use in services
-// These can be accessed via admin.firestore.Timestamp etc., but exporting them directly can be convenient
-const AdminTimestamp = admin.firestore.Timestamp;
-const AdminFieldValue = admin.firestore.FieldValue;
-
-
-export { adminDb, adminAuth, AdminTimestamp, AdminFieldValue };
+export const AdminTimestamp = admin.firestore.Timestamp;
+export const AdminFieldValue = admin.firestore.FieldValue;
