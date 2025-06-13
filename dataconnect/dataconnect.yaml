@@ -1,0 +1,12 @@
+specVersion: "v1"
+serviceId: "myfundi"
+location: "us-east1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "myfundi108db"
+      cloudSql:
+        instanceId: "myfundi108db"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]
