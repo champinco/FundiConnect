@@ -7,49 +7,46 @@ let adminApp: admin.app.App | null = null;
 let adminDbInstance: Firestore | null = null;
 let adminAuthInstance: Auth | null = null;
 
-const REALTIME_DATABASE_URL = 'https://myfundi-10db8-default-rtdb.firebaseio.com';
-
 // Enhanced logging to clearly show initialization status and method
 console.log("\n********************************************************************************");
 console.log("***** [FirebaseAdmin] STARTING INITIALIZATION ATTEMPT (firebaseAdmin.ts) *****");
-console.log(`***** Using Application Default Credentials (ADC) method.                *****`);
-console.log(`***** Realtime Database URL specified: ${REALTIME_DATABASE_URL}        *****`);
+console.log("***** Using parameter-less initializeApp() (Automatic Discovery Method)  *****");
 console.log("********************************************************************************\n");
 
 if (!admin.apps.length) {
-  console.log("[FirebaseAdmin] No existing Firebase admin apps. Attempting to initialize a new app using Application Default Credentials...");
+  console.log("[FirebaseAdmin] No existing Firebase admin apps. Attempting to initialize a new app using parameter-less initializeApp()...");
   try {
-    adminApp = admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
-      databaseURL: REALTIME_DATABASE_URL 
-    });
-    console.log("[FirebaseAdmin] Firebase Admin SDK initializeApp() called with applicationDefault() and databaseURL.");
+    // Initialize the default app
+    // The SDK automatically picks up credentials and config
+    // from the environment in Google Cloud environments or via ADC locally.
+    adminApp = admin.initializeApp();
+    console.log("[FirebaseAdmin] Firebase Admin SDK initializeApp() called (parameter-less).");
 
     if (adminApp) {
-        console.log(`[FirebaseAdmin] Admin App initialized successfully. App Name: ${adminApp.name}`);
+        console.log(`[FirebaseAdmin] Admin App initialized successfully via automatic discovery. App Name: ${adminApp.name}`);
         adminDbInstance = getFirestore(adminApp);
         console.log(`[FirebaseAdmin] getFirestore(adminApp) called. adminDbInstance is now: ${adminDbInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
         
         adminAuthInstance = getAdminAuth(adminApp);
         console.log(`[FirebaseAdmin] getAdminAuth(adminApp) called. adminAuthInstance is now: ${adminAuthInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
         
-        console.log("\n[FirebaseAdmin] Firebase Admin SDK (using ADC) appears to have initialized successfully!\n");
+        console.log("\n[FirebaseAdmin] Firebase Admin SDK (using Automatic Discovery) appears to have initialized successfully!\n");
     } else {
-        console.error("!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: admin.initializeApp() returned null or undefined (using ADC) !!!!!!!!!!!!!!");
+        console.error("!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: admin.initializeApp() (parameter-less) returned null or undefined !!!!!!!!!!!!!!");
     }
 
   } catch (error: any) {
-    console.error("!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: Firebase Admin SDK initializeApp() FAILED (using ADC) !!!!!!!!!!!!!!");
+    console.error("!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: Firebase Admin SDK initializeApp() (parameter-less) FAILED !!!!!!!!!!!!!!");
     console.error("[FirebaseAdmin] Error Code:", error.code);
     console.error("[FirebaseAdmin] Error Message:", error.message);
-    console.error("[FirebaseAdmin] This usually means that Application Default Credentials could not be found or are invalid.");
+    console.error("[FirebaseAdmin] This usually means that Application Default Credentials (ADC) could not be found locally, or the Google Cloud environment is not configured correctly with a service account.");
     console.error("[FirebaseAdmin] - If running locally: Ensure you've run 'gcloud auth application-default login' and are authenticated with a user/service account that has access to the Firebase project.");
     console.error("[FirebaseAdmin] - If running on Google Cloud (e.g., Cloud Run, GCE, GKE, App Engine): Ensure the runtime service account has the necessary IAM permissions for Firebase (e.g., Firebase Admin SDK Administrator Service Agent, or roles for Firestore/Auth).");
     console.error("[FirebaseAdmin] - If using GOOGLE_APPLICATION_CREDENTIALS env var: Ensure it points to a valid service account JSON key file and the file is accessible.");
     console.error("[FirebaseAdmin] Full Error Object for debugging:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
   }
 } else {
-  adminApp = admin.apps[0] as admin.app.App; // Type assertion
+  adminApp = admin.apps[0] as admin.app.App; 
   console.log("[FirebaseAdmin] Firebase Admin SDK already initialized. Reusing existing app.");
   if (adminApp) {
     adminDbInstance = getFirestore(adminApp); 
