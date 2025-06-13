@@ -8,7 +8,7 @@ import { Search, MapPin } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
-import { clientDb } from '@/lib/firebase'; // Use clientDb
+import { db } from '@/lib/firebase'; // Use db
 import type { ProviderProfile } from '@/models/provider';
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -23,7 +23,7 @@ const serviceCategories: ServiceCategory[] = [
 
 async function getFeaturedProviders(): Promise<Provider[]> {
   try {
-    const providersRef = collection(clientDb, 'providerProfiles'); // Use clientDb
+    const providersRef = collection(db, 'providerProfiles'); // Use db
     const q = query(
       providersRef,
       where('isVerified', '==', true),

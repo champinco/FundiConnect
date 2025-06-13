@@ -16,7 +16,7 @@ import {
   limit,
   updateDoc
 } from 'firebase/firestore';
-import { clientDb } from '@/lib/firebase'; 
+import { db } from '@/lib/firebase'; 
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
 // Removed: import { getUserProfileFromFirestore } from '@/services/userService'; 
 // getUserProfileFromFirestore uses adminDb, which we want to avoid directly in client-facing services for this operation.
@@ -34,7 +34,7 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
   }
 
   const chatId = generateChatId(currentUserUid, otherUserUid);
-  const chatRef = doc(clientDb, 'chats', chatId); 
+  const chatRef = doc(db, 'chats', chatId); 
   const chatSnap = await getDoc(chatRef);
 
   if (!chatSnap.exists()) {
@@ -76,7 +76,7 @@ export async function sendMessage(
     throw new Error('Message must have text or an image.');
   }
 
-  const chatRef = doc(clientDb, 'chats', chatId); 
+  const chatRef = doc(db, 'chats', chatId); 
   const messagesRef = collection(chatRef, 'messages');
   
   const chatSnap = await getDoc(chatRef);
@@ -99,7 +99,7 @@ export async function sendMessage(
     timestamp: serverTimestamp(), 
   };
 
-  const batch = writeBatch(clientDb); 
+  const batch = writeBatch(db); 
   
   const messageDocRef = doc(messagesRef); 
   batch.set(messageDocRef, newMessageData);
@@ -143,7 +143,7 @@ export async function sendMessage(
 
 export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) => void): () => void {
   const q = query(
-    collection(clientDb, 'chats'), 
+    collection(db, 'chats'), 
     where('participantUids', 'array-contains', userUid),
     orderBy('updatedAt', 'desc')
   );
@@ -170,7 +170,7 @@ export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) 
 }
 
 export function subscribeToChatMessages(chatId: string, callback: (messages: ChatMessage[]) => void): () => void {
-  const messagesRef = collection(clientDb, 'chats', chatId, 'messages'); 
+  const messagesRef = collection(db, 'chats', chatId, 'messages'); 
   const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(50)); 
 
   return onSnapshot(q, (querySnapshot) => {
@@ -191,7 +191,7 @@ export function subscribeToChatMessages(chatId: string, callback: (messages: Cha
 
 
 export async function markMessagesAsRead(chatId: string, readerUid: string): Promise<void> {
-  const chatRef = doc(clientDb, 'chats', chatId); 
+  const chatRef = doc(db, 'chats', chatId); 
   const chatSnap = await getDoc(chatRef);
 
   if (chatSnap.exists()) {

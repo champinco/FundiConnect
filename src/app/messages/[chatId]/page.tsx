@@ -5,7 +5,7 @@ import type { NextPage } from 'next';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth, clientDb } from '@/lib/firebase'; 
+import { auth, db } from '@/lib/firebase'; 
 import { doc, getDoc, onSnapshot as onDocSnapshot } from 'firebase/firestore'; // Added onDocSnapshot for real-time participant updates
 import { subscribeToChatMessages, sendMessage } from '@/services/chatService';
 import type { ChatMessage, ChatParticipant, Chat } from '@/models/chat';
@@ -66,7 +66,7 @@ const ChatPage: NextPage = () => {
       return;
     }
     
-    const chatRef = doc(clientDb, 'chats', chatId);
+    const chatRef = doc(db, 'chats', chatId);
     
     // Subscribe to chat document for real-time participant updates
     const unsubscribeChatDoc = onDocSnapshot(chatRef, (chatSnap) => {
