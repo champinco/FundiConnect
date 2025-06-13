@@ -27,7 +27,7 @@ if (!getApps().length) {
   app = getApp();
 }
 
-const clientDb: Firestore = getFirestore(app); // Renamed db to clientDb
+const db: Firestore = getFirestore(app); // Changed clientDb to db and ensure it's exported as db
 const auth: Auth = getAuth(app);
 const storage: FirebaseStorage = getStorage(app);
 
@@ -41,4 +41,4 @@ if (typeof window !== 'undefined') {
 }
 
 
-export { app, clientDb, auth, storage, analytics }; // Export clientDb
+export { app, db, auth, storage, analytics }; // Export db instead of clientDb
