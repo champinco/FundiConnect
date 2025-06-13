@@ -7,31 +7,36 @@ let adminApp: admin.app.App | null = null;
 let adminDbInstance: Firestore | null = null;
 let adminAuthInstance: Auth | null = null;
 
-// ================================================================================================
-console.log("********************************************************************************");
+const REALTIME_DATABASE_URL = 'https://myfundi-10db8-default-rtdb.firebaseio.com';
+
+// Enhanced logging to clearly show initialization status and method
+console.log("\n********************************************************************************");
 console.log("***** [FirebaseAdmin] STARTING INITIALIZATION ATTEMPT (firebaseAdmin.ts) *****");
-console.log("***** Using Application Default Credentials (ADC) method.                *****");
-console.log("********************************************************************************");
+console.log(`***** Using Application Default Credentials (ADC) method.                *****`);
+console.log(`***** Realtime Database URL specified: ${REALTIME_DATABASE_URL}        *****`);
+console.log("********************************************************************************\n");
 
 if (!admin.apps.length) {
   console.log("[FirebaseAdmin] No existing Firebase admin apps. Attempting to initialize a new app using Application Default Credentials...");
   try {
-    // Initialize Firebase Admin SDK using Application Default Credentials
-    // This relies on the environment being set up correctly (e.g., GOOGLE_APPLICATION_CREDENTIALS env var,
-    // or running on Google Cloud infrastructure with an associated service account).
     adminApp = admin.initializeApp({
       credential: admin.credential.applicationDefault(),
-      // databaseURL: 'https://<YOUR_DATABASE_NAME>.firebaseio.com' // Only needed if using Realtime Database
+      databaseURL: REALTIME_DATABASE_URL 
     });
-    console.log("[FirebaseAdmin] Firebase Admin SDK initializeApp() called with applicationDefault().");
+    console.log("[FirebaseAdmin] Firebase Admin SDK initializeApp() called with applicationDefault() and databaseURL.");
 
-    adminDbInstance = getFirestore(adminApp);
-    console.log(`[FirebaseAdmin] getFirestore(adminApp) called. adminDbInstance is now: ${adminDbInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
-    
-    adminAuthInstance = getAdminAuth(adminApp);
-    console.log(`[FirebaseAdmin] getAdminAuth(adminApp) called. adminAuthInstance is now: ${adminAuthInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
-
-    console.log("[FirebaseAdmin] Firebase Admin SDK (using ADC) appears to have initialized successfully!");
+    if (adminApp) {
+        console.log(`[FirebaseAdmin] Admin App initialized successfully. App Name: ${adminApp.name}`);
+        adminDbInstance = getFirestore(adminApp);
+        console.log(`[FirebaseAdmin] getFirestore(adminApp) called. adminDbInstance is now: ${adminDbInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
+        
+        adminAuthInstance = getAdminAuth(adminApp);
+        console.log(`[FirebaseAdmin] getAdminAuth(adminApp) called. adminAuthInstance is now: ${adminAuthInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
+        
+        console.log("\n[FirebaseAdmin] Firebase Admin SDK (using ADC) appears to have initialized successfully!\n");
+    } else {
+        console.error("!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: admin.initializeApp() returned null or undefined (using ADC) !!!!!!!!!!!!!!");
+    }
 
   } catch (error: any) {
     console.error("!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: Firebase Admin SDK initializeApp() FAILED (using ADC) !!!!!!!!!!!!!!");
@@ -44,18 +49,22 @@ if (!admin.apps.length) {
     console.error("[FirebaseAdmin] Full Error Object for debugging:", JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
   }
 } else {
-  adminApp = admin.apps[0] as admin.app.App;
+  adminApp = admin.apps[0] as admin.app.App; // Type assertion
   console.log("[FirebaseAdmin] Firebase Admin SDK already initialized. Reusing existing app.");
-  adminDbInstance = getFirestore(adminApp); 
-  adminAuthInstance = getAdminAuth(adminApp); 
-  console.log(`[FirebaseAdmin] Re-assigned adminDbInstance. It is now: ${adminDbInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
-  console.log(`[FirebaseAdmin] Re-assigned adminAuthInstance. It is now: ${adminAuthInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
+  if (adminApp) {
+    adminDbInstance = getFirestore(adminApp); 
+    adminAuthInstance = getAdminAuth(adminApp); 
+    console.log(`[FirebaseAdmin] Re-assigned adminDbInstance. It is now: ${adminDbInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
+    console.log(`[FirebaseAdmin] Re-assigned adminAuthInstance. It is now: ${adminAuthInstance ? 'INITIALIZED' : 'STILL NULL (UNEXPECTED!)'}`);
+  } else {
+    console.error("[FirebaseAdmin] CRITICAL: Existing admin.apps[0] is null or undefined. This should not happen.");
+  }
 }
 
-console.log(`[FirebaseAdmin] FINAL STATUS before export: adminDbInstance is ${adminDbInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL and UNUSABLE >>>>>'}`);
+console.log(`\n[FirebaseAdmin] FINAL STATUS before export: adminDbInstance is ${adminDbInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL and UNUSABLE >>>>>'}`);
 console.log("******************************************************************************");
 console.log("***** [FirebaseAdmin] END OF INITIALIZATION ATTEMPT (firebaseAdmin.ts) *****");
-console.log("******************************************************************************");
+console.log("******************************************************************************\n");
 
 export const adminDb = adminDbInstance;
 export const adminAuth = adminAuthInstance;
@@ -63,4 +72,4 @@ export const adminAuth = adminAuthInstance;
 // Check if adminApp was successfully initialized before trying to access firestore.Timestamp or firestore.FieldValue
 export const AdminTimestamp = adminApp ? admin.firestore.Timestamp : undefined;
 export const AdminFieldValue = adminApp ? admin.firestore.FieldValue : undefined;
-
+    
