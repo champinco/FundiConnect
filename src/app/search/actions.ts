@@ -1,13 +1,14 @@
 
 'use server';
 
-import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint, FieldPath, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint, FieldPath } from 'firebase-admin/firestore'; // Ensure FieldPath is imported for Admin SDK
+import { adminDb } from '@/lib/firebaseAdmin'; // Use adminDb
+import type { Timestamp } from 'firebase-admin/firestore'; // Import Timestamp for type checking
 import type { ProviderProfile } from '@/models/provider';
 import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
-import type { Job, JobStatus } from '@/models/job'; // Import Job model
-import type { JobCardProps } from '@/components/job-card'; // Import JobCardProps
+import type { Job, JobStatus } from '@/models/job'; 
+import type { JobCardProps } from '@/components/job-card'; 
 
 export interface SearchParams {
   query?: string | null;
@@ -18,8 +19,12 @@ export interface SearchParams {
 }
 
 export async function searchProvidersAction(params: SearchParams): Promise<Provider[]> {
+  if (!adminDb) {
+    console.error("[searchProvidersAction] Admin DB not initialized.");
+    throw new Error("Server error: Database not available.");
+  }
   try {
-    const providersRef = collection(db, 'providerProfiles');
+    const providersRef = adminDb.collection('providerProfiles');
     const queryConstraints: QueryConstraint[] = [];
 
     // Category filter
@@ -41,8 +46,11 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.minRating && params.minRating > 0) {
       queryConstraints.push(where('rating', '>=', params.minRating));
        if (!queryConstraints.some(c => {
-            const fieldPath = (c as any)._fieldPath; // internal field, use with caution
-            return fieldPath && fieldPath.isEqual(new FieldPath('rating'));
+            // This check is a bit tricky with Admin SDK types.
+            // We assume if a 'rating' where clause exists, an orderBy on rating is also implicitly handled or added.
+            // For explicit ordering when minRating is present:
+            return (c as any)._fieldPath && (c as any)._fieldPath.isEqual(new FieldPath('rating'));
+
         })) {
          queryConstraints.push(orderBy('rating', 'desc'));
       }
@@ -59,7 +67,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
 
     const firestoreQuery = query(providersRef, ...queryConstraints);
     
-    const querySnapshot = await getDocs(firestoreQuery);
+    const querySnapshot = await firestoreQuery.get();
     let providersData: Provider[] = [];
 
     querySnapshot.forEach((doc) => {
@@ -103,31 +111,32 @@ export interface JobSearchParams {
   location?: string | null;
   category?: ServiceCategory | 'All' | null;
   currentUserId?: string | null; 
-  filterByStatus?: JobStatus | JobStatus[] | null; 
+  filterByStatus?: JobStatus | JobStatus[] | string | null; // Allow 'all_my' as string
   isMyJobsSearch?: boolean; 
 }
 
 export async function searchJobsAction(params: JobSearchParams): Promise<JobCardProps['job'][]> {
+  if (!adminDb) {
+    console.error("[searchJobsAction] Admin DB not initialized.");
+    throw new Error("Server error: Database not available.");
+  }
   try {
-    const jobsRef = collection(db, 'jobs');
+    const jobsRef = adminDb.collection('jobs');
     const queryConstraints: QueryConstraint[] = [];
 
     if (params.isMyJobsSearch && params.currentUserId) {
       queryConstraints.push(where('clientId', '==', params.currentUserId));
-      if (params.filterByStatus) {
+      
+      if (params.filterByStatus && params.filterByStatus !== 'all_my') {
         if (Array.isArray(params.filterByStatus) && params.filterByStatus.length > 0) {
           queryConstraints.push(where('status', 'in', params.filterByStatus));
         } else if (typeof params.filterByStatus === 'string') {
           queryConstraints.push(where('status', '==', params.filterByStatus));
         }
-        // If filterByStatus is an empty array or null/undefined, we show relevant active statuses for "my jobs"
-        else {
-             queryConstraints.push(where('status', 'in', ['open', 'pending_quotes', 'assigned', 'in_progress']));
-        }
-      } else {
-        // Default statuses for "my jobs" if no specific status filter is applied
+      } else if (!params.filterByStatus) { // No status filter provided for "my jobs", use default active list
         queryConstraints.push(where('status', 'in', ['open', 'pending_quotes', 'assigned', 'in_progress', 'completed']));
       }
+      // If params.filterByStatus === 'all_my', no additional status constraint is added.
     } else {
       // Default behavior for general job search: only open or pending_quotes
       queryConstraints.push(where('status', 'in', ['open', 'pending_quotes']));
@@ -142,7 +151,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     queryConstraints.push(limit(50)); // Limit results
 
     const firestoreQuery = query(jobsRef, ...queryConstraints);
-    const querySnapshot = await getDocs(firestoreQuery);
+    const querySnapshot = await firestoreQuery.get();
     
     let jobsData: Job[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -157,7 +166,6 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     });
 
     // Client-side filtering for location (case-insensitive partial match)
-    // This applies after initial DB query, useful if DB query for location is broad or not used.
     if (params.location && params.location.trim() !== '') {
       const locationTerm = params.location.trim().toLowerCase();
       jobsData = jobsData.filter(job => job.location.toLowerCase().includes(locationTerm));
@@ -181,7 +189,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       location: job.location,
       postedAt: job.postedAt, // Will be a Date object
       status: job.status,
-      description: job.description, // Pass full description for snippet logic in card
+      description: job.description, 
     }));
 
     return jobCardData;
