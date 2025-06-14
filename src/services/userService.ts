@@ -2,8 +2,8 @@
 /**
  * @fileOverview Service functions for interacting with user data in Firestore.
  */
-import { type UpdateData } from 'firebase/firestore'; // Keep for UpdateData type if needed, but operations change
-import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
 import type { User as FirebaseUser } from 'firebase/auth'; // Client-side Firebase User type
 import type { User, AccountType } from '@/models/user';
 
@@ -13,8 +13,8 @@ interface UserDocumentForCreate {
   email: string;
   fullName: string | null;
   accountType: AccountType;
-  createdAt: admin.firestore.FieldValue; // For Admin SDK
-  updatedAt: admin.firestore.FieldValue; // For Admin SDK
+  createdAt: FieldValue; 
+  updatedAt: FieldValue; 
   phoneNumber?: string | null;
   photoURL?: string | null;
   providerProfileId?: string;
@@ -33,7 +33,7 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
   }
   try {
     const userRef = adminDb.collection('users').doc(uid);
-    const now = AdminFieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
 
     const profileToSave: UserDocumentForCreate = {
       uid: uid,
@@ -59,7 +59,7 @@ export async function createUserProfileInFirestore(userData: Omit<User, 'created
 
 
 const convertPotentialAdminTimestampToDate = (fieldValue: any): Date => {
-  if (fieldValue && fieldValue instanceof AdminTimestamp) { // Check for AdminTimestamp
+  if (fieldValue && fieldValue instanceof Timestamp) { 
     return fieldValue.toDate();
   }
   if (fieldValue instanceof Date) {
@@ -146,7 +146,7 @@ export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): P
     throw new Error("Server error: Admin DB not initialized.");
   }
   const userRef = adminDb.collection('users').doc(firebaseUser.uid);
-  const nowAsAdminTimestamp = AdminFieldValue.serverTimestamp();
+  const nowAsAdminTimestamp = FieldValue.serverTimestamp();
 
   const defaultProfileData: UserDocumentForCreate = {
     uid: firebaseUser.uid,
@@ -202,9 +202,9 @@ export async function updateUserPhotoURL(uid: string, newPhotoURL: string): Prom
   }
   try {
     const userRef = adminDb.collection('users').doc(uid);
-    const updatePayload: Partial<User> & { updatedAt: admin.firestore.FieldValue } = {
+    const updatePayload: Partial<User> & { updatedAt: FieldValue } = {
         photoURL: newPhotoURL,
-        updatedAt: AdminFieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
     };
     await userRef.update(updatePayload as UpdateData<UserDocumentForCreate>);
   } catch (error) {

@@ -2,10 +2,11 @@
 /**
  * @fileOverview Service functions for interacting with provider profile data in Firestore.
  */
-import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
 import type { ProviderProfile, Certification } from '@/models/provider';
 import type { ServiceCategory } from '@/components/service-category-icon';
-import type { UpdateData } from 'firebase-admin/firestore';
+
 
 /**
  * Creates or updates a provider profile document in Firestore using Admin SDK.
@@ -19,12 +20,12 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
   }
   try {
     const profileRef = adminDb.collection('providerProfiles').doc(profileData.id);
-    const now = AdminFieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
 
     const certificationsWithAdminTimestamps = profileData.certifications.map(cert => ({
       ...cert,
-      issueDate: cert.issueDate ? AdminTimestamp.fromDate(new Date(cert.issueDate)) : null,
-      expiryDate: cert.expiryDate ? AdminTimestamp.fromDate(new Date(cert.expiryDate)) : null,
+      issueDate: cert.issueDate ? Timestamp.fromDate(new Date(cert.issueDate)) : null,
+      expiryDate: cert.expiryDate ? Timestamp.fromDate(new Date(cert.expiryDate)) : null,
     }));
 
     await profileRef.set({
@@ -57,22 +58,22 @@ export async function getProviderProfileFromFirestore(providerId: string): Promi
 
     if (profileSnap.exists) {
       const profileData = profileSnap.data() as Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'certifications'> & {
-          createdAt: admin.firestore.Timestamp;
-          updatedAt: admin.firestore.Timestamp;
-          certifications: Array<Omit<Certification, 'issueDate' | 'expiryDate'> & { issueDate?: admin.firestore.Timestamp | null, expiryDate?: admin.firestore.Timestamp | null }>;
+          createdAt: Timestamp;
+          updatedAt: Timestamp;
+          certifications: Array<Omit<Certification, 'issueDate' | 'expiryDate'> & { issueDate?: Timestamp | null, expiryDate?: Timestamp | null }>;
       };
 
       const certifications = (profileData.certifications || []).map(cert => ({
           ...cert,
-          issueDate: cert.issueDate ? (cert.issueDate as admin.firestore.Timestamp).toDate() : null,
-          expiryDate: cert.expiryDate ? (cert.expiryDate as admin.firestore.Timestamp).toDate() : null,
+          issueDate: cert.issueDate ? (cert.issueDate as Timestamp).toDate() : null,
+          expiryDate: cert.expiryDate ? (cert.expiryDate as Timestamp).toDate() : null,
       }));
 
       return {
         ...profileData,
         id: profileSnap.id,
-        createdAt: (profileData.createdAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (profileData.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        createdAt: (profileData.createdAt as Timestamp)?.toDate(),
+        updatedAt: (profileData.updatedAt as Timestamp)?.toDate(),
         certifications,
       } as ProviderProfile;
     } else {
@@ -105,12 +106,12 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
       providers.push({
         ...profileData,
         id: docSnap.id,
-        createdAt: (profileData.createdAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (profileData.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        createdAt: (profileData.createdAt as Timestamp)?.toDate(),
+        updatedAt: (profileData.updatedAt as Timestamp)?.toDate(),
          certifications: (profileData.certifications || []).map((cert: any) => ({
           ...cert,
-          issueDate: cert.issueDate ? (cert.issueDate as admin.firestore.Timestamp).toDate() : null,
-          expiryDate: cert.expiryDate ? (cert.expiryDate as admin.firestore.Timestamp).toDate() : null,
+          issueDate: cert.issueDate ? (cert.issueDate as Timestamp).toDate() : null,
+          expiryDate: cert.expiryDate ? (cert.expiryDate as Timestamp).toDate() : null,
         })),
       } as ProviderProfile);
     });
@@ -135,7 +136,7 @@ export async function updateProviderPhotoURL(providerId: string, newPhotoURL: st
     const providerRef = adminDb.collection('providerProfiles').doc(providerId);
     const updatePayload: UpdateData<ProviderProfile> = {
       profilePictureUrl: newPhotoURL,
-      updatedAt: AdminFieldValue.serverTimestamp() as admin.firestore.Timestamp,
+      updatedAt: FieldValue.serverTimestamp() as Timestamp,
     };
     await providerRef.update(updatePayload);
   } catch (error) {

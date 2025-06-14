@@ -2,7 +2,8 @@
 /**
  * @fileOverview Service functions for interacting with review data in Firestore.
  */
-import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Review } from '@/models/review';
 import type { ProviderProfile } from '@/models/provider';
 import { getUserProfileFromFirestore } from './userService';
@@ -61,7 +62,7 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
         clientId: reviewData.clientId,
         rating: reviewData.rating,
         comment: reviewData.comment,
-        reviewDate: AdminFieldValue.serverTimestamp(),
+        reviewDate: FieldValue.serverTimestamp(),
         clientDetails: {
           name: clientProfile?.fullName || "Anonymous",
           photoURL: clientProfile?.photoURL || null,
@@ -71,7 +72,7 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
       transaction.update(providerRef, {
         rating: newAverageRating,
         reviewsCount: newReviewsCount,
-        updatedAt: AdminFieldValue.serverTimestamp()
+        updatedAt: FieldValue.serverTimestamp()
       });
     });
     return newReviewRef.id;
@@ -109,8 +110,8 @@ export async function getReviewForJobByClient(jobId: string, clientId: string): 
       return {
         id: docSnap.id,
         ...data,
-        reviewDate: (data.reviewDate as admin.firestore.Timestamp)?.toDate(),
-        editedAt: (data.editedAt as admin.firestore.Timestamp)?.toDate() || undefined,
+        reviewDate: (data.reviewDate as Timestamp)?.toDate(),
+        editedAt: (data.editedAt as Timestamp)?.toDate() || undefined,
       } as Review;
     }
     return null;
@@ -140,8 +141,8 @@ export async function getReviewsForProvider(providerId: string): Promise<Review[
       reviews.push({
         id: docSnap.id,
         ...data,
-        reviewDate: (data.reviewDate as admin.firestore.Timestamp)?.toDate(),
-        editedAt: (data.editedAt as admin.firestore.Timestamp)?.toDate() || undefined,
+        reviewDate: (data.reviewDate as Timestamp)?.toDate(),
+        editedAt: (data.editedAt as Timestamp)?.toDate() || undefined,
       } as Review);
     });
     return reviews;

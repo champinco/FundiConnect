@@ -2,10 +2,10 @@
 /**
  * @fileOverview Service functions for interacting with quote data in Firestore.
  */
-import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
 import type { Quote, QuoteStatus } from '@/models/quote';
 import { getProviderProfileFromFirestore } from './providerService';
-import type { UpdateData } from 'firebase-admin/firestore';
 
 
 export interface SubmitQuoteData {
@@ -39,7 +39,7 @@ export async function submitQuoteForJob(quoteData: SubmitQuoteData): Promise<str
 
   const providerProfile = await getProviderProfileFromFirestore(quoteData.providerId);
 
-  const newQuotePayload: Omit<Quote, 'id' | 'createdAt' | 'updatedAt' | 'validUntil'> & { createdAt: admin.firestore.FieldValue, updatedAt: admin.firestore.FieldValue, validUntil?: admin.firestore.FieldValue | null } = {
+  const newQuotePayload: Omit<Quote, 'id' | 'createdAt' | 'updatedAt' | 'validUntil'> & { createdAt: FieldValue, updatedAt: FieldValue, validUntil?: FieldValue | null } = {
     jobId: quoteData.jobId,
     providerId: quoteData.providerId,
     clientId: quoteData.clientId,
@@ -51,14 +51,14 @@ export async function submitQuoteForJob(quoteData: SubmitQuoteData): Promise<str
         businessName: providerProfile.businessName,
         profilePictureUrl: providerProfile.profilePictureUrl || null
     } : undefined,
-    createdAt: AdminFieldValue.serverTimestamp(),
-    updatedAt: AdminFieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
 
   batch.set(newQuoteRef, newQuotePayload);
   batch.update(jobRef, {
-    quotesReceived: AdminFieldValue.increment(1),
-    updatedAt: AdminFieldValue.serverTimestamp()
+    quotesReceived: FieldValue.increment(1),
+    updatedAt: FieldValue.serverTimestamp()
   });
 
   try {
@@ -90,9 +90,9 @@ export async function getQuotesForJob(jobId: string): Promise<Quote[]> {
       quotes.push({
         id: docSnap.id,
         ...data,
-        createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate(),
-        validUntil: (data.validUntil as admin.firestore.Timestamp)?.toDate() || null,
+        createdAt: (data.createdAt as Timestamp)?.toDate(),
+        updatedAt: (data.updatedAt as Timestamp)?.toDate(),
+        validUntil: (data.validUntil as Timestamp)?.toDate() || null,
       } as Quote);
     });
     return quotes;
@@ -122,9 +122,9 @@ export async function getQuotesByProvider(providerId: string): Promise<Quote[]> 
       quotes.push({
         id: docSnap.id,
         ...data,
-        createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate(),
-        validUntil: (data.validUntil as admin.firestore.Timestamp)?.toDate() || null,
+        createdAt: (data.createdAt as Timestamp)?.toDate(),
+        updatedAt: (data.updatedAt as Timestamp)?.toDate(),
+        validUntil: (data.validUntil as Timestamp)?.toDate() || null,
       } as Quote);
     });
     return quotes;
@@ -148,9 +148,9 @@ export async function getQuoteById(quoteId: string): Promise<Quote | null> {
       return {
         id: quoteSnap.id,
         ...data,
-        createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate(),
-        validUntil: (data.validUntil as admin.firestore.Timestamp)?.toDate() || null,
+        createdAt: (data.createdAt as Timestamp)?.toDate(),
+        updatedAt: (data.updatedAt as Timestamp)?.toDate(),
+        validUntil: (data.validUntil as Timestamp)?.toDate() || null,
       } as Quote;
     }
     return null;
@@ -169,7 +169,7 @@ export async function updateQuoteStatus(quoteId: string, newStatus: QuoteStatus)
     try {
         const updatePayload: UpdateData<Quote> = {
             status: newStatus,
-            updatedAt: AdminFieldValue.serverTimestamp() as admin.firestore.Timestamp,
+            updatedAt: FieldValue.serverTimestamp() as Timestamp,
         };
         await quoteRef.update(updatePayload);
     } catch (error) {

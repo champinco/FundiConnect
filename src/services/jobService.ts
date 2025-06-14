@@ -2,9 +2,9 @@
 /**
  * @fileOverview Service functions for interacting with job data in Firestore.
  */
-import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
 import type { Job, JobStatus } from '@/models/job';
-import type { UpdateData } from 'firebase-admin/firestore';
 
 /**
  * Creates a new job document in Firestore using Admin SDK.
@@ -17,7 +17,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
     throw new Error("Server error: Admin DB not initialized.");
   }
   try {
-    const now = AdminFieldValue.serverTimestamp();
+    const now = FieldValue.serverTimestamp();
     const jobsCollectionRef = adminDb.collection('jobs');
 
     const dataToSave: any = {
@@ -32,7 +32,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       updatedAt: now,
       quotesReceived: 0,
       assignedProviderId: jobData.assignedProviderId || null,
-      deadline: jobData.deadline ? AdminTimestamp.fromDate(new Date(jobData.deadline)) : null,
+      deadline: jobData.deadline ? Timestamp.fromDate(new Date(jobData.deadline)) : null,
       acceptedQuoteId: jobData.acceptedQuoteId || null,
     };
 
@@ -98,9 +98,9 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
       return {
         ...jobData,
         id: jobSnap.id,
-        postedAt: (jobData.postedAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (jobData.updatedAt as admin.firestore.Timestamp)?.toDate(),
-        deadline: (jobData.deadline as admin.firestore.Timestamp)?.toDate() || null,
+        postedAt: (jobData.postedAt as Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
+        deadline: (jobData.deadline as Timestamp)?.toDate() || null,
       } as Job;
     } else {
       return null;
@@ -131,9 +131,9 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
       jobs.push({
         ...jobData,
         id: docSnap.id,
-        postedAt: (jobData.postedAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (jobData.updatedAt as admin.firestore.Timestamp)?.toDate(),
-        deadline: (jobData.deadline as admin.firestore.Timestamp)?.toDate() || null,
+        postedAt: (jobData.postedAt as Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
+        deadline: (jobData.deadline as Timestamp)?.toDate() || null,
       } as Job);
     });
     return jobs;
@@ -155,9 +155,9 @@ export async function updateJobStatus(jobId: string, newStatus: JobStatus, assig
     throw new Error("Server error: Admin DB not initialized.");
   }
   const jobRef = adminDb.collection('jobs').doc(jobId);
-  const updateData: UpdateData<Job> = { // Using UpdateData for type safety
+  const updateData: UpdateData<Job> = { 
     status: newStatus,
-    updatedAt: AdminFieldValue.serverTimestamp() as admin.firestore.Timestamp,
+    updatedAt: FieldValue.serverTimestamp() as Timestamp,
   };
 
   if (newStatus === 'assigned' && assignedProviderId) {
@@ -244,9 +244,9 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
       jobs.push({
         ...jobData,
         id: docSnap.id,
-        postedAt: (jobData.postedAt as admin.firestore.Timestamp)?.toDate(),
-        updatedAt: (jobData.updatedAt as admin.firestore.Timestamp)?.toDate(),
-        deadline: (jobData.deadline as admin.firestore.Timestamp)?.toDate() || null,
+        postedAt: (jobData.postedAt as Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
+        deadline: (jobData.deadline as Timestamp)?.toDate() || null,
       } as Job);
     });
     return jobs;

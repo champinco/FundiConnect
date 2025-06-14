@@ -10,14 +10,15 @@ import {
   setDoc,
   getDoc,
   serverTimestamp, // Client-side serverTimestamp
-  Timestamp,      // Client-side Timestamp
+  Timestamp as ClientTimestamp, // Client-side Timestamp
   writeBatch,
   arrayUnion,
   limit,
   updateDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase'; // For client-side operations
-import { adminDb, AdminFieldValue, AdminTimestamp } from '@/lib/firebaseAdmin'; // For server-side operations
+import { adminDb } from '@/lib/firebaseAdmin'; // For server-side operations
+import { FieldValue as AdminFieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore'; // For Admin SDK
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
 
 export function generateChatId(uid1: string, uid2: string): string {
@@ -51,7 +52,7 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
       displayName: "User " + otherUserUid.substring(0, 5),
     };
 
-    const newChatData: Omit<Chat, 'id' | 'lastMessage' | 'createdAt' | 'updatedAt'> & { createdAt: admin.firestore.FieldValue, updatedAt: admin.firestore.FieldValue, lastMessage: null } = {
+    const newChatData: Omit<Chat, 'id' | 'lastMessage' | 'createdAt' | 'updatedAt'> & { createdAt: AdminFieldValue, updatedAt: AdminFieldValue, lastMessage: null } = {
       participantUids: [currentUserUid, otherUserUid],
       participants: {
         [currentUserUid]: currentUserParticipant,
@@ -96,7 +97,7 @@ export async function sendMessage(
     throw new Error("Could not determine receiver UID.");
   }
 
-  const newMessageData: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: admin.firestore.FieldValue } = {
+  const newMessageData: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: AdminFieldValue } = {
     chatId,
     senderUid,
     receiverUid,
@@ -153,11 +154,11 @@ export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) 
       chats.push({
         id: docSnap.id,
         ...data,
-        createdAt: (data.createdAt as Timestamp)?.toDate(), // Client Timestamp
-        updatedAt: (data.updatedAt as Timestamp)?.toDate(), // Client Timestamp
+        createdAt: (data.createdAt as ClientTimestamp)?.toDate(), 
+        updatedAt: (data.updatedAt as ClientTimestamp)?.toDate(), 
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
-          timestamp: (data.lastMessage.timestamp as Timestamp)?.toDate(), // Client Timestamp
+          timestamp: (data.lastMessage.timestamp as ClientTimestamp)?.toDate(), 
         } : null,
       } as Chat);
     });
@@ -179,7 +180,7 @@ export function subscribeToChatMessages(chatId: string, callback: (messages: Cha
       messages.push({
         id: docSnap.id,
         ...data,
-        timestamp: (data.timestamp as Timestamp)?.toDate(), // Client Timestamp
+        timestamp: (data.timestamp as ClientTimestamp)?.toDate(), 
       } as ChatMessage);
     });
     callback(messages);
