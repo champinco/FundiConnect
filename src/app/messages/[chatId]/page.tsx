@@ -5,7 +5,7 @@ import type { NextPage } from 'next';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase'; 
+import { auth, db } from '@/lib/firebase';
 import { doc, onSnapshot as onDocSnapshot } from 'firebase/firestore';
 import { subscribeToChatMessages } from '@/services/chatService'; // Client-side subscriptions
 import { sendMessageAction } from '@/app/messages/actions'; // Server Action for sending
@@ -17,7 +17,7 @@ import { ArrowLeft, Send, Paperclip, Loader2, UserCircle2, MessageSquareText, XC
 import Link from 'next/link';
 import { format } from 'date-fns';
 import ChatMessageSkeleton from '@/components/skeletons/chat-message-skeleton';
-import { Skeleton } from '@/components/ui/skeleton'; 
+import { Skeleton } from '@/components/ui/skeleton';
 import { uploadFileToStorage } from '@/services/storageService';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
@@ -27,14 +27,14 @@ const ChatPage: NextPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const chatId = typeof params.chatId === 'string' ? params.chatId : '';
-  
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null | undefined>(undefined); 
+
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null | undefined>(undefined);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true); 
+  const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [otherParticipant, setOtherParticipant] = useState<ChatParticipant | null>(null);
-  const [chatExists, setChatExists] = useState<boolean | null>(null); 
+  const [chatExists, setChatExists] = useState<boolean | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreview, setFilePreview] = useState<string | null>(null);
@@ -43,97 +43,116 @@ const ChatPage: NextPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialLoadDoneRef = useRef(false);
 
+  // Effect for auth state
   useEffect(() => {
-    setIsLoading(true); 
-    initialLoadDoneRef.current = false; 
+    setIsLoading(true); // Assume loading until auth state is resolved
+    initialLoadDoneRef.current = false; // Reset on auth change too
 
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user); 
-      if (!user && chatId) { 
-        setIsLoading(false); 
+      setCurrentUser(user);
+      if (!user && chatId) { // If user logs out or is not available
+        setIsLoading(false); // Not loading if no user
+        setChatExists(null); // Reset chat state
+        setMessages([]);
+        setOtherParticipant(null);
       }
+      // If user *is* defined, the next effect will handle chat loading.
+      // If user becomes null (logged out), this effect sets isLoading to false.
+      // If user remains undefined (initial check), isLoading remains true.
     });
     return () => unsubscribeAuth();
-  }, [chatId]); 
+  }, [chatId]); // Only depends on chatId for the "!user && chatId" case.
 
+  // Effect for chat document and messages, depends on currentUser's UID and chatId
   useEffect(() => {
-    if (currentUser === undefined || !chatId) {
-      return; 
-    }
-
-    if (!currentUser?.uid) { 
-      setIsLoading(false);
-      setChatExists(false); 
+    // Guard: Do nothing if we don't have a current user's UID or a chatId
+    if (!currentUser?.uid || !chatId) {
+      if (currentUser === null) { // User is explicitly logged out
+        setIsLoading(false);
+        setChatExists(false); // No chat if no user
+        setMessages([]);
+        setOtherParticipant(null);
+      }
+      // If currentUser is undefined (auth state still resolving), don't do anything here.
+      // The auth effect will eventually set currentUser, triggering this effect again.
       return;
     }
-    
-    const chatRef = doc(db, 'chats', chatId); // Use client 'db' for onSnapshot
-    
+
+    // Start loading sequence for chat data
+    setIsLoading(true);
+    setChatExists(null); // Reset chatExists before fetching
+    initialLoadDoneRef.current = false;
+
+    const chatRef = doc(db, 'chats', chatId);
+    let unsubscribeMessages: (() => void) | null = null;
+
     const unsubscribeChatDoc = onDocSnapshot(chatRef, (chatSnap) => {
       if (chatSnap.exists()) {
         setChatExists(true);
-        const chatData = chatSnap.data() as Chat; // Assuming Chat model matches Firestore structure
+        const chatData = chatSnap.data() as Chat;
         const otherUid = chatData.participantUids.find(uid => uid !== currentUser.uid);
-        
+
         if (otherUid && chatData.participants[otherUid]) {
           setOtherParticipant(chatData.participants[otherUid]);
         } else {
-          const derivedOtherUid = chatId.split('_').find(id => id !== currentUser?.uid) || "Unknown User";
+          const derivedOtherUid = chatId.split('_').find(id => id !== currentUser.uid) || "Unknown User";
           setOtherParticipant({ uid: derivedOtherUid, displayName: "User " + derivedOtherUid.substring(0,5) });
         }
-        
-        if (!initialLoadDoneRef.current) { 
-            const unsubscribeMessages = subscribeToChatMessages(chatId, (updatedMessages) => {
-              setMessages(updatedMessages);
-              if (!initialLoadDoneRef.current) {
-                setIsLoading(false); 
-                initialLoadDoneRef.current = true;
-              }
-            });
-             return () => unsubscribeMessages();
-        }
 
+        // Subscribe to messages only if chat exists and we haven't done the initial load
+        if (!initialLoadDoneRef.current) {
+          unsubscribeMessages = subscribeToChatMessages(chatId, (updatedMessages) => {
+            setMessages(updatedMessages);
+            // Set loading to false and mark initial load done *after* first messages are received/processed
+            if (!initialLoadDoneRef.current) { // Check again in case of rapid/multiple callbacks
+                setIsLoading(false);
+                initialLoadDoneRef.current = true;
+            }
+          });
+        } else {
+          // If initialLoadDoneRef is true, it means we've already subscribed and processed first batch.
+          // Subsequent chatSnap changes (e.g. other participant details) won't re-subscribe to messages.
+          // We might still be "loading" if messages haven't come through for the first time.
+          // The primary setIsLoading(false) is in the message subscription callback.
+          if(messages.length > 0 || initialLoadDoneRef.current) { // if messages have loaded or initial load says it's done
+             setIsLoading(false);
+          }
+        }
       } else {
         setChatExists(false);
-        setIsLoading(false);
         setOtherParticipant(null);
+        setMessages([]);
+        setIsLoading(false); // Not loading if chat doesn't exist
+        initialLoadDoneRef.current = true; // Mark as done, no messages to load
       }
     }, (error) => {
-        console.error("Error fetching chat details:", error);
-        setChatExists(false);
-        setIsLoading(false);
+      console.error("Error fetching chat document:", error);
+      setChatExists(false);
+      setOtherParticipant(null);
+      setMessages([]);
+      setIsLoading(false);
+      initialLoadDoneRef.current = true; // Mark as done on error too
     });
 
-    let unsubscribeMessagesGlobal: (() => void) | null = null;
-    if (currentUser?.uid && chatId && !initialLoadDoneRef.current) {
-        unsubscribeMessagesGlobal = subscribeToChatMessages(chatId, (updatedMessages) => {
-            setMessages(updatedMessages);
-            if (!initialLoadDoneRef.current && chatExists !== null) { 
-              setIsLoading(false);
-              initialLoadDoneRef.current = true;
-            }
-        });
-    }
-
     return () => {
-        unsubscribeChatDoc();
-        if (unsubscribeMessagesGlobal) {
-            unsubscribeMessagesGlobal();
-        }
+      unsubscribeChatDoc();
+      if (unsubscribeMessages) {
+        unsubscribeMessages();
+      }
     };
-
-  }, [chatId, currentUser, chatExists]);
+  }, [chatId, currentUser?.uid]); // Effect depends on chatId and the user's UID.
 
   useEffect(() => {
-    if (messages.length > 0 && !isLoading) { 
+    if (messages.length > 0 && !isLoading && initialLoadDoneRef.current) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isLoading]);
 
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { 
+      if (file.size > 5 * 1024 * 1024) {
         toast({ title: "File too large", description: "Image should be less than 5MB.", variant: "destructive" });
         return;
       }
@@ -146,7 +165,7 @@ const ChatPage: NextPage = () => {
     setSelectedFile(null);
     setFilePreview(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; 
+      fileInputRef.current.value = "";
     }
   };
 
@@ -173,11 +192,10 @@ const ChatPage: NextPage = () => {
         }
       }
 
-      // Call the Server Action
       const result = await sendMessageAction(
-        chatId, 
-        currentUser.uid, 
-        newMessage.trim() || null, 
+        chatId,
+        currentUser.uid,
+        newMessage.trim() || null,
         uploadedImageUrl,
         currentUser.displayName || undefined,
         currentUser.photoURL || undefined
@@ -197,8 +215,9 @@ const ChatPage: NextPage = () => {
       setIsSending(false);
     }
   };
-  
-  if (currentUser === undefined || (isLoading && chatExists === null)) { 
+
+  // Initial loader covering auth check and initial chat existence check
+  if (currentUser === undefined || (isLoading && chatExists === null)) {
     return (
       <div className="flex flex-col h-[calc(100vh-4rem)] items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -207,7 +226,7 @@ const ChatPage: NextPage = () => {
     );
   }
 
-  if (currentUser === null) { 
+  if (currentUser === null) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
          <UserCircle2 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
@@ -219,8 +238,8 @@ const ChatPage: NextPage = () => {
       </div>
     );
   }
-  
-  if (chatExists === false && !isLoading) { 
+
+  if (chatExists === false && !isLoading) { // Explicitly check if chatExists is false and not loading
      return (
       <div className="flex flex-col h-[calc(100vh-4rem)] items-center justify-center p-4 text-center">
         <MessageSquareText className="h-16 w-16 text-muted-foreground mb-4" />
@@ -233,7 +252,8 @@ const ChatPage: NextPage = () => {
     );
   }
 
-  if (isLoading && chatExists === true && !initialLoadDoneRef.current) { 
+  // Skeleton loader: show if actively loading messages (isLoading true) AND chat doc exists (chatExists true) AND initial messages not yet loaded (initialLoadDoneRef false)
+  if (isLoading && chatExists === true && !initialLoadDoneRef.current) {
      return (
       <div className="flex flex-col h-[calc(100vh-4rem)] bg-card">
         <header className="flex items-center p-4 border-b bg-background shadow-sm">
@@ -256,7 +276,7 @@ const ChatPage: NextPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-card"> 
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-card">
       <header className="flex items-center p-4 border-b bg-background shadow-sm">
         <Button variant="ghost" size="icon" onClick={() => router.push('/messages')} className="mr-2">
           <ArrowLeft className="h-6 w-6" />
@@ -277,12 +297,13 @@ const ChatPage: NextPage = () => {
       </header>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {!isLoading && messages.length === 0 && !selectedFile && chatExists && initialLoadDoneRef.current ? ( 
+        {/* Show "No messages" only if not loading, chat exists, initial load is done, and messages array is empty */}
+        {!isLoading && chatExists && initialLoadDoneRef.current && messages.length === 0 && !selectedFile ? (
           <div className="text-center text-muted-foreground py-10 flex flex-col items-center justify-center h-full">
             <MessageSquareText className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>No messages yet. Start the conversation or send an image!</p>
           </div>
-        ) : ( 
+        ) : (
           messages.map((msg) => (
             <div
               key={msg.id}
@@ -325,15 +346,15 @@ const ChatPage: NextPage = () => {
 
       <form onSubmit={handleSendMessage} className="p-4 border-t bg-background">
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending || isLoading || !chatExists}> 
+          <Button variant="ghost" size="icon" type="button" onClick={() => fileInputRef.current?.click()} disabled={isSending || isLoading || !chatExists}>
             <Paperclip className="h-5 w-5" />
             <span className="sr-only">Attach file</span>
           </Button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileChange} 
-            accept="image/png, image/jpeg, image/webp, image/gif" 
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/png, image/jpeg, image/webp, image/gif"
             className="hidden"
             disabled={isSending || isLoading || !chatExists}
           />
@@ -357,3 +378,5 @@ const ChatPage: NextPage = () => {
 };
 
 export default ChatPage;
+
+    
