@@ -6,8 +6,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase'; 
-import { doc, getDoc, onSnapshot as onDocSnapshot } from 'firebase/firestore'; // Added onDocSnapshot for real-time participant updates
-import { subscribeToChatMessages, sendMessage } from '@/services/chatService';
+import { doc, onSnapshot as onDocSnapshot } from 'firebase/firestore';
+import { subscribeToChatMessages } from '@/services/chatService'; // Client-side subscriptions
+import { sendMessageAction } from '@/app/messages/actions'; // Server Action for sending
 import type { ChatMessage, ChatParticipant, Chat } from '@/models/chat';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,25 +67,22 @@ const ChatPage: NextPage = () => {
       return;
     }
     
-    const chatRef = doc(db, 'chats', chatId);
+    const chatRef = doc(db, 'chats', chatId); // Use client 'db' for onSnapshot
     
-    // Subscribe to chat document for real-time participant updates
     const unsubscribeChatDoc = onDocSnapshot(chatRef, (chatSnap) => {
       if (chatSnap.exists()) {
         setChatExists(true);
-        const chatData = chatSnap.data() as Chat;
+        const chatData = chatSnap.data() as Chat; // Assuming Chat model matches Firestore structure
         const otherUid = chatData.participantUids.find(uid => uid !== currentUser.uid);
         
         if (otherUid && chatData.participants[otherUid]) {
           setOtherParticipant(chatData.participants[otherUid]);
         } else {
-          // Fallback if participant details are somehow missing, though getOrCreateChat should create placeholders
           const derivedOtherUid = chatId.split('_').find(id => id !== currentUser?.uid) || "Unknown User";
           setOtherParticipant({ uid: derivedOtherUid, displayName: "User " + derivedOtherUid.substring(0,5) });
         }
         
-        // Message subscription is now nested to ensure chat exists
-        if (!initialLoadDoneRef.current) { // Only set up message subscription once
+        if (!initialLoadDoneRef.current) { 
             const unsubscribeMessages = subscribeToChatMessages(chatId, (updatedMessages) => {
               setMessages(updatedMessages);
               if (!initialLoadDoneRef.current) {
@@ -92,14 +90,8 @@ const ChatPage: NextPage = () => {
                 initialLoadDoneRef.current = true;
               }
             });
-            // We need to return this unsubscribe when the component unmounts or chatId/currentUser changes
-            // This is tricky with nested subscriptions. A common pattern is to return it from the outer useEffect.
-            // For simplicity, we'll rely on the outer useEffect's cleanup for the chatDoc sub.
-             return () => unsubscribeMessages(); // This will be called when chatDoc changes, which is not ideal.
-                                              // A better approach would manage message sub separately.
-                                              // Let's simplify: message sub will be established once.
+             return () => unsubscribeMessages();
         }
-
 
       } else {
         setChatExists(false);
@@ -112,18 +104,16 @@ const ChatPage: NextPage = () => {
         setIsLoading(false);
     });
 
-    // Separate subscription for messages, set up only once after current user is known.
     let unsubscribeMessagesGlobal: (() => void) | null = null;
     if (currentUser?.uid && chatId && !initialLoadDoneRef.current) {
         unsubscribeMessagesGlobal = subscribeToChatMessages(chatId, (updatedMessages) => {
             setMessages(updatedMessages);
-            if (!initialLoadDoneRef.current && chatExists !== null) { // ensure chatExists has been determined
+            if (!initialLoadDoneRef.current && chatExists !== null) { 
               setIsLoading(false);
               initialLoadDoneRef.current = true;
             }
         });
     }
-
 
     return () => {
         unsubscribeChatDoc();
@@ -132,7 +122,7 @@ const ChatPage: NextPage = () => {
         }
     };
 
-  }, [chatId, currentUser, chatExists]); // Added chatExists to dependencies to re-evaluate loading state
+  }, [chatId, currentUser, chatExists]);
 
   useEffect(() => {
     if (messages.length > 0 && !isLoading) { 
@@ -183,16 +173,22 @@ const ChatPage: NextPage = () => {
         }
       }
 
-      await sendMessage(
+      // Call the Server Action
+      const result = await sendMessageAction(
         chatId, 
         currentUser.uid, 
         newMessage.trim() || null, 
         uploadedImageUrl,
-        currentUser.displayName || "User " + currentUser.uid.substring(0,5), // Pass sender's display name
-        currentUser.photoURL // Pass sender's photo URL
+        currentUser.displayName || undefined,
+        currentUser.photoURL || undefined
       );
-      setNewMessage('');
-      removeSelectedFile();
+
+      if (result.success) {
+        setNewMessage('');
+        removeSelectedFile();
+      } else {
+        throw new Error(result.error || "Failed to send message via server action.");
+      }
 
     } catch (error: any) {
       console.error('Error sending message:', error);

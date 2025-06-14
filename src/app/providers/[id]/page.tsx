@@ -18,13 +18,12 @@ import { Badge } from '@/components/ui/badge';
 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'; 
 import { auth } from '@/lib/firebase'; 
-import { getOrCreateChat } from '@/services/chatService'; 
 import type { ProviderProfile } from '@/models/provider'; 
-// Removed direct service imports: getProviderProfileFromFirestore, getReviewsForProvider
 import type { Review } from '@/models/review';
 import Link from 'next/link'; 
 import { format, formatDistanceToNowStrict } from 'date-fns';
-import { fetchPublicProviderProfileDataAction } from './actions'; // Import the new action
+import { fetchPublicProviderProfileDataAction } from './actions';
+import { getOrCreateChatAction } from '@/app/messages/actions'; // Import the server action
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -34,7 +33,6 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // isLoadingReviews is now part of overall isLoading
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +61,6 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
           }
         })
         .catch(err => {
-          // This catch is for unexpected errors from the action itself, though the action should handle its own.
           const errorMessage = err.message || "An unexpected error occurred while loading provider data.";
           setError(errorMessage);
           toast({ title: "Error", description: errorMessage, variant: "destructive" });
@@ -74,7 +71,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     }
   }, [providerId, toast]);
 
-  const handleRequestQuote = async () => {
+  const handleRequestQuoteOrMessage = async () => {
     if (!currentUser) {
       toast({ title: "Login Required", description: "Please login to contact providers.", variant: "destructive" });
       router.push(`/auth/login?redirect=/providers/${providerId}`);
@@ -84,10 +81,11 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
 
     setIsChatLoading(true);
     try {
-      // getOrCreateChat now primarily uses clientDb and is safer to call from client.
-      // Participant details might be minimal initially.
-      const chatId = await getOrCreateChat(currentUser.uid, provider.userId); 
-      router.push(`/messages/${chatId}`);
+      const result = await getOrCreateChatAction(currentUser.uid, provider.userId); 
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      router.push(`/messages/${result.chatId}`);
     } catch (error: any) {
       console.error("Error creating or getting chat:", error);
       toast({ title: "Error", description: error.message || "Could not start conversation.", variant: "destructive" });
@@ -254,7 +252,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       <CardTitle className="text-xl">Client Reviews</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {isLoading ? ( // Changed from isLoadingReviews
+                      {isLoading ? ( 
                         <div className="space-y-4">
                           {[...Array(3)].map((_, i) => (
                             <div key={i} className="flex space-x-3 border-b pb-4 last:border-b-0">
@@ -340,7 +338,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                     </div>
                   )}
                   <Separator />
-                   <Button onClick={handleRequestQuote} className="w-full bg-primary hover:bg-primary/90" disabled={isChatLoading || currentUser?.uid === provider.userId}>
+                   <Button onClick={handleRequestQuoteOrMessage} className="w-full bg-primary hover:bg-primary/90" disabled={isChatLoading || currentUser?.uid === provider.userId}>
                     {isChatLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
                      {currentUser?.uid === provider.userId ? "This is Your Profile" : `Message ${provider.businessName.split(' ')[0]}`}
                   </Button>
