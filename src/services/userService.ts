@@ -3,7 +3,8 @@
  * @fileOverview Service functions for interacting with user data in Firestore.
  */
 import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
-import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import type { UpdateData } from 'firebase-admin/firestore';
 import type { User as FirebaseUser } from 'firebase/auth'; // Client-side Firebase User type
 import type { User, AccountType } from '@/models/user';
 
@@ -88,7 +89,9 @@ const convertPotentialAdminTimestampToDate = (fieldValue: any): Date => {
 export async function getUserProfileFromFirestore(uid: string): Promise<User | null> {
   if (!adminDb) {
     console.error("Admin DB not initialized. Cannot fetch user profile.");
-    return null;
+    // Instead of returning null, which can hide the root cause,
+    // we should throw to indicate a critical server misconfiguration.
+    throw new Error("Server error: Admin DB not initialized. Cannot fetch user profile.");
   }
   if (!uid) {
     console.warn('getUserProfileFromFirestore called with undefined or empty UID.');
@@ -145,14 +148,21 @@ export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): P
     console.error("Admin DB not initialized. Default user profile creation failed.");
     throw new Error("Server error: Admin DB not initialized.");
   }
+
+  // Added robust check for firebaseUser and its essential properties
+  if (!firebaseUser || typeof firebaseUser.uid !== 'string' || !firebaseUser.uid || typeof firebaseUser.email !== 'string' || !firebaseUser.email) {
+    console.error("createDefaultAppUserProfile called with invalid or incomplete FirebaseUser object. UID or Email is missing.", firebaseUser);
+    throw new Error("Cannot create default profile: critical user data (UID, Email) is missing from the provided FirebaseUser object.");
+  }
+
   const userRef = adminDb.collection('users').doc(firebaseUser.uid);
   const nowAsAdminTimestamp = FieldValue.serverTimestamp();
 
   const defaultProfileData: UserDocumentForCreate = {
     uid: firebaseUser.uid,
-    email: firebaseUser.email || 'No email provided',
+    email: firebaseUser.email, 
     fullName: firebaseUser.displayName || 'New User',
-    accountType: 'client' as AccountType,
+    accountType: 'client' as AccountType, 
     photoURL: firebaseUser.photoURL || null,
     phoneNumber: firebaseUser.phoneNumber || null,
     createdAt: nowAsAdminTimestamp,
@@ -174,6 +184,8 @@ export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): P
 
     await userRef.set(defaultProfileData);
     console.log(`Default profile created for UID (Admin SDK): ${firebaseUser.uid}`);
+    // When returning a newly created profile, we use current Date() for timestamps
+    // as serverTimestamp() is a sentinel and won't resolve to a client-side Date immediately here.
     return {
       uid: defaultProfileData.uid,
       email: defaultProfileData.email,
