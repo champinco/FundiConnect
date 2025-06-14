@@ -100,7 +100,7 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
         id: jobSnap.id,
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
-        deadline: (jobData.deadline as Timestamp)?.toDate() || null,
+        deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
       } as Job;
     } else {
       return null;
@@ -133,7 +133,7 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
         id: docSnap.id,
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
-        deadline: (jobData.deadline as Timestamp)?.toDate() || null,
+        deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
       } as Job);
     });
     return jobs;
@@ -157,14 +157,15 @@ export async function updateJobStatus(jobId: string, newStatus: JobStatus, assig
   const jobRef = adminDb.collection('jobs').doc(jobId);
   const updateData: UpdateData<Job> = { 
     status: newStatus,
-    updatedAt: FieldValue.serverTimestamp() as Timestamp,
+    updatedAt: FieldValue.serverTimestamp() as Timestamp, // Correct usage for Admin SDK
   };
 
   if (newStatus === 'assigned' && assignedProviderId) {
     updateData.assignedProviderId = assignedProviderId;
   } else if (newStatus === 'open') {
-    updateData.assignedProviderId = null;
+    updateData.assignedProviderId = null; // Explicitly set to null if unassigning
   }
+
 
   try {
     await jobRef.update(updateData);
@@ -246,7 +247,7 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
         id: docSnap.id,
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
-        deadline: (jobData.deadline as Timestamp)?.toDate() || null,
+        deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
       } as Job);
     });
     return jobs;

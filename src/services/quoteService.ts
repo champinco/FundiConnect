@@ -92,7 +92,7 @@ export async function getQuotesForJob(jobId: string): Promise<Quote[]> {
         ...data,
         createdAt: (data.createdAt as Timestamp)?.toDate(),
         updatedAt: (data.updatedAt as Timestamp)?.toDate(),
-        validUntil: (data.validUntil as Timestamp)?.toDate() || null,
+        validUntil: data.validUntil ? (data.validUntil as Timestamp).toDate() : null,
       } as Quote);
     });
     return quotes;
@@ -124,7 +124,7 @@ export async function getQuotesByProvider(providerId: string): Promise<Quote[]> 
         ...data,
         createdAt: (data.createdAt as Timestamp)?.toDate(),
         updatedAt: (data.updatedAt as Timestamp)?.toDate(),
-        validUntil: (data.validUntil as Timestamp)?.toDate() || null,
+        validUntil: data.validUntil ? (data.validUntil as Timestamp).toDate() : null,
       } as Quote);
     });
     return quotes;
@@ -150,7 +150,7 @@ export async function getQuoteById(quoteId: string): Promise<Quote | null> {
         ...data,
         createdAt: (data.createdAt as Timestamp)?.toDate(),
         updatedAt: (data.updatedAt as Timestamp)?.toDate(),
-        validUntil: (data.validUntil as Timestamp)?.toDate() || null,
+        validUntil: data.validUntil ? (data.validUntil as Timestamp).toDate() : null,
       } as Quote;
     }
     return null;
@@ -167,9 +167,9 @@ export async function updateQuoteStatus(quoteId: string, newStatus: QuoteStatus)
     }
     const quoteRef = adminDb.collection('quotes').doc(quoteId);
     try {
-        const updatePayload: UpdateData<Quote> = {
+        const updatePayload: UpdateData<Quote> = { // Use UpdateData for type safety
             status: newStatus,
-            updatedAt: FieldValue.serverTimestamp() as Timestamp,
+            updatedAt: FieldValue.serverTimestamp() as Timestamp, // Correct usage for Admin SDK
         };
         await quoteRef.update(updatePayload);
     } catch (error) {
