@@ -2,9 +2,9 @@
 /**
  * @fileOverview Service functions for interacting with job data in Firestore.
  */
-import { collection, addDoc, getDoc, doc, query, where, getDocs, updateDoc, orderBy, limit, type FieldValue } from 'firebase/firestore';
 import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import type { Job, JobStatus } from '@/models/job';
+import type { UpdateData } from 'firebase-admin/firestore';
 
 /**
  * Creates a new job document in Firestore using Admin SDK.
@@ -18,6 +18,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
   }
   try {
     const now = AdminFieldValue.serverTimestamp();
+    const jobsCollectionRef = adminDb.collection('jobs');
 
     const dataToSave: any = {
       clientId: jobData.clientId,
@@ -36,8 +37,8 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
     };
 
     if (jobData.budget !== undefined && jobData.budget !== null) {
-      dataToSave.budget = parseFloat(String(jobData.budget)); // Ensure it's a number
-      if (isNaN(dataToSave.budget)) dataToSave.budget = null; // Set to null if parsing failed
+      dataToSave.budget = parseFloat(String(jobData.budget));
+      if (isNaN(dataToSave.budget)) dataToSave.budget = null;
     } else {
       dataToSave.budget = null;
     }
@@ -54,7 +55,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
     if (jobData.budgetRange && (jobData.budgetRange.min != null || jobData.budgetRange.max != null)) {
       dataToSave.budgetRange = jobData.budgetRange;
     }
-    
+
     console.log('Job data being sent to Firestore (via Admin SDK):', {
       ...dataToSave,
       postedAt: '[SERVER_TIMESTAMP]',
@@ -62,12 +63,12 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       deadline: dataToSave.deadline ? '[CONVERTED_TIMESTAMP]' : null,
     });
 
-    const docRef = await addDoc(collection(adminDb, 'jobs'), dataToSave);
+    const docRef = await jobsCollectionRef.add(dataToSave);
     return docRef.id;
   } catch (error: any) {
     console.error('Error creating job in Firestore (Admin SDK). Original error:', error);
     let message = 'Could not create job.';
-    if (error.code === 'permission-denied') { // This should ideally not happen with Admin SDK unless rules are misconfigured for admin
+    if (error.code === 'permission-denied') {
       message = 'Permission denied by Firestore rules (Admin SDK). This is unexpected.';
     } else if (error.code === 'invalid-argument') {
       message = `Invalid data provided for job creation: ${error.message}`;
@@ -89,17 +90,17 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
     throw new Error("Server error: Admin DB not initialized.");
   }
   try {
-    const jobRef = doc(adminDb, 'jobs', jobId);
-    const jobSnap = await getDoc(jobRef);
+    const jobRef = adminDb.collection('jobs').doc(jobId);
+    const jobSnap = await jobRef.get();
 
-    if (jobSnap.exists()) {
-      const jobData = jobSnap.data();
+    if (jobSnap.exists) {
+      const jobData = jobSnap.data()!;
       return {
         ...jobData,
         id: jobSnap.id,
-        postedAt: (jobData.postedAt as AdminTimestamp)?.toDate(),
-        updatedAt: (jobData.updatedAt as AdminTimestamp)?.toDate(),
-        deadline: (jobData.deadline as AdminTimestamp)?.toDate() || null,
+        postedAt: (jobData.postedAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        deadline: (jobData.deadline as admin.firestore.Timestamp)?.toDate() || null,
       } as Job;
     } else {
       return null;
@@ -121,18 +122,18 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
     throw new Error("Server error: Admin DB not initialized.");
   }
   try {
-    const jobsRef = collection(adminDb, 'jobs');
-    const q = query(jobsRef, where('clientId', '==', clientId), orderBy('postedAt', 'desc'));
-    const querySnapshot = await getDocs(q);
+    const jobsRef = adminDb.collection('jobs');
+    const q = jobsRef.where('clientId', '==', clientId).orderBy('postedAt', 'desc');
+    const querySnapshot = await q.get();
     const jobs: Job[] = [];
     querySnapshot.forEach((docSnap) => {
       const jobData = docSnap.data();
       jobs.push({
         ...jobData,
         id: docSnap.id,
-        postedAt: (jobData.postedAt as AdminTimestamp)?.toDate(),
-        updatedAt: (jobData.updatedAt as AdminTimestamp)?.toDate(),
-        deadline: (jobData.deadline as AdminTimestamp)?.toDate() || null,
+        postedAt: (jobData.postedAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        deadline: (jobData.deadline as admin.firestore.Timestamp)?.toDate() || null,
       } as Job);
     });
     return jobs;
@@ -153,20 +154,20 @@ export async function updateJobStatus(jobId: string, newStatus: JobStatus, assig
     console.error("Admin DB not initialized. Cannot update job status.");
     throw new Error("Server error: Admin DB not initialized.");
   }
-  const jobRef = doc(adminDb, 'jobs', jobId);
-  const updateData: any = {
+  const jobRef = adminDb.collection('jobs').doc(jobId);
+  const updateData: UpdateData<Job> = { // Using UpdateData for type safety
     status: newStatus,
-    updatedAt: AdminFieldValue.serverTimestamp(),
+    updatedAt: AdminFieldValue.serverTimestamp() as admin.firestore.Timestamp,
   };
 
   if (newStatus === 'assigned' && assignedProviderId) {
     updateData.assignedProviderId = assignedProviderId;
-  } else if (newStatus === 'open') { 
+  } else if (newStatus === 'open') {
     updateData.assignedProviderId = null;
   }
 
   try {
-    await updateDoc(jobRef, updateData);
+    await jobRef.update(updateData);
   } catch (error) {
     console.error(`Error updating job ${jobId} to status ${newStatus} (Admin SDK):`, error);
     throw new Error(`Could not update job status.`);
@@ -199,9 +200,9 @@ export async function getJobSummaryForClient(clientId: string): Promise<ClientJo
     total: 0,
   };
   try {
-    const jobsRef = collection(adminDb, 'jobs');
-    const q = query(jobsRef, where('clientId', '==', clientId));
-    const querySnapshot = await getDocs(q);
+    const jobsRef = adminDb.collection('jobs');
+    const q = jobsRef.where('clientId', '==', clientId);
+    const querySnapshot = await q.get();
 
     querySnapshot.forEach((docSnap) => {
       const job = docSnap.data() as Job;
@@ -230,24 +231,22 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
     return [];
   }
   try {
-    const jobsRef = collection(adminDb, 'jobs');
-    const q = query(
-      jobsRef,
-      where('assignedProviderId', '==', providerId),
-      where('status', 'in', ['assigned', 'in_progress']),
-      orderBy('updatedAt', 'desc'),
-      limit(limitCount)
-    );
-    const querySnapshot = await getDocs(q);
+    const jobsRef = adminDb.collection('jobs');
+    const q = jobsRef
+      .where('assignedProviderId', '==', providerId)
+      .where('status', 'in', ['assigned', 'in_progress'])
+      .orderBy('updatedAt', 'desc')
+      .limit(limitCount);
+    const querySnapshot = await q.get();
     const jobs: Job[] = [];
     querySnapshot.forEach((docSnap) => {
       const jobData = docSnap.data();
       jobs.push({
         ...jobData,
         id: docSnap.id,
-        postedAt: (jobData.postedAt as AdminTimestamp)?.toDate(),
-        updatedAt: (jobData.updatedAt as AdminTimestamp)?.toDate(),
-        deadline: (jobData.deadline as AdminTimestamp)?.toDate() || null,
+        postedAt: (jobData.postedAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        deadline: (jobData.deadline as admin.firestore.Timestamp)?.toDate() || null,
       } as Job);
     });
     return jobs;

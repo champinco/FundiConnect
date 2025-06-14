@@ -2,31 +2,16 @@
 /**
  * @fileOverview Service functions for interacting with quote data in Firestore.
  */
-import {
-  collection,
-  addDoc,
-  doc,
-  query,
-  where,
-  getDocs,
-  writeBatch,
-  increment,
-  getDoc,
-  orderBy,
-  updateDoc, 
-  type FieldValue
-} from 'firebase/firestore';
 import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import type { Quote, QuoteStatus } from '@/models/quote';
-// import type { Job } from '@/models/job'; // Not directly used in this file after adminDb switch
-// import { getUserProfileFromFirestore } from './userService'; // Not needed if providerDetails are from providerProfile
 import { getProviderProfileFromFirestore } from './providerService';
+import type { UpdateData } from 'firebase-admin/firestore';
 
 
 export interface SubmitQuoteData {
   jobId: string;
-  providerId: string; 
-  clientId: string; 
+  providerId: string;
+  clientId: string;
   amount: number;
   currency: string;
   messageToClient: string;
@@ -46,15 +31,15 @@ export async function submitQuoteForJob(quoteData: SubmitQuoteData): Promise<str
     throw new Error('Missing required fields for submitting a quote.');
   }
 
-  const batch = adminDb.batch(); // Use adminDb.batch()
-  const quotesRef = collection(adminDb, 'quotes');
-  const newQuoteRef = doc(quotesRef); 
+  const batch = adminDb.batch();
+  const quotesCollectionRef = adminDb.collection('quotes');
+  const newQuoteRef = quotesCollectionRef.doc(); // Auto-generate ID
 
-  const jobRef = doc(adminDb, 'jobs', quoteData.jobId);
+  const jobRef = adminDb.collection('jobs').doc(quoteData.jobId);
 
   const providerProfile = await getProviderProfileFromFirestore(quoteData.providerId);
 
-  const newQuotePayload: Omit<Quote, 'id' | 'createdAt' | 'updatedAt' | 'validUntil'> & { createdAt: FieldValue, updatedAt: FieldValue, validUntil?: FieldValue | null } = {
+  const newQuotePayload: Omit<Quote, 'id' | 'createdAt' | 'updatedAt' | 'validUntil'> & { createdAt: admin.firestore.FieldValue, updatedAt: admin.firestore.FieldValue, validUntil?: admin.firestore.FieldValue | null } = {
     jobId: quoteData.jobId,
     providerId: quoteData.providerId,
     clientId: quoteData.clientId,
@@ -72,8 +57,8 @@ export async function submitQuoteForJob(quoteData: SubmitQuoteData): Promise<str
 
   batch.set(newQuoteRef, newQuotePayload);
   batch.update(jobRef, {
-    quotesReceived: AdminFieldValue.increment(1), // Use AdminFieldValue
-    updatedAt: AdminFieldValue.serverTimestamp() 
+    quotesReceived: AdminFieldValue.increment(1),
+    updatedAt: AdminFieldValue.serverTimestamp()
   });
 
   try {
@@ -96,18 +81,18 @@ export async function getQuotesForJob(jobId: string): Promise<Quote[]> {
     return [];
   }
   try {
-    const quotesRef = collection(adminDb, 'quotes');
-    const q = query(quotesRef, where('jobId', '==', jobId), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
+    const quotesRef = adminDb.collection('quotes');
+    const q = quotesRef.where('jobId', '==', jobId).orderBy('createdAt', 'desc');
+    const querySnapshot = await q.get();
     const quotes: Quote[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       quotes.push({
         id: docSnap.id,
         ...data,
-        createdAt: (data.createdAt as AdminTimestamp)?.toDate(),
-        updatedAt: (data.updatedAt as AdminTimestamp)?.toDate(),
-        validUntil: (data.validUntil as AdminTimestamp)?.toDate() || null,
+        createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        validUntil: (data.validUntil as admin.firestore.Timestamp)?.toDate() || null,
       } as Quote);
     });
     return quotes;
@@ -128,18 +113,18 @@ export async function getQuotesByProvider(providerId: string): Promise<Quote[]> 
     return [];
   }
   try {
-    const quotesRef = collection(adminDb, 'quotes');
-    const q = query(quotesRef, where('providerId', '==', providerId), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
+    const quotesRef = adminDb.collection('quotes');
+    const q = quotesRef.where('providerId', '==', providerId).orderBy('createdAt', 'desc');
+    const querySnapshot = await q.get();
     const quotes: Quote[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       quotes.push({
         id: docSnap.id,
         ...data,
-        createdAt: (data.createdAt as AdminTimestamp)?.toDate(),
-        updatedAt: (data.updatedAt as AdminTimestamp)?.toDate(),
-        validUntil: (data.validUntil as AdminTimestamp)?.toDate() || null,
+        createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        validUntil: (data.validUntil as admin.firestore.Timestamp)?.toDate() || null,
       } as Quote);
     });
     return quotes;
@@ -156,16 +141,16 @@ export async function getQuoteById(quoteId: string): Promise<Quote | null> {
     return null;
   }
   try {
-    const quoteRef = doc(adminDb, 'quotes', quoteId);
-    const quoteSnap = await getDoc(quoteRef);
-    if (quoteSnap.exists()) {
-      const data = quoteSnap.data();
+    const quoteRef = adminDb.collection('quotes').doc(quoteId);
+    const quoteSnap = await quoteRef.get();
+    if (quoteSnap.exists) {
+      const data = quoteSnap.data()!;
       return {
         id: quoteSnap.id,
         ...data,
-        createdAt: (data.createdAt as AdminTimestamp)?.toDate(),
-        updatedAt: (data.updatedAt as AdminTimestamp)?.toDate(),
-        validUntil: (data.validUntil as AdminTimestamp)?.toDate() || null,
+        createdAt: (data.createdAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (data.updatedAt as admin.firestore.Timestamp)?.toDate(),
+        validUntil: (data.validUntil as admin.firestore.Timestamp)?.toDate() || null,
       } as Quote;
     }
     return null;
@@ -180,12 +165,13 @@ export async function updateQuoteStatus(quoteId: string, newStatus: QuoteStatus)
       console.error("Admin DB not initialized. Cannot update quote status.");
       throw new Error("Server error: Admin DB not initialized.");
     }
-    const quoteRef = doc(adminDb, 'quotes', quoteId);
+    const quoteRef = adminDb.collection('quotes').doc(quoteId);
     try {
-        await updateDoc(quoteRef, {
+        const updatePayload: UpdateData<Quote> = {
             status: newStatus,
-            updatedAt: AdminFieldValue.serverTimestamp(),
-        });
+            updatedAt: AdminFieldValue.serverTimestamp() as admin.firestore.Timestamp,
+        };
+        await quoteRef.update(updatePayload);
     } catch (error) {
         console.error(`Error updating quote ${quoteId} status to ${newStatus} (Admin SDK):`, error);
         throw new Error(`Could not update quote status.`);
@@ -216,9 +202,9 @@ export async function getSubmittedQuotesSummaryForProvider(providerId: string): 
     total: 0,
   };
   try {
-    const quotesRef = collection(adminDb, 'quotes');
-    const q = query(quotesRef, where('providerId', '==', providerId));
-    const querySnapshot = await getDocs(q);
+    const quotesRef = adminDb.collection('quotes');
+    const q = quotesRef.where('providerId', '==', providerId);
+    const querySnapshot = await q.get();
 
     querySnapshot.forEach((docSnap) => {
       const quote = docSnap.data() as Quote;

@@ -2,23 +2,10 @@
 /**
  * @fileOverview Service functions for interacting with review data in Firestore.
  */
-import {
-  collection,
-  addDoc,
-  doc,
-  query,
-  where,
-  getDocs,
-  runTransaction,
-  getDoc,
-  orderBy,
-  limit,
-  type FieldValue
-} from 'firebase/firestore';
 import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import type { Review } from '@/models/review';
 import type { ProviderProfile } from '@/models/provider';
-import { getUserProfileFromFirestore } from './userService'; // This will also use adminDb for reads from server
+import { getUserProfileFromFirestore } from './userService';
 
 export interface ReviewData {
   jobId: string;
@@ -45,21 +32,21 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
     throw new Error('Rating must be between 1 and 5.');
   }
 
-  const providerRef = doc(adminDb, 'providerProfiles', reviewData.providerId);
-  const reviewsRef = collection(adminDb, 'reviews');
-  const newReviewRef = doc(reviewsRef); 
+  const providerRef = adminDb.collection('providerProfiles').doc(reviewData.providerId);
+  const reviewsCollectionRef = adminDb.collection('reviews');
+  const newReviewRef = reviewsCollectionRef.doc(); // Auto-generate ID
 
   const existingReview = await getReviewForJobByClient(reviewData.jobId, reviewData.clientId);
   if (existingReview) {
     throw new Error('You have already submitted a review for this job.');
   }
-  
+
   const clientProfile = await getUserProfileFromFirestore(reviewData.clientId);
 
   try {
-    await runTransaction(adminDb, async (transaction) => { // Use adminDb for transaction
+    await adminDb.runTransaction(async (transaction) => {
       const providerSnap = await transaction.get(providerRef);
-      if (!providerSnap.exists()) {
+      if (!providerSnap.exists) {
         throw new Error("Provider profile not found. Cannot submit review.");
       }
       const providerData = providerSnap.data() as ProviderProfile;
@@ -110,22 +97,20 @@ export async function getReviewForJobByClient(jobId: string, clientId: string): 
     return null;
   }
   try {
-    const reviewsRef = collection(adminDb, 'reviews');
-    const q = query(
-      reviewsRef,
-      where('jobId', '==', jobId),
-      where('clientId', '==', clientId),
-      limit(1)
-    );
-    const querySnapshot = await getDocs(q);
+    const reviewsRef = adminDb.collection('reviews');
+    const q = reviewsRef
+      .where('jobId', '==', jobId)
+      .where('clientId', '==', clientId)
+      .limit(1);
+    const querySnapshot = await q.get();
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
       const data = docSnap.data();
       return {
         id: docSnap.id,
         ...data,
-        reviewDate: (data.reviewDate as AdminTimestamp)?.toDate(),
-        editedAt: (data.editedAt as AdminTimestamp)?.toDate() || undefined,
+        reviewDate: (data.reviewDate as admin.firestore.Timestamp)?.toDate(),
+        editedAt: (data.editedAt as admin.firestore.Timestamp)?.toDate() || undefined,
       } as Review;
     }
     return null;
@@ -146,17 +131,17 @@ export async function getReviewsForProvider(providerId: string): Promise<Review[
     return [];
   }
   try {
-    const reviewsRef = collection(adminDb, 'reviews');
-    const q = query(reviewsRef, where('providerId', '==', providerId), orderBy('reviewDate', 'desc'));
-    const querySnapshot = await getDocs(q);
+    const reviewsRef = adminDb.collection('reviews');
+    const q = reviewsRef.where('providerId', '==', providerId).orderBy('reviewDate', 'desc');
+    const querySnapshot = await q.get();
     const reviews: Review[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       reviews.push({
         id: docSnap.id,
         ...data,
-        reviewDate: (data.reviewDate as AdminTimestamp)?.toDate(),
-        editedAt: (data.editedAt as AdminTimestamp)?.toDate() || undefined,
+        reviewDate: (data.reviewDate as admin.firestore.Timestamp)?.toDate(),
+        editedAt: (data.editedAt as admin.firestore.Timestamp)?.toDate() || undefined,
       } as Review);
     });
     return reviews;

@@ -9,23 +9,27 @@ import {
   doc,
   setDoc,
   getDoc,
-  serverTimestamp,
-  Timestamp,
+  serverTimestamp, // Client-side serverTimestamp
+  Timestamp,      // Client-side Timestamp
   writeBatch,
   arrayUnion,
   limit,
   updateDoc
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; 
+import { db } from '@/lib/firebase'; // For client-side operations
+import { adminDb, AdminFieldValue, AdminTimestamp } from '@/lib/firebaseAdmin'; // For server-side operations
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
-// Removed: import { getUserProfileFromFirestore } from '@/services/userService'; 
-// getUserProfileFromFirestore uses adminDb, which we want to avoid directly in client-facing services for this operation.
 
 export function generateChatId(uid1: string, uid2: string): string {
   return [uid1, uid2].sort().join('_');
 }
 
+// This function is called by server actions, so it should use adminDb
 export async function getOrCreateChat(currentUserUid: string, otherUserUid: string): Promise<string> {
+  if (!adminDb) {
+    console.error("Admin DB not initialized. Chat creation/retrieval failed.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
   if (!currentUserUid || !otherUserUid) {
     throw new Error("Both user UIDs must be provided.");
   }
@@ -34,53 +38,56 @@ export async function getOrCreateChat(currentUserUid: string, otherUserUid: stri
   }
 
   const chatId = generateChatId(currentUserUid, otherUserUid);
-  const chatRef = doc(db, 'chats', chatId); 
-  const chatSnap = await getDoc(chatRef);
+  const chatRef = adminDb.collection('chats').doc(chatId);
+  const chatSnap = await chatRef.get();
 
-  if (!chatSnap.exists()) {
-    // Create participants with minimal info initially.
-    // DisplayName and photoURL can be populated by sendMessage or fetched separately by client if needed.
+  if (!chatSnap.exists) {
     const currentUserParticipant: ChatParticipant = {
       uid: currentUserUid,
-      displayName: "User " + currentUserUid.substring(0, 5), // Placeholder display name
+      displayName: "User " + currentUserUid.substring(0, 5),
     };
     const otherUserParticipant: ChatParticipant = {
       uid: otherUserUid,
-      displayName: "User " + otherUserUid.substring(0, 5), // Placeholder display name
+      displayName: "User " + otherUserUid.substring(0, 5),
     };
 
-    const newChatData: Omit<Chat, 'id' | 'lastMessage' | 'createdAt' | 'updatedAt'> & { createdAt: any, updatedAt: any, lastMessage: null } = {
+    const newChatData: Omit<Chat, 'id' | 'lastMessage' | 'createdAt' | 'updatedAt'> & { createdAt: admin.firestore.FieldValue, updatedAt: admin.firestore.FieldValue, lastMessage: null } = {
       participantUids: [currentUserUid, otherUserUid],
       participants: {
         [currentUserUid]: currentUserParticipant,
         [otherUserUid]: otherUserParticipant,
       },
-      lastMessage: null, 
-      createdAt: serverTimestamp(), 
-      updatedAt: serverTimestamp(), 
+      lastMessage: null,
+      createdAt: AdminFieldValue.serverTimestamp(),
+      updatedAt: AdminFieldValue.serverTimestamp(),
     };
-    await setDoc(chatRef, newChatData);
+    await chatRef.set(newChatData);
   }
   return chatId;
 }
 
+// This function is called by server actions, so it should use adminDb
 export async function sendMessage(
   chatId: string,
   senderUid: string,
   text: string | null,
   imageUrl: string | null = null,
-  senderDisplayName?: string, // Optional: pass sender's display name
-  senderPhotoURL?: string | null // Optional: pass sender's photo URL
+  senderDisplayName?: string,
+  senderPhotoURL?: string | null
 ): Promise<void> {
+  if (!adminDb) {
+    console.error("Admin DB not initialized. Cannot send message.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
   if (!text && !imageUrl) {
     throw new Error('Message must have text or an image.');
   }
 
-  const chatRef = doc(db, 'chats', chatId); 
-  const messagesRef = collection(chatRef, 'messages');
-  
-  const chatSnap = await getDoc(chatRef);
-  if (!chatSnap.exists()) {
+  const chatRef = adminDb.collection('chats').doc(chatId);
+  const messagesCollectionRef = chatRef.collection('messages');
+
+  const chatSnap = await chatRef.get();
+  if (!chatSnap.exists) {
     throw new Error("Chat session not found.");
   }
   const chatData = chatSnap.data() as Chat;
@@ -89,61 +96,52 @@ export async function sendMessage(
     throw new Error("Could not determine receiver UID.");
   }
 
-  const newMessageData: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: any } = {
+  const newMessageData: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: admin.firestore.FieldValue } = {
     chatId,
     senderUid,
     receiverUid,
     text,
     imageUrl,
-    isRead: false, 
-    timestamp: serverTimestamp(), 
+    isRead: false,
+    timestamp: AdminFieldValue.serverTimestamp(),
   };
 
-  const batch = writeBatch(db); 
-  
-  const messageDocRef = doc(messagesRef); 
+  const batch = adminDb.batch();
+  const messageDocRef = messagesCollectionRef.doc(); // Auto-generate ID for subcollection message
   batch.set(messageDocRef, newMessageData);
 
   let lastMessageText = text;
   if (imageUrl && !text) {
     lastMessageText = "Sent an image";
   } else if (imageUrl && text) {
-    lastMessageText = text; 
+    lastMessageText = text;
   }
 
   const updatePayload: any = {
     lastMessage: {
       text: lastMessageText,
       senderUid,
-      timestamp: serverTimestamp(), 
-      isReadBy: { [senderUid]: true } 
+      timestamp: AdminFieldValue.serverTimestamp(),
+      isReadBy: { [senderUid]: true }
     },
-    updatedAt: serverTimestamp(),
+    updatedAt: AdminFieldValue.serverTimestamp(),
   };
 
-  // Update participant details if provided or if they are placeholders
   if (senderDisplayName && (!chatData.participants[senderUid]?.displayName || chatData.participants[senderUid]?.displayName.startsWith("User "))) {
     updatePayload[`participants.${senderUid}.displayName`] = senderDisplayName;
   }
   if (senderPhotoURL !== undefined && chatData.participants[senderUid]?.photoURL !== senderPhotoURL) {
      updatePayload[`participants.${senderUid}.photoURL`] = senderPhotoURL;
   }
-  // Ensure receiver details are present or updated if they were placeholders
-  if (!chatData.participants[receiverUid]?.displayName || chatData.participants[receiverUid]?.displayName.startsWith("User ")) {
-      // If receiver details are minimal, we can try to update them here.
-      // This could be a place where you fetch other user's profile if necessary,
-      // but for now, we'll rely on a subsequent message from them or client-side fetch.
-      // For MVP, keeping it simple.
-  }
-
 
   batch.update(chatRef, updatePayload);
   await batch.commit();
 }
 
+// Client-side function: uses client 'db'
 export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) => void): () => void {
   const q = query(
-    collection(db, 'chats'), 
+    collection(db, 'chats'),
     where('participantUids', 'array-contains', userUid),
     orderBy('updatedAt', 'desc')
   );
@@ -155,11 +153,11 @@ export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) 
       chats.push({
         id: docSnap.id,
         ...data,
-        createdAt: (data.createdAt as Timestamp)?.toDate(),
-        updatedAt: (data.updatedAt as Timestamp)?.toDate(),
+        createdAt: (data.createdAt as Timestamp)?.toDate(), // Client Timestamp
+        updatedAt: (data.updatedAt as Timestamp)?.toDate(), // Client Timestamp
         lastMessage: data.lastMessage ? {
           ...data.lastMessage,
-          timestamp: (data.lastMessage.timestamp as Timestamp)?.toDate(),
+          timestamp: (data.lastMessage.timestamp as Timestamp)?.toDate(), // Client Timestamp
         } : null,
       } as Chat);
     });
@@ -169,9 +167,10 @@ export function subscribeToUserChats(userUid: string, callback: (chats: Chat[]) 
   });
 }
 
+// Client-side function: uses client 'db'
 export function subscribeToChatMessages(chatId: string, callback: (messages: ChatMessage[]) => void): () => void {
-  const messagesRef = collection(db, 'chats', chatId, 'messages'); 
-  const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(50)); 
+  const messagesRef = collection(db, 'chats', chatId, 'messages');
+  const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(50));
 
   return onSnapshot(q, (querySnapshot) => {
     const messages: ChatMessage[] = [];
@@ -180,7 +179,7 @@ export function subscribeToChatMessages(chatId: string, callback: (messages: Cha
       messages.push({
         id: docSnap.id,
         ...data,
-        timestamp: (data.timestamp as Timestamp)?.toDate(),
+        timestamp: (data.timestamp as Timestamp)?.toDate(), // Client Timestamp
       } as ChatMessage);
     });
     callback(messages);
@@ -189,22 +188,20 @@ export function subscribeToChatMessages(chatId: string, callback: (messages: Cha
   });
 }
 
-
+// Client-side function: uses client 'db'
 export async function markMessagesAsRead(chatId: string, readerUid: string): Promise<void> {
-  const chatRef = doc(db, 'chats', chatId); 
-  const chatSnap = await getDoc(chatRef);
+  const chatRef = doc(db, 'chats', chatId);
+  const chatSnap = await getDoc(chatRef); // Client getDoc
 
   if (chatSnap.exists()) {
     const chatData = chatSnap.data() as Chat;
     if (chatData.lastMessage && chatData.lastMessage.senderUid !== readerUid) {
       const updateData: any = {
         [`lastMessage.isReadBy.${readerUid}`]: true,
-        updatedAt: serverTimestamp() 
+        updatedAt: serverTimestamp() // Client serverTimestamp
       };
-      // If participant data is minimal, this is a good place to update it IF we have it client-side
-      // For now, this function focuses only on read status.
       try {
-        await updateDoc(chatRef, updateData);
+        await updateDoc(chatRef, updateData); // Client updateDoc
       } catch (error) {
         console.error(`Error marking messages as read for chat ${chatId} by ${readerUid}:`, error);
       }

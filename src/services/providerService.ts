@@ -2,10 +2,10 @@
 /**
  * @fileOverview Service functions for interacting with provider profile data in Firestore.
  */
-import { doc, setDoc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { adminDb, AdminTimestamp, AdminFieldValue } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import type { ProviderProfile, Certification } from '@/models/provider';
 import type { ServiceCategory } from '@/components/service-category-icon';
+import type { UpdateData } from 'firebase-admin/firestore';
 
 /**
  * Creates or updates a provider profile document in Firestore using Admin SDK.
@@ -18,16 +18,16 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
     throw new Error("Server error: Admin DB not initialized.");
   }
   try {
-    const profileRef = doc(adminDb, 'providerProfiles', profileData.id);
+    const profileRef = adminDb.collection('providerProfiles').doc(profileData.id);
     const now = AdminFieldValue.serverTimestamp();
-    
+
     const certificationsWithAdminTimestamps = profileData.certifications.map(cert => ({
       ...cert,
       issueDate: cert.issueDate ? AdminTimestamp.fromDate(new Date(cert.issueDate)) : null,
       expiryDate: cert.expiryDate ? AdminTimestamp.fromDate(new Date(cert.expiryDate)) : null,
     }));
 
-    await setDoc(profileRef, {
+    await profileRef.set({
       ...profileData,
       certifications: certificationsWithAdminTimestamps,
       rating: 0,
@@ -49,33 +49,30 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
 export async function getProviderProfileFromFirestore(providerId: string): Promise<ProviderProfile | null> {
   if (!adminDb) {
     console.error("Admin DB not initialized. Cannot fetch provider profile.");
-    // Decide on behavior: throw error or return null gracefully?
-    // For reads, returning null might be acceptable if UI can handle it.
-    // throw new Error("Server error: Admin DB not initialized.");
-    return null; 
+    return null;
   }
   try {
-    const profileRef = doc(adminDb, 'providerProfiles', providerId);
-    const profileSnap = await getDoc(profileRef);
+    const profileRef = adminDb.collection('providerProfiles').doc(providerId);
+    const profileSnap = await profileRef.get();
 
-    if (profileSnap.exists()) {
+    if (profileSnap.exists) {
       const profileData = profileSnap.data() as Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'certifications'> & {
           createdAt: admin.firestore.Timestamp;
           updatedAt: admin.firestore.Timestamp;
           certifications: Array<Omit<Certification, 'issueDate' | 'expiryDate'> & { issueDate?: admin.firestore.Timestamp | null, expiryDate?: admin.firestore.Timestamp | null }>;
       };
-      
+
       const certifications = (profileData.certifications || []).map(cert => ({
           ...cert,
-          issueDate: cert.issueDate ? (cert.issueDate as unknown as AdminTimestamp).toDate() : null,
-          expiryDate: cert.expiryDate ? (cert.expiryDate as unknown as AdminTimestamp).toDate() : null,
+          issueDate: cert.issueDate ? (cert.issueDate as admin.firestore.Timestamp).toDate() : null,
+          expiryDate: cert.expiryDate ? (cert.expiryDate as admin.firestore.Timestamp).toDate() : null,
       }));
 
       return {
         ...profileData,
-        id: profileSnap.id, // Ensure id is included
-        createdAt: (profileData.createdAt as AdminTimestamp)?.toDate(),
-        updatedAt: (profileData.updatedAt as AdminTimestamp)?.toDate(),
+        id: profileSnap.id,
+        createdAt: (profileData.createdAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (profileData.updatedAt as admin.firestore.Timestamp)?.toDate(),
         certifications,
       } as ProviderProfile;
     } else {
@@ -99,17 +96,22 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
     return [];
   }
   try {
-    const profilesRef = collection(adminDb, 'providerProfiles');
-    const q = query(profilesRef, where('mainService', '==', serviceCategory), where('isVerified', '==', true));
-    const querySnapshot = await getDocs(q);
+    const profilesRef = adminDb.collection('providerProfiles');
+    const q = profilesRef.where('mainService', '==', serviceCategory).where('isVerified', '==', true);
+    const querySnapshot = await q.get();
     const providers: ProviderProfile[] = [];
     querySnapshot.forEach((docSnap) => {
       const profileData = docSnap.data();
       providers.push({
         ...profileData,
         id: docSnap.id,
-        createdAt: (profileData.createdAt as AdminTimestamp)?.toDate(),
-        updatedAt: (profileData.updatedAt as AdminTimestamp)?.toDate(),
+        createdAt: (profileData.createdAt as admin.firestore.Timestamp)?.toDate(),
+        updatedAt: (profileData.updatedAt as admin.firestore.Timestamp)?.toDate(),
+         certifications: (profileData.certifications || []).map((cert: any) => ({
+          ...cert,
+          issueDate: cert.issueDate ? (cert.issueDate as admin.firestore.Timestamp).toDate() : null,
+          expiryDate: cert.expiryDate ? (cert.expiryDate as admin.firestore.Timestamp).toDate() : null,
+        })),
       } as ProviderProfile);
     });
     return providers;
@@ -130,11 +132,12 @@ export async function updateProviderPhotoURL(providerId: string, newPhotoURL: st
     throw new Error("Server error: Admin DB not initialized.");
   }
   try {
-    const providerRef = doc(adminDb, 'providerProfiles', providerId);
-    await updateDoc(providerRef, {
+    const providerRef = adminDb.collection('providerProfiles').doc(providerId);
+    const updatePayload: UpdateData<ProviderProfile> = {
       profilePictureUrl: newPhotoURL,
-      updatedAt: AdminFieldValue.serverTimestamp(),
-    });
+      updatedAt: AdminFieldValue.serverTimestamp() as admin.firestore.Timestamp,
+    };
+    await providerRef.update(updatePayload);
   } catch (error) {
     console.error('Error updating provider photo URL (Admin SDK):', error);
     throw new Error('Could not update provider photo URL.');
