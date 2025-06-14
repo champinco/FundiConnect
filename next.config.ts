@@ -30,6 +30,7 @@ const nextConfig: NextConfig = {
         tls: false,
         dns: false,
         http2: false, 
+        '@opentelemetry/exporter-jaeger': false, // Added fallback for Jaeger exporter
         // You can add other Node.js core modules here if they cause issues
       };
     }

@@ -1,11 +1,11 @@
 
 "use client";
 
-import { useState, useEffect, type FormEvent, useMemo } from 'react';
+import { useState, useEffect, type FormEvent, useMemo, Suspense } from 'react'; // Added Suspense
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton';
-import JobCard, { type JobCardProps } from '@/components/job-card'; // Import JobCard
-import JobCardSkeleton from '@/components/skeletons/job-card-skeleton'; // Import JobCardSkeleton
+import JobCard, { type JobCardProps } from '@/components/job-card';
+import JobCardSkeleton from '@/components/skeletons/job-card-skeleton';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,7 +27,7 @@ const allServiceCategoriesList: (ServiceCategory | 'All')[] = [
 
 type SearchMode = 'providers' | 'jobs';
 
-export default function SearchPage() {
+function SearchPageContent() {
   const nextSearchParams = useSearchParams();
   const router = useRouter();
   
@@ -50,7 +50,6 @@ export default function SearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Memoize search params to avoid re-running useEffect unnecessarily if only internal state changes
   const memoizedNextSearchParams = useMemo(() => {
     return new URLSearchParams(nextSearchParams.toString());
   }, [nextSearchParams]);
@@ -70,8 +69,8 @@ export default function SearchPage() {
     } else if (mode === 'jobs') {
       const jParams = params as JobSearchParams;
       if (jParams.keywords) query.set('keywords', jParams.keywords);
-      if (jParams.location) query.set('jobLocation', jParams.location); // Use distinct param for job location
-      if (jParams.category) query.set('jobCategory', jParams.category); // Use distinct param for job category
+      if (jParams.location) query.set('jobLocation', jParams.location);
+      if (jParams.category) query.set('jobCategory', jParams.category);
     }
     router.push(`/search?${query.toString()}`, { scroll: false });
   };
@@ -79,7 +78,7 @@ export default function SearchPage() {
   const handleSearch = async (event?: FormEvent<HTMLFormElement>) => {
     if (event) event.preventDefault();
     setIsLoading(true);
-    setHasSearched(true); // Mark that a search attempt has been made
+    setHasSearched(true);
 
     if (searchMode === 'providers') {
       const params: ProviderSearchParams = {
@@ -105,11 +104,10 @@ export default function SearchPage() {
     setIsLoading(false);
   };
   
-  // Effect to initialize state from URL and perform initial search
   useEffect(() => {
     const currentMode = (memoizedNextSearchParams.get('mode') as SearchMode) || 'providers';
     setSearchMode(currentMode);
-    setHasSearched(false); // Reset hasSearched on mode change or param change
+    setHasSearched(false); 
     setProviderResults([]);
     setJobResults([]);
 
@@ -144,25 +142,20 @@ export default function SearchPage() {
     }
 
     if (performInitialSearch) {
-      handleSearch(); // Call handleSearch which will set isLoading and hasSearched
+      handleSearch(); 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [memoizedNextSearchParams]); // Depend on memoizedNextSearchParams
+  }, [memoizedNextSearchParams]); 
 
   const handleModeChange = (newMode: SearchMode) => {
     setSearchMode(newMode);
-    setHasSearched(false); // Reset search status
-    setProviderResults([]); // Clear previous results
-    setJobResults([]);     // Clear previous results
-    // Update URL to reflect new mode, keeping other relevant params if desired or clearing them
+    setHasSearched(false); 
+    setProviderResults([]); 
+    setJobResults([]);     
     const params = new URLSearchParams(memoizedNextSearchParams);
     params.set('mode', newMode);
-    // Optionally clear params from other mode
-    // if (newMode === 'providers') { params.delete('keywords'); params.delete('jobLocation'); params.delete('jobCategory'); }
-    // else { params.delete('query'); params.delete('location'); params.delete('category'); params.delete('minRating'); params.delete('verifiedOnly'); }
     router.push(`/search?${params.toString()}`, { scroll: false });
   };
-
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -319,9 +312,6 @@ export default function SearchPage() {
               </>
             )}
             
-            {/* Placeholder for job-specific filters e.g. Posted Date */}
-            {/* {searchMode === 'jobs' && ( ... )} */}
-
             <Button onClick={() => handleSearch()} className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
               Apply Filters
@@ -392,3 +382,36 @@ export default function SearchPage() {
   );
 }
 
+
+export default function SearchPage() {
+  const SuspenseFallback = (
+    <div className="container mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end mb-8 p-6 bg-card rounded-lg shadow">
+            <div className="h-10 bg-muted rounded animate-pulse col-span-2 md:col-span-1"></div>
+            <div className="h-10 bg-muted rounded animate-pulse col-span-2 md:col-span-1"></div>
+            <div className="h-10 bg-muted rounded animate-pulse col-span-2 md:col-span-1"></div>
+        </div>
+        <div className="flex flex-col md:flex-row gap-8">
+            <aside className="w-full md:w-1/4 lg:w-1/5">
+                <div className="p-6 bg-card rounded-lg shadow space-y-6 sticky top-20">
+                    <div className="h-6 w-1/2 bg-muted rounded animate-pulse"></div>
+                    <div className="h-10 bg-muted rounded animate-pulse"></div>
+                    <div className="h-10 bg-muted rounded animate-pulse"></div>
+                    <div className="h-10 bg-muted rounded animate-pulse"></div>
+                </div>
+            </aside>
+            <main className="w-full md:w-3/4 lg:w-4/5">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {[...Array(6)].map((_, i) => <ProviderCardSkeleton key={i} />)}
+                </div>
+            </main>
+        </div>
+    </div>
+  );
+
+  return (
+    <Suspense fallback={SuspenseFallback}>
+      <SearchPageContent />
+    </Suspense>
+  );
+}
