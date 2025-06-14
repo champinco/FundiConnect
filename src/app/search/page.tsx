@@ -18,6 +18,10 @@ import type { ServiceCategory } from '@/components/service-category-icon';
 import { searchProvidersAction, type SearchParams as ProviderSearchParams, searchJobsAction, type JobSearchParams } from './actions';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import type { JobStatus } from '@/models/job';
+
 
 const allServiceCategoriesList: (ServiceCategory | 'All')[] = [
   'All', 'Plumbing', 'Electrical', 'Appliance Repair', 'Garbage Collection', 'HVAC',
@@ -29,14 +33,14 @@ type SearchMode = 'providers' | 'jobs';
 
 function SearchPageContent() {
   const router = useRouter();
-  const nextSearchParams = useSearchParams(); // Raw searchParams from Next
+  const nextSearchParams = useSearchParams(); 
 
-  // Memoize nextSearchParams to prevent unnecessary re-renders of useEffect,
-  // but ensure it updates when actual query string changes.
   const memoizedNextSearchParams = useMemo(() => {
     return new URLSearchParams(nextSearchParams.toString());
   }, [nextSearchParams]);
 
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const [searchMode, setSearchMode] = useState<SearchMode>('providers');
 
@@ -57,12 +61,25 @@ function SearchPageContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
+  useEffect(() => {
+    setAuthLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
 
   const executeSearch = useCallback(async () => {
-    setIsLoading(true);
-    setHasSearched(true); // Mark that a search attempt has been made
+    if (authLoading) return; // Don't search if auth state is not yet resolved
 
-    if (searchMode === 'providers') {
+    setIsLoading(true);
+    setHasSearched(true); 
+
+    const currentModeFromUrl = (memoizedNextSearchParams.get('mode') as SearchMode) || searchMode;
+
+    if (currentModeFromUrl === 'providers') {
       const params: ProviderSearchParams = {
         query: providerSearchQuery,
         location: providerLocationQuery,
@@ -72,96 +89,100 @@ function SearchPageContent() {
       };
       const providers = await searchProvidersAction(params);
       setProviderResults(providers);
-    } else if (searchMode === 'jobs') {
+    } else if (currentModeFromUrl === 'jobs') {
+      const myJobsFlag = memoizedNextSearchParams.get('myJobs') === 'true';
+      const statusFilter = memoizedNextSearchParams.get('status') as JobStatus | null;
+
       const params: JobSearchParams = {
         keywords: jobKeywordsQuery,
         location: jobLocationQuery,
         category: selectedJobCategory === 'All' ? null : selectedJobCategory,
+        isMyJobsSearch: myJobsFlag,
+        currentUserId: myJobsFlag && currentUser ? currentUser.uid : null,
+        filterByStatus: statusFilter,
       };
       const jobs = await searchJobsAction(params);
       setJobResults(jobs);
     }
     setIsLoading(false);
-  }, [searchMode, providerSearchQuery, providerLocationQuery, selectedProviderCategory, minRating, verifiedOnly, jobKeywordsQuery, jobLocationQuery, selectedJobCategory]);
+  }, [
+    authLoading, currentUser, searchMode, memoizedNextSearchParams, // Ensure these are stable or correctly trigger re-evaluation
+    providerSearchQuery, providerLocationQuery, selectedProviderCategory, minRating, verifiedOnly,
+    jobKeywordsQuery, jobLocationQuery, selectedJobCategory
+  ]);
 
 
   useEffect(() => {
+    if (authLoading) return; // Wait for auth state
+
     const currentModeFromUrl = (memoizedNextSearchParams.get('mode') as SearchMode) || 'providers';
     setSearchMode(currentModeFromUrl);
+    
+    let shouldExecute = false;
 
-    // Sync local state from URL
     if (currentModeFromUrl === 'providers') {
       setProviderSearchQuery(memoizedNextSearchParams.get('query') || '');
       setProviderLocationQuery(memoizedNextSearchParams.get('location') || '');
       setSelectedProviderCategory((memoizedNextSearchParams.get('category') as ServiceCategory | 'All') || 'All');
       setMinRating(memoizedNextSearchParams.get('minRating') ? parseFloat(memoizedNextSearchParams.get('minRating')!) : null);
       setVerifiedOnly(memoizedNextSearchParams.get('verifiedOnly') === 'true');
-    } else { // jobs mode
-      setJobKeywordsQuery(memoizedNextSearchParams.get('keywords') || '');
-      setJobLocationQuery(memoizedNextSearchParams.get('jobLocation') || '');
-      setSelectedJobCategory((memoizedNextSearchParams.get('jobCategory') as ServiceCategory | 'All') || 'All');
-    }
-
-    // Determine if a search should be executed based on current URL params
-    let shouldExecute = false;
-    if (currentModeFromUrl === 'jobs') {
-      // For jobs, always execute search to show available jobs, even if no specific filters.
-      shouldExecute = true;
-    } else if (currentModeFromUrl === 'providers') {
-      // For providers, execute search if there's any provider-specific query param.
-      if (memoizedNextSearchParams.get('query') ||
-          memoizedNextSearchParams.get('location') ||
-          (memoizedNextSearchParams.get('category') && memoizedNextSearchParams.get('category') !== 'All') ||
-          memoizedNextSearchParams.get('minRating') ||
-          memoizedNextSearchParams.get('verifiedOnly')) {
+      if (memoizedNextSearchParams.has('query') || memoizedNextSearchParams.has('location') || (memoizedNextSearchParams.get('category') && memoizedNextSearchParams.get('category') !== 'All') || memoizedNextSearchParams.has('minRating') || memoizedNextSearchParams.has('verifiedOnly')) {
         shouldExecute = true;
       }
+    } else { // jobs mode
+      setJobKeywordsQuery(memoizedNextSearchParams.get('keywords') || '');
+      setJobLocationQuery(memoizedNextSearchParams.get('jobLocation') || ''); // Ensure this key is used consistently
+      setSelectedJobCategory((memoizedNextSearchParams.get('jobCategory') as ServiceCategory | 'All') || 'All'); // Ensure this key is used
+      shouldExecute = true; // For jobs, usually always search initially
     }
-     // If page was linked with myJobs or status, always execute
-    if (memoizedNextSearchParams.has('myJobs') || memoizedNextSearchParams.has('status')) {
-      shouldExecute = true;
+
+    if (memoizedNextSearchParams.get('myJobs') === 'true' && currentModeFromUrl === 'jobs') {
+        if (currentUser) { // Only execute if user is known for myJobs
+            shouldExecute = true;
+        } else if (!authLoading) { // If auth done and no user, don't execute myJobs
+            shouldExecute = false; 
+            setJobResults([]);
+            setIsLoading(false);
+            setHasSearched(true);
+        }
+        // If authLoading, skip for now, will re-run when authLoading is false
     }
 
 
-    if (shouldExecute) {
+    if (shouldExecute && !authLoading) { // Ensure auth is resolved before executing
       executeSearch();
-    } else {
-      // If no params indicate a search, clear results and set searched state
-      // This case is mainly for providers if no filters are set.
+    } else if (!shouldExecute && !authLoading) {
       setProviderResults([]);
       setJobResults([]);
       setIsLoading(false);
-      setHasSearched(true); // Still counts as "searched" but with no criteria leading to results.
+      setHasSearched(true); 
     }
-  }, [memoizedNextSearchParams, executeSearch]); // executeSearch is stable
+  }, [memoizedNextSearchParams, authLoading, currentUser, executeSearch]); // executeSearch is memoized
+
 
   const handleModeChange = (newMode: SearchMode) => {
-    // setSearchMode(newMode); // This will be set by the useEffect reacting to URL change
     setHasSearched(false);
     setProviderResults([]);
     setJobResults([]);
 
-    const params = new URLSearchParams(); // Start fresh for mode change
+    const params = new URLSearchParams(); 
     params.set('mode', newMode);
-    // Note: We are not carrying over old filters from the other mode.
-    // If specific filters were set, they would be cleared upon mode switch
-    // and then re-populated from URL if they existed for the *new* mode.
     router.push(`/search?${params.toString()}`, { scroll: false });
   };
 
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const query = new URLSearchParams(memoizedNextSearchParams); // Preserve existing unrelated params if any
+    const query = new URLSearchParams(memoizedNextSearchParams); 
     query.set('mode', searchMode);
 
     if (searchMode === 'providers') {
       if (providerSearchQuery.trim()) query.set('query', providerSearchQuery.trim()); else query.delete('query');
       if (providerLocationQuery.trim()) query.set('location', providerLocationQuery.trim()); else query.delete('location');
-      // Category, rating, verified are handled by Apply Filters button
+      // Category, rating, verifiedOnly are applied via handleApplyFilters which also updates URL
     } else { // jobs
       if (jobKeywordsQuery.trim()) query.set('keywords', jobKeywordsQuery.trim()); else query.delete('keywords');
       if (jobLocationQuery.trim()) query.set('jobLocation', jobLocationQuery.trim()); else query.delete('jobLocation');
-      // Category for jobs handled by Apply Filters
+      // Category for jobs applied via handleApplyFilters
     }
     router.push(`/search?${query.toString()}`, { scroll: false });
   };
@@ -174,13 +195,11 @@ function SearchPageContent() {
       if (selectedProviderCategory === 'All') query.delete('category'); else query.set('category', selectedProviderCategory);
       if (minRating === null) query.delete('minRating'); else query.set('minRating', minRating.toString());
       if (verifiedOnly) query.set('verifiedOnly', 'true'); else query.delete('verifiedOnly');
-       // Persist main search query and location from form inputs if they exist
       if (providerSearchQuery.trim()) query.set('query', providerSearchQuery.trim()); else query.delete('query');
       if (providerLocationQuery.trim()) query.set('location', providerLocationQuery.trim()); else query.delete('location');
 
     } else { // jobs
       if (selectedJobCategory === 'All') query.delete('jobCategory'); else query.set('jobCategory', selectedJobCategory);
-      // Persist main search query and location from form inputs if they exist
       if (jobKeywordsQuery.trim()) query.set('keywords', jobKeywordsQuery.trim()); else query.delete('keywords');
       if (jobLocationQuery.trim()) query.set('jobLocation', jobLocationQuery.trim()); else query.delete('jobLocation');
     }
@@ -239,8 +258,8 @@ function SearchPageContent() {
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
+            <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" disabled={isLoading || authLoading}>
+              {(isLoading || authLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
               Search Providers
             </Button>
           </div>
@@ -274,8 +293,8 @@ function SearchPageContent() {
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
+            <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" disabled={isLoading || authLoading}>
+              {(isLoading || authLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
               Search Jobs
             </Button>
           </div>
@@ -343,15 +362,15 @@ function SearchPageContent() {
               </>
             )}
 
-            <Button onClick={handleApplyFilters} className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
+            <Button onClick={handleApplyFilters} className="w-full bg-primary hover:bg-primary/90" disabled={isLoading || authLoading}>
+              {(isLoading || authLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
               Apply Filters
             </Button>
           </div>
         </aside>
 
         <main className="w-full md:w-3/4 lg:w-4/5">
-          {isLoading && (
+          {(isLoading || authLoading) && (
             <div className={`grid grid-cols-1 sm:grid-cols-2 ${searchMode === 'providers' ? 'xl:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
               {[...Array(searchMode === 'providers' ? 6 : 4)].map((_, i) =>
                 searchMode === 'providers'
@@ -360,21 +379,21 @@ function SearchPageContent() {
               )}
             </div>
           )}
-          {!isLoading && hasSearched && searchMode === 'providers' && providerResults.length > 0 && (
+          {!isLoading && !authLoading && hasSearched && searchMode === 'providers' && providerResults.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
               {providerResults.map((provider) => (
                 <ProviderCard key={provider.id} provider={provider} />
               ))}
             </div>
           )}
-          {!isLoading && hasSearched && searchMode === 'jobs' && jobResults.length > 0 && (
+          {!isLoading && !authLoading && hasSearched && searchMode === 'jobs' && jobResults.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {jobResults.map((job) => (
                 <JobCard key={job.id} job={job} />
               ))}
             </div>
           )}
-          {!isLoading && hasSearched && (
+          {!isLoading && !authLoading && hasSearched && (
             (searchMode === 'providers' && providerResults.length === 0) ||
             (searchMode === 'jobs' && jobResults.length === 0)
           ) && (
@@ -394,7 +413,7 @@ function SearchPageContent() {
                 )}
               </div>
             )}
-          {!isLoading && !hasSearched && ( // Initial state before any search is triggered by URL or user
+          {!isLoading && !authLoading && !hasSearched && ( 
             <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
               <SearchIcon className="mx-auto h-16 w-16 text-primary mb-4" />
               <h3 className="text-2xl font-semibold mb-2">

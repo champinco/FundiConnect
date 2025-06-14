@@ -102,7 +102,9 @@ export interface JobSearchParams {
   keywords?: string | null;
   location?: string | null;
   category?: ServiceCategory | 'All' | null;
-  // postedDateRange?: '24h' | '7d' | '30d' | null; // We can add this later
+  currentUserId?: string | null; 
+  filterByStatus?: JobStatus | JobStatus[] | null; 
+  isMyJobsSearch?: boolean; 
 }
 
 export async function searchJobsAction(params: JobSearchParams): Promise<JobCardProps['job'][]> {
@@ -110,26 +112,30 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     const jobsRef = collection(db, 'jobs');
     const queryConstraints: QueryConstraint[] = [];
 
-    // Filter by job status - only 'open' or 'pending_quotes'
-    queryConstraints.push(where('status', 'in', ['open', 'pending_quotes']));
-
-    // Category filter
-    if (params.category && params.category !== 'All') {
-      queryConstraints.push(where('serviceCategory', '==', params.category));
+    if (params.isMyJobsSearch && params.currentUserId) {
+      queryConstraints.push(where('clientId', '==', params.currentUserId));
+      if (params.filterByStatus) {
+        if (Array.isArray(params.filterByStatus) && params.filterByStatus.length > 0) {
+          queryConstraints.push(where('status', 'in', params.filterByStatus));
+        } else if (typeof params.filterByStatus === 'string') {
+          queryConstraints.push(where('status', '==', params.filterByStatus));
+        }
+        // If filterByStatus is an empty array or null/undefined, we show relevant active statuses for "my jobs"
+        else {
+             queryConstraints.push(where('status', 'in', ['open', 'pending_quotes', 'assigned', 'in_progress']));
+        }
+      } else {
+        // Default statuses for "my jobs" if no specific status filter is applied
+        queryConstraints.push(where('status', 'in', ['open', 'pending_quotes', 'assigned', 'in_progress', 'completed']));
+      }
+    } else {
+      // Default behavior for general job search: only open or pending_quotes
+      queryConstraints.push(where('status', 'in', ['open', 'pending_quotes']));
     }
 
-    // Location filter (simple text match on job's primary location field for now)
-    // For more advanced location, we'd need to standardize location data or use geoqueries.
-    if (params.location && params.location.trim() !== '') {
-      // Firestore text search capabilities are limited. For a simple start:
-      // This will be a case-sensitive exact match on the location field.
-      // A more robust solution would involve tokenizing location strings or using a search service.
-      // For MVP, we can make users aware of this limitation or try a prefix match if supported easily.
-      // Let's try to filter client-side for location text matching as well for more flexibility
-      // queryConstraints.push(where('location', '>=', params.location.trim()));
-      // queryConstraints.push(where('location', '<=', params.location.trim() + '\uf8ff'));
-      // The above creates a range query, not ideal for partial matches.
-      // For now, we'll rely on a broader fetch and then filter client-side for location and keywords.
+    // Category filter (applies to both general and "my jobs" search if provided)
+    if (params.category && params.category !== 'All') {
+      queryConstraints.push(where('serviceCategory', '==', params.category));
     }
     
     queryConstraints.push(orderBy('postedAt', 'desc'));
@@ -151,6 +157,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     });
 
     // Client-side filtering for location (case-insensitive partial match)
+    // This applies after initial DB query, useful if DB query for location is broad or not used.
     if (params.location && params.location.trim() !== '') {
       const locationTerm = params.location.trim().toLowerCase();
       jobsData = jobsData.filter(job => job.location.toLowerCase().includes(locationTerm));

@@ -166,7 +166,9 @@ export default function DashboardPage() {
               <p>Open Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.open}</span></p>
               <p>Assigned/In Progress: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.assigned + clientData.jobSummary.inProgress}</span></p>
               <p>Completed Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.completed}</span></p>
-              <p>Total Jobs Posted: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.total}</span></p>
+              <Link href="/search?myJobs=true" className="hover:text-primary hover:underline block">
+                Total Jobs Posted: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.total}</span>
+              </Link>
             </CardContent>
             <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
               <Button asChild className="w-full sm:flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
