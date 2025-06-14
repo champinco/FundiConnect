@@ -11,7 +11,7 @@ import SubmitQuoteForm from './components/submit-quote-form';
 import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
 import MarkAsCompletedButton from './components/mark-as-completed-button'; 
-import { fetchJobDetailsPageDataAction } from './actions'; // Updated import
+import { fetchJobDetailsPageDataAction } from './actions';
 
 // Helper function to format dates dynamically
 const formatDynamicDate = (dateInput: Date | string | number | undefined | null, includeTime: boolean = false): string => {
@@ -30,8 +30,12 @@ const formatDynamicDate = (dateInput: Date | string | number | undefined | null,
 };
 
 
-export default async function JobDetailPage({ params }: { params: { jobId: string } }) {
+export default async function JobDetailPage({ params: routeParams }: { params: { jobId: string } }) {
+  // Await params as suggested by the Next.js error message for dynamic server components
+  const params = await routeParams;
   const jobId = params.jobId;
+  console.log(`[JobDetailPage] Resolved jobId: ${jobId}`);
+
   const { job, quotes, error } = await fetchJobDetailsPageDataAction(jobId);
 
   if (error || !job) {
@@ -249,3 +253,4 @@ const AvatarFallback: React.FC<{children: React.ReactNode}> = ({children}) => (
     {children}
   </div>
 );
+

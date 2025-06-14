@@ -156,7 +156,9 @@ export interface JobDetailsPageData {
 }
 
 export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobDetailsPageData> {
+  console.log(`[fetchJobDetailsPageDataAction] Received jobId: ${jobId}, typeof: ${typeof jobId}`);
   if (!jobId) {
+    console.error("[fetchJobDetailsPageDataAction] Job ID is missing.");
     return { job: null, quotes: [], error: "Job ID is missing." };
   }
   try {
@@ -172,3 +174,4 @@ export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobD
     return { job: null, quotes: [], error: error.message || "Failed to load job details." };
   }
 }
+
