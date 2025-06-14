@@ -136,9 +136,8 @@ function SearchPageContent() {
       setJobKeywordsQuery(keywordsParam);
       setJobLocationQuery(jobLocationParam);
       setSelectedJobCategory(jobCategoryParam);
-       if (keywordsParam || jobLocationParam || jobCategoryParam !== 'All') {
-        performInitialSearch = true;
-      }
+      // Always perform an initial search if in 'jobs' mode to show available jobs
+      performInitialSearch = true; 
     }
 
     if (performInitialSearch) {
@@ -154,6 +153,18 @@ function SearchPageContent() {
     setJobResults([]);     
     const params = new URLSearchParams(memoizedNextSearchParams);
     params.set('mode', newMode);
+    // Clear previous mode's specific query params
+    if (newMode === 'jobs') {
+        params.delete('query');
+        params.delete('location');
+        params.delete('category');
+        params.delete('minRating');
+        params.delete('verifiedOnly');
+    } else {
+        params.delete('keywords');
+        params.delete('jobLocation');
+        params.delete('jobCategory');
+    }
     router.push(`/search?${params.toString()}`, { scroll: false });
   };
 
@@ -415,3 +426,5 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+
+    
