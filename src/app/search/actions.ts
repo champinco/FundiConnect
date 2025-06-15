@@ -2,22 +2,31 @@
 'use server';
 
 import { adminDb } from '@/lib/firebaseAdmin';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  orderBy, 
-  limit, 
-  type QueryConstraint, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  limit,
+  type QueryConstraint,
   FieldPath,
-  Timestamp as AdminTimestamp // Import AdminTimestamp
+  Timestamp as AdminTimestamp
 } from 'firebase-admin/firestore';
 import type { ProviderProfile } from '@/models/provider';
 import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
 import type { Job, JobStatus } from '@/models/job';
 import type { JobCardProps } from '@/components/job-card';
+
+console.log('[search/actions.ts] Module loaded. Verifying top-level Firestore imports:');
+console.log('typeof adminDb (at module load):', typeof adminDb); // adminDb might be null here if firebaseAdmin hasn't run yet
+console.log('typeof collection (from firebase-admin/firestore):', typeof collection);
+console.log('typeof query (from firebase-admin/firestore):', typeof query);
+console.log('typeof where (from firebase-admin/firestore):', typeof where);
+console.log('typeof orderBy (from firebase-admin/firestore):', typeof orderBy);
+console.log('typeof limit (from firebase-admin/firestore):', typeof limit);
+console.log('typeof getDocs (from firebase-admin/firestore):', typeof getDocs);
 
 export interface SearchParams {
   query?: string | null;
@@ -28,9 +37,22 @@ export interface SearchParams {
 }
 
 export async function searchProvidersAction(params: SearchParams): Promise<Provider[]> {
+  console.log('[searchProvidersAction] Initiated with params:', JSON.stringify(params));
+  console.log('[searchProvidersAction] Verifying imports inside action:');
+  console.log('typeof adminDb:', typeof adminDb, adminDb ? 'exists' : 'null or undefined');
+  console.log('typeof collection:', typeof collection);
+  console.log('typeof query:', typeof query);
+  console.log('typeof where:', typeof where);
+  console.log('typeof orderBy:', typeof orderBy);
+  console.log('typeof limit:', typeof limit);
+
   if (!adminDb) {
-    console.error("[searchProvidersAction] CRITICAL: Admin DB not initialized. Aborting search.");
+    console.error("[searchProvidersAction] CRITICAL: adminDb is not initialized at the time of action execution.");
     throw new Error("Server error: Database service is not available. Please try again later.");
+  }
+  if (typeof collection !== 'function' || typeof query !== 'function' || typeof where !== 'function' || typeof orderBy !== 'function' || typeof limit !== 'function') {
+    console.error("[searchProvidersAction] CRITICAL: One or more Firestore functions are not correctly imported or available.");
+    throw new Error("Server error: Core database functions are missing. Please try again later.");
   }
 
   try {
@@ -47,28 +69,31 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
 
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
-      // Assuming serviceAreas is an array field in Firestore
-      queryConstraints.push(where('serviceAreas', 'array-contains', locationSearchTerm));
+      // Assuming location is a string field. For array contains, use:
+      // queryConstraints.push(where('serviceAreas', 'array-contains', locationSearchTerm));
+      // For now, let's assume simple string equality or prefix for 'location' if it's not an array.
+      // This part might need adjustment based on actual 'location' field structure.
+      // For simplicity, if 'location' is a primary field like 'city', this might be:
+      queryConstraints.push(where('location', '>=', locationSearchTerm));
+      queryConstraints.push(where('location', '<=', locationSearchTerm + '\uf8ff'));
     }
 
     if (params.minRating && params.minRating > 0) {
       queryConstraints.push(where('rating', '>=', params.minRating));
-      // Add orderBy if not already added by another constraint (FieldPath check might be complex here)
-      // It's generally safe to add orderBy if a where filter on the same field exists.
-      // Firestore requires an orderBy for inequality filters if not the first orderBy.
-       if (!queryConstraints.some(c => (c as any)._fieldPath?.isEqual?.(new FieldPath('rating')) && (c as any)._op === 'orderBy')) {
-         queryConstraints.push(orderBy('rating', 'desc'));
-       }
+      // Ensure orderBy rating is only added if not already sorting by something else that takes precedence
+      if (!queryConstraints.some(c => (c as any)._fieldPath?.isEqual?.(new FieldPath('rating')) && (c as any)._op === 'orderBy')) {
+        queryConstraints.push(orderBy('rating', 'desc'));
+      }
     }
 
-    // Default sort order if no rating sort is applied
     if (!queryConstraints.some(c => (c as any)._fieldPath?.isEqual?.(new FieldPath('rating')) || (c as any)._fieldPath?.isEqual?.(new FieldPath('businessName')))) {
-        queryConstraints.push(orderBy('businessName'));
+      queryConstraints.push(orderBy('businessName')); // Default sort
     }
 
     queryConstraints.push(limit(50));
 
     const firestoreQuery = query(providersRef, ...queryConstraints);
+    console.log('[searchProvidersAction] Executing Firestore query for providers.');
     const querySnapshot = await getDocs(firestoreQuery);
     let providersData: Provider[] = [];
 
@@ -80,7 +105,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
         profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/600x400.png',
         rating: data.rating || 0,
         reviewsCount: data.reviewsCount || 0,
-        location: data.location,
+        location: data.location, // Make sure this field exists and is a string
         mainService: data.mainService,
         isVerified: data.isVerified || false,
         verificationAuthority: data.verificationAuthority,
@@ -94,13 +119,13 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
         p.name.toLowerCase().includes(searchTerm) ||
         p.mainService.toLowerCase().includes(searchTerm) ||
         (p.bioSummary && p.bioSummary.toLowerCase().includes(searchTerm)) ||
-        (p.location && p.location.toLowerCase().includes(searchTerm))
+        (p.location && p.location.toLowerCase().includes(searchTerm)) // Ensure p.location is string
       );
     }
-
+    console.log(`[searchProvidersAction] Found ${providersData.length} providers.`);
     return providersData;
   } catch (error: any) {
-    console.error("[searchProvidersAction] Error during provider search:", error.message, error.stack);
+    console.error("[searchProvidersAction] Error during provider search. Details:", error.message, error.stack);
     throw new Error("An error occurred while searching for providers. Please try again.");
   }
 }
@@ -110,37 +135,54 @@ export interface JobSearchParams {
   location?: string | null;
   category?: ServiceCategory | 'All' | null;
   currentUserId?: string | null;
-  filterByStatus?: JobStatus | JobStatus[] | string | null; 
+  filterByStatus?: JobStatus | JobStatus[] | string | null;
   isMyJobsSearch?: boolean;
 }
 
 export async function searchJobsAction(params: JobSearchParams): Promise<JobCardProps['job'][]> {
+  console.log('[searchJobsAction] Initiated with params:', JSON.stringify(params));
+  console.log('[searchJobsAction] Verifying imports inside action:');
+  console.log('typeof adminDb:', typeof adminDb, adminDb ? 'exists' : 'null or undefined');
+  console.log('typeof collection:', typeof collection);
+  console.log('typeof query:', typeof query);
+  console.log('typeof where:', typeof where);
+  console.log('typeof orderBy:', typeof orderBy);
+  console.log('typeof limit:', typeof limit);
+
   if (!adminDb) {
-    console.error("[searchJobsAction] CRITICAL: Admin DB not initialized. Aborting search.");
+    console.error("[searchJobsAction] CRITICAL: adminDb is not initialized at the time of action execution.");
     throw new Error("Server error: Database service is not available. Please try again later.");
+  }
+  if (typeof collection !== 'function' || typeof query !== 'function' || typeof where !== 'function' || typeof orderBy !== 'function' || typeof limit !== 'function') {
+    console.error("[searchJobsAction] CRITICAL: One or more Firestore functions are not correctly imported or available.");
+    throw new Error("Server error: Core database functions are missing. Please try again later.");
+  }
+
+
+  if (params.isMyJobsSearch && !params.currentUserId) {
+    console.warn("[searchJobsAction] 'myJobs' search initiated without a currentUserId. Returning empty results.");
+    return [];
   }
 
   try {
     const jobsCollectionRef = collection(adminDb, 'jobs');
     const queryConstraints: QueryConstraint[] = [];
 
-    if (params.isMyJobsSearch) {
-      if (!params.currentUserId) {
-        console.warn("[searchJobsAction] 'myJobs' search initiated without a currentUserId. Returning empty results.");
-        return [];
-      }
+    if (params.isMyJobsSearch && params.currentUserId) {
       queryConstraints.push(where('clientId', '==', params.currentUserId));
-
       if (params.filterByStatus && params.filterByStatus !== 'all_my') {
         if (Array.isArray(params.filterByStatus) && params.filterByStatus.length > 0) {
           queryConstraints.push(where('status', 'in', params.filterByStatus));
         } else if (typeof params.filterByStatus === 'string') {
           queryConstraints.push(where('status', '==', params.filterByStatus));
         }
-      } else if (params.filterByStatus === null || params.filterByStatus === undefined) {
-        queryConstraints.push(where('status', 'in', ['open', 'pending_quotes', 'assigned', 'in_progress', 'completed']));
+      } else if (!params.filterByStatus || params.filterByStatus !== 'all_my') {
+        // Default active statuses if not 'all_my' and no specific status
+         queryConstraints.push(where('status', 'in', ['open', 'pending_quotes', 'assigned', 'in_progress', 'completed']));
       }
+      // If filterByStatus is 'all_my', no status filter is applied for this client.
     } else {
+      // General provider job search
       queryConstraints.push(where('status', 'in', ['open', 'pending_quotes']));
     }
 
@@ -152,12 +194,12 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     queryConstraints.push(limit(50));
 
     const firestoreQuery = query(jobsCollectionRef, ...queryConstraints);
+    console.log('[searchJobsAction] Executing Firestore query for jobs.');
     const querySnapshot = await getDocs(firestoreQuery);
 
     let jobsData: Job[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      // Convert Timestamps to Dates
       const postedAt = (data.postedAt as AdminTimestamp)?.toDate();
       const updatedAt = (data.updatedAt as AdminTimestamp)?.toDate();
       const deadline = data.deadline ? (data.deadline as AdminTimestamp).toDate() : null;
@@ -183,22 +225,23 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
         (job.description && job.description.toLowerCase().includes(keywordTerm))
       );
     }
-    
+
     const jobCardData: JobCardProps['job'][] = jobsData.map(job => ({
       id: job.id,
       title: job.title,
       serviceCategory: job.serviceCategory,
       otherCategoryDescription: job.otherCategoryDescription,
       location: job.location,
-      postedAt: job.postedAt, // This is now a Date object
+      postedAt: job.postedAt,
       status: job.status,
-      description: job.description,
+      description: job.description, // Ensure description is passed
     }));
-
+    console.log(`[searchJobsAction] Found ${jobCardData.length} jobs.`);
     return jobCardData;
 
   } catch (error: any) {
-    console.error("[searchJobsAction] Error during job search:", error.message, error.stack);
+    console.error("[searchJobsAction] Error during job search. Details:", error.message, error.stack);
     throw new Error("An error occurred while searching for jobs. Please try again.");
   }
 }
+    
