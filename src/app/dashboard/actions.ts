@@ -28,37 +28,49 @@ export interface DashboardPageData {
 }
 
 export async function fetchDashboardDataAction(userId: string): Promise<DashboardPageData> {
-  if (!adminDb) {
-    console.error("[fetchDashboardDataAction] CRITICAL: Admin DB not initialized. Aborting fetch.");
-    return { appUser: null, dashboardData: null, error: "Server error: Database service is not available." };
+  console.log(`[fetchDashboardDataAction] Initiated for userId: ${userId}`);
+  console.log(`[fetchDashboardDataAction] Verifying adminDb. typeof adminDb: ${typeof adminDb}, typeof adminDb?.collection: ${typeof adminDb?.collection}`);
+
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[fetchDashboardDataAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function. Aborting fetch.");
+    return { appUser: null, dashboardData: null, error: "Server error: Database service is not available for dashboard." };
   }
   if (!userId) {
+    console.warn("[fetchDashboardDataAction] userId is missing.");
     return { appUser: null, dashboardData: null, error: "User not authenticated." };
   }
 
   try {
+    console.log(`[fetchDashboardDataAction] Attempting to get user profile for ${userId}`);
     const userProfile = await getUserProfileFromFirestore(userId);
     if (!userProfile) {
+      console.warn(`[fetchDashboardDataAction] User profile not found for userId: ${userId}`);
       return { appUser: null, dashboardData: null, error: "User profile not found." };
     }
+    console.log(`[fetchDashboardDataAction] User profile loaded. Account type: ${userProfile.accountType}`);
 
     if (userProfile.accountType === 'client') {
+      console.log(`[fetchDashboardDataAction] Fetching job summary for client: ${userId}`);
       const jobSummary = await getJobSummaryForClient(userId);
+      console.log(`[fetchDashboardDataAction] Job summary fetched:`, jobSummary);
       return { appUser: userProfile, dashboardData: { jobSummary } };
     } else if (userProfile.accountType === 'provider') {
+      console.log(`[fetchDashboardDataAction] Fetching data for provider: ${userId}`);
       const [providerProfileData, quoteSummary, assignedJobs] = await Promise.all([
         getProviderProfileFromFirestore(userId),
         getSubmittedQuotesSummaryForProvider(userId),
         getAssignedJobsForProvider(userId, 3)
       ]);
+      console.log(`[fetchDashboardDataAction] Provider data fetched. Profile: ${providerProfileData ? 'Loaded' : 'Not Found'}, Quotes:`, quoteSummary, "Assigned Jobs:", assignedJobs.length);
       return { appUser: userProfile, dashboardData: { providerProfile: providerProfileData, quoteSummary, assignedJobs } };
     }
-    // This case should ideally not be reached if accountType is always client or provider
+    
     console.warn(`[fetchDashboardDataAction] Unknown account type "${userProfile.accountType}" for user ID: ${userId}`);
     return { appUser: userProfile, dashboardData: null, error: "Unknown account type encountered." };
   } catch (error: any) {
-    console.error("[fetchDashboardDataAction] Error fetching dashboard data. User ID:", userId, "Error Details:", error.message, error.stack);
+    console.error("[fetchDashboardDataAction] Top-level error fetching dashboard data. User ID:", userId);
+    console.error("[fetchDashboardDataAction] Error Message:", error.message);
+    console.error("[fetchDashboardDataAction] Error Stack:", error.stack);
     return { appUser: null, dashboardData: null, error: error.message || "Failed to load dashboard data due to an unexpected server error." };
   }
 }
-
