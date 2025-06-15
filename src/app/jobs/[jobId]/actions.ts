@@ -8,6 +8,7 @@ import type { Job, JobStatus } from '@/models/job';
 import { submitReview, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
 import type { User as AppUser } from '@/models/user';
 import { getUserProfileFromFirestore } from '@/services/userService';
+import { adminDb } from '@/lib/firebaseAdmin';
 
 
 interface SubmitQuoteResult {
@@ -19,6 +20,10 @@ interface SubmitQuoteResult {
 export async function submitQuoteAction(
   data: Omit<SubmitQuoteData, 'providerId'> & { providerId: string }
 ): Promise<SubmitQuoteResult> {
+  if (!adminDb) {
+    console.error("[submitQuoteAction] Admin DB not initialized.");
+    return { success: false, message: "Server error: Could not submit quote." };
+  }
   try {
     const quoteDataForService: SubmitQuoteData = {
       jobId: data.jobId,
@@ -44,6 +49,10 @@ interface UpdateQuoteStatusResult {
 }
 
 export async function acceptQuoteAction(jobId: string, quoteId: string, providerIdToAssign: string): Promise<UpdateQuoteStatusResult> {
+  if (!adminDb) {
+    console.error("[acceptQuoteAction] Admin DB not initialized.");
+    return { success: false, message: "Server error: Could not accept quote." };
+  }
   try {
     const quoteToAccept = await getQuoteById(quoteId);
     if (!quoteToAccept) {
@@ -67,6 +76,10 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
 }
 
 export async function rejectQuoteAction(quoteId: string): Promise<UpdateQuoteStatusResult> {
+  if (!adminDb) {
+    console.error("[rejectQuoteAction] Admin DB not initialized.");
+    return { success: false, message: "Server error: Could not reject quote." };
+  }
   try {
     const quoteToReject = await getQuoteById(quoteId);
     if (!quoteToReject) {
@@ -91,6 +104,10 @@ interface SubmitReviewResult {
   reviewId?: string;
 }
 export async function submitReviewAction(data: ReviewData): Promise<SubmitReviewResult> {
+  if (!adminDb) {
+    console.error("[submitReviewAction] Admin DB not initialized.");
+    return { success: false, message: "Server error: Could not submit review." };
+  }
   try {
     const reviewId = await submitReview(data);
     return { success: true, message: "Review submitted successfully!", reviewId };
@@ -106,6 +123,10 @@ interface MarkJobAsCompletedResult {
 }
 
 export async function markJobAsCompletedAction(jobId: string, expectedClientId: string): Promise<MarkJobAsCompletedResult> {
+  if (!adminDb) {
+    console.error("[markJobAsCompletedAction] Admin DB not initialized.");
+    return { success: false, message: "Server error: Could not mark job as completed." };
+  }
   try {
     const job = await getJobByIdFromFirestore(jobId);
     if (!job) {
@@ -128,6 +149,10 @@ export async function markJobAsCompletedAction(jobId: string, expectedClientId: 
 
 
 export async function checkUserAccountTypeAction(userId: string): Promise<{ accountType: AppUser['accountType'] | null, error?: string }> {
+    if (!adminDb) {
+      console.error("[checkUserAccountTypeAction] Admin DB not initialized.");
+      return { accountType: null, error: "Server error: Admin DB not available." };
+    }
     if (!userId) return { accountType: null, error: "User ID not provided" };
     try {
         const userProfile = await getUserProfileFromFirestore(userId);
@@ -139,6 +164,10 @@ export async function checkUserAccountTypeAction(userId: string): Promise<{ acco
 }
 
 export async function checkExistingReviewAction(jobId: string, clientId: string): Promise<{ hasReviewed: boolean, error?: string }> {
+    if (!adminDb) {
+      console.error("[checkExistingReviewAction] Admin DB not initialized.");
+      return { hasReviewed: false, error: "Server error: Admin DB not available." };
+    }
     if (!jobId || !clientId) return { hasReviewed: false, error: "Job ID or Client ID not provided." };
     try {
         const existingReview = await getReviewForJobByClient(jobId, clientId);
@@ -157,6 +186,10 @@ export interface JobDetailsPageData {
 
 export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobDetailsPageData> {
   console.log(`[fetchJobDetailsPageDataAction] Received jobId: ${jobId}, typeof: ${typeof jobId}`);
+  if (!adminDb) {
+    console.error("[fetchJobDetailsPageDataAction] CRITICAL: Admin DB not initialized. Aborting fetch.");
+    return { job: null, quotes: [], error: "Server error: Database service is not available. Please try again later." };
+  }
   if (!jobId) {
     console.error("[fetchJobDetailsPageDataAction] Job ID is missing.");
     return { job: null, quotes: [], error: "Job ID is missing." };
@@ -170,8 +203,9 @@ export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobD
     }
     return { job, quotes };
   } catch (error: any) {
-    console.error("Error fetching job details page data:", error);
-    return { job: null, quotes: [], error: error.message || "Failed to load job details." };
+    console.error("[fetchJobDetailsPageDataAction] Error fetching job details page data. Job ID:", jobId, "Error:", error);
+    // Log the specific error for server-side debugging
+    // Return a more generic error to the client to avoid exposing sensitive details
+    return { job: null, quotes: [], error: "An unexpected error occurred while fetching job details. Please try again." };
   }
 }
-
