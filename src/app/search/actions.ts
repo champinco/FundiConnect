@@ -2,15 +2,20 @@
 'use server';
 
 import { adminDb } from '@/lib/firebaseAdmin';
-import type { Timestamp, FieldPath, Query } from 'firebase-admin/firestore'; // For type hints
+import type { Timestamp, FieldPath, Query as AdminQuery } from 'firebase-admin/firestore';
 import type { ProviderProfile } from '@/models/provider';
 import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
 import type { Job, JobStatus } from '@/models/job';
 import type { JobCardProps } from '@/components/job-card';
 
-console.log('[search/actions.ts] Module loaded. Verifying top-level Firestore imports:');
+
+console.log('[search/actions.ts] Module loaded. Verifying adminDb at module load:');
 console.log('typeof adminDb (at module load):', typeof adminDb);
+if (adminDb) {
+  console.log('typeof adminDb.collection (at module load):', typeof adminDb.collection);
+}
+
 
 export interface SearchParams {
   query?: string | null;
@@ -25,12 +30,14 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
   
   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("[searchProvidersAction] CRITICAL: adminDb is not a valid Firestore admin instance or 'collection' method is missing.");
-    throw new Error("Server error: Database service (providers) is not properly initialized.");
+    throw new Error("Server error: Database service (providers) is not properly initialized. Please try again later.");
   }
-  console.log('[searchProvidersAction] adminDb is available, type:', typeof adminDb);
+  console.log('[searchProvidersAction] adminDb is available.');
+  console.log('typeof adminDb.collection in action:', typeof adminDb.collection);
+
 
   try {
-    let query: Query<FirebaseFirestore.DocumentData> = adminDb.collection('providerProfiles');
+    let query: AdminQuery<FirebaseFirestore.DocumentData> = adminDb.collection('providerProfiles');
 
     if (params.category && params.category !== 'All') {
       console.log(`[searchProvidersAction] Applying category filter: ${params.category}`);
@@ -45,6 +52,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
       console.log(`[searchProvidersAction] Applying location filter: >= ${locationSearchTerm}, <= ${locationSearchTerm}\\uf8ff`);
+      // Firestore string range filtering for "starts with" behavior
       query = query.where('location', '>=', locationSearchTerm)
                    .where('location', '<=', locationSearchTerm + '\uf8ff');
     }
@@ -84,6 +92,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
       });
     });
 
+    // Client-side text search (can be improved with server-side full-text search like Algolia/Typesense if needed)
     if (params.query && params.query.trim() !== '') {
       const searchTerm = params.query.trim().toLowerCase();
       console.log(`[searchProvidersAction] Applying client-side text filter: ${searchTerm}`);
@@ -97,7 +106,9 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     console.log(`[searchProvidersAction] Found ${providersData.length} providers.`);
     return providersData;
   } catch (error: any) {
-    console.error("[searchProvidersAction] Error during provider search. Params:", JSON.stringify(params), "Error:", error.message, "Stack:", error.stack);
+    console.error("[searchProvidersAction] Error during provider search. Params:", JSON.stringify(params));
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     throw new Error("An error occurred while searching for providers. Please try again.");
   }
 }
@@ -116,9 +127,10 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
 
   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("[searchJobsAction] CRITICAL: adminDb is not a valid Firestore admin instance or 'collection' method is missing.");
-    throw new Error("Server error: Database service (jobs) is not properly initialized.");
+    throw new Error("Server error: Database service (jobs) is not properly initialized. Please try again later.");
   }
-  console.log('[searchJobsAction] adminDb is available, type:', typeof adminDb);
+  console.log('[searchJobsAction] adminDb is available.');
+  console.log('typeof adminDb.collection in action:', typeof adminDb.collection);
 
   if (params.isMyJobsSearch && !params.currentUserId) {
     console.warn("[searchJobsAction] 'myJobs' search initiated without a currentUserId. Returning empty results.");
@@ -126,7 +138,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
   }
 
   try {
-    let query: Query<FirebaseFirestore.DocumentData> = adminDb.collection('jobs');
+    let query: AdminQuery<FirebaseFirestore.DocumentData> = adminDb.collection('jobs');
 
     if (params.isMyJobsSearch && params.currentUserId) {
       console.log(`[searchJobsAction] Filtering by clientId: ${params.currentUserId}`);
@@ -141,6 +153,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
         }
       }
     } else {
+      // For general job browsing, show 'open' or 'pending_quotes' jobs
       console.log(`[searchJobsAction] Filtering for open/pending_quotes jobs`);
       query = query.where('status', 'in', ['open', 'pending_quotes']);
     }
@@ -166,6 +179,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     let jobsData: Job[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      // Firestore Timestamps need to be converted to JS Date objects
       const postedAt = (data.postedAt as Timestamp)?.toDate();
       const updatedAt = (data.updatedAt as Timestamp)?.toDate();
       const deadline = data.deadline ? (data.deadline as Timestamp).toDate() : null;
@@ -179,6 +193,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       } as Job);
     });
 
+    // Client-side text search (can be improved)
     if (params.keywords && params.keywords.trim() !== '') {
       const keywordTerm = params.keywords.trim().toLowerCase();
       console.log(`[searchJobsAction] Applying client-side text filter for jobs: ${keywordTerm}`);
@@ -188,21 +203,24 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       );
     }
 
+    // Map to JobCardProps['job'] structure for the client
     const jobCardData: JobCardProps['job'][] = jobsData.map(job => ({
       id: job.id,
       title: job.title,
       serviceCategory: job.serviceCategory,
       otherCategoryDescription: job.otherCategoryDescription,
       location: job.location,
-      postedAt: job.postedAt,
+      postedAt: job.postedAt, // This is now a JS Date
       status: job.status,
-      description: job.description,
+      description: job.description, // Full description available for card display
     }));
     console.log(`[searchJobsAction] Found ${jobCardData.length} jobs.`);
     return jobCardData;
 
   } catch (error: any) {
-    console.error("[searchJobsAction] Error during job search. Params:", JSON.stringify(params), "Error:", error.message, "Stack:", error.stack);
+    console.error("[searchJobsAction] Error during job search. Params:", JSON.stringify(params));
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
     throw new Error("An error occurred while searching for jobs. Please try again.");
   }
 }

@@ -22,7 +22,7 @@ try {
   if (existingApps.length === 0) {
     console.log('[FirebaseAdmin] No existing Firebase admin apps. Attempting to initialize a new app...');
     
-    let credential;
+    let appCredential;
     const appOptions: AppOptions = {
       projectId: process.env.FIREBASE_PROJECT_ID || 'myfundi-10db8',
       databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://myfundi-10db8-default-rtdb.firebaseio.com',
@@ -32,14 +32,16 @@ try {
       console.log('[FirebaseAdmin] Using service account key from FIREBASE_SERVICE_ACCOUNT_KEY environment variable');
       try {
         const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-        const serviceAccount = JSON.parse(serviceAccountString);
-        credential = cert(serviceAccount);
-        appOptions.credential = credential;
+        // Ensure the private_key newlines are correctly interpreted if they were double-escaped for env var storage
+        const potentiallyFixedKey = serviceAccountString.replace(/\\\\n/g, '\\n');
+        const serviceAccount = JSON.parse(potentiallyFixedKey);
+        appCredential = cert(serviceAccount);
+        appOptions.credential = appCredential;
         console.log('[FirebaseAdmin] Successfully parsed FIREBASE_SERVICE_ACCOUNT_KEY.');
       } catch (e: any) {
         console.error('[FirebaseAdmin] Error parsing FIREBASE_SERVICE_ACCOUNT_KEY. Ensure it is a valid JSON string and private_key newlines are escaped (\\\\n). Error:', e.message);
         console.log('[FirebaseAdmin] Warning: FIREBASE_SERVICE_ACCOUNT_KEY was set but could not be parsed. Attempting next credential method.');
-        credential = undefined; 
+        appCredential = undefined; 
       }
     }
 
@@ -50,16 +52,16 @@ try {
         if (fs.existsSync(serviceAccountPath)) {
             const serviceAccountContent = fs.readFileSync(serviceAccountPath, 'utf8');
             const serviceAccount = JSON.parse(serviceAccountContent);
-            credential = cert(serviceAccount);
-            appOptions.credential = credential;
+            appCredential = cert(serviceAccount);
+            appOptions.credential = appCredential;
             console.log('[FirebaseAdmin] Using service account file:', serviceAccountPath);
         } else {
             console.log('[FirebaseAdmin] Default service account file (firebase-service-account.json) not found in project root.');
-            credential = undefined;
+            appCredential = undefined;
         }
       } catch (fileError: any) {
         console.log('[FirebaseAdmin] Error trying to load default service account file:', fileError.message);
-        credential = undefined;
+        appCredential = undefined;
       }
     }
 
@@ -70,7 +72,7 @@ try {
     adminApp = initializeApp(appOptions);
     console.log('[FirebaseAdmin] Admin App initialized successfully. App Name:', adminApp.name);
   } else {
-    adminApp = existingApps[0];
+    adminApp = existingApps[0]; // Use the first existing app
     console.log('[FirebaseAdmin] Using existing Firebase admin app:', adminApp.name);
   }
   
@@ -85,15 +87,18 @@ try {
     
     console.log('\n[FirebaseAdmin] Firebase Admin SDK initialized successfully!');
   } else {
+    // This case should ideally not be reached if initialization logic is correct
     throw new Error("[FirebaseAdmin] CRITICAL: Admin App could not be obtained or initialized.");
   }
   
 } catch (error) {
+  // Catch any error during initialization
   console.log('!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: Firebase Admin SDK initializeApp() or service retrieval FAILED !!!!!!!!!!!!!!');
   console.log('[FirebaseAdmin] Error Code:', (error as any)?.code || 'undefined');
   console.log('[FirebaseAdmin] Error Message:', (error as any)?.message || 'No error message');
   console.error('[FirebaseAdmin] Full Error Object:', error); // Log the full error object
   
+  // Ensure instances are null if initialization failed
   adminDbInstance = null;
   adminAuthInstance = null;
 }

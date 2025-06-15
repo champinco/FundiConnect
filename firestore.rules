@@ -6,78 +6,76 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read: if request.auth != null; // Allow authenticated users to read basic user profiles (e.g. for display names)
-      allow write: if request.auth != null && request.auth.uid == userId; // Only user can write to their own profile
+      allow read: if request.auth != null; // Allow reading basic user info if needed by other profiles
+      allow write: if request.auth != null && request.auth.uid == userId; // User can write to their own profile
     }
 
-    // Provider Profiles collection
+    // ProviderProfiles collection
     match /providerProfiles/{providerId} {
-      allow read: if request.auth != null; // Allow authenticated users to read provider profiles
-      allow write: if request.auth != null && request.auth.uid == providerId; // Only provider can write to their own profile
+      allow read: if request.auth != null; // All authenticated users can view provider profiles
+      allow write: if request.auth != null && request.auth.uid == providerId; // Provider can write to their own profile
     }
 
     // Jobs collection
     match /jobs/{jobId} {
-      // Allow authenticated users (clients, providers) to read open or pending jobs
-      allow read: if request.auth != null && (resource.data.status == 'open' || resource.data.status == 'pending_quotes');
+      // Allow authenticated users to read open or pending_quotes jobs (for browsing)
+      // Also allow client or assigned provider to read their specific job
+      allow read: if request.auth != null && 
+                    (
+                      (resource.data.status == 'open' || resource.data.status == 'pending_quotes') ||
+                      request.auth.uid == resource.data.clientId ||
+                      (resource.data.assignedProviderId != null && request.auth.uid == resource.data.assignedProviderId)
+                    );
       
-      // Allow clients to read all their own jobs, regardless of status
-      allow read: if request.auth != null && request.auth.uid == resource.data.clientId;
-      
-      // Allow assigned providers to read the job they are assigned to, regardless of status
-      allow read: if request.auth != null && request.auth.uid == resource.data.assignedProviderId;
-
-      // Allow authenticated users to create jobs, client ID must match creator's UID
+      // Allow job creators to create jobs (clientId must match auth.uid)
       allow create: if request.auth != null && request.auth.uid == request.resource.data.clientId;
       
-      // Allow clients to update their own jobs if not yet assigned
-      // Allow clients or assigned providers to update jobs that are assigned or in progress
-      allow update: if request.auth != null && (
-        (request.auth.uid == resource.data.clientId && (resource.data.status == 'open' || resource.data.status == 'pending_quotes')) ||
-        (request.auth.uid == resource.data.clientId && (resource.data.status == 'assigned' || resource.data.status == 'in_progress' || resource.data.status == 'completed')) ||
-        (request.auth.uid == resource.data.assignedProviderId && (resource.data.status == 'assigned' || resource.data.status == 'in_progress'))
-      );
-      // Add delete rules if necessary, e.g., client can delete their own open job.
-      // allow delete: if request.auth != null && request.auth.uid == resource.data.clientId && resource.data.status == 'open';
+      // Allow client to update their job (e.g., status, description)
+      // Allow assigned provider to update status (e.g., to 'in_progress', 'completed' - this needs specific field checks in app logic)
+      allow update: if request.auth != null && 
+                      (
+                        request.auth.uid == resource.data.clientId ||
+                        (resource.data.assignedProviderId != null && request.auth.uid == resource.data.assignedProviderId)
+                      );
+      // Allow client to delete their job (consider implications, maybe only if 'open')
+      allow delete: if request.auth != null && request.auth.uid == resource.data.clientId;
     }
 
     // Quotes collection
     match /quotes/{quoteId} {
-      // Client can read quotes for their jobs
-      allow read: if request.auth != null && request.auth.uid == resource.data.clientId;
-      // Provider can read quotes they submitted
-      allow read: if request.auth != null && request.auth.uid == resource.data.providerId;
+      // Client can read quotes for their job, provider can read their own quote
+      allow read: if request.auth != null && 
+                    (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.providerId);
       
-      // Providers can create quotes for jobs
+      // Only provider can create a quote for a job
       allow create: if request.auth != null && request.auth.uid == request.resource.data.providerId;
       
       // Client can update quote status (accept/reject)
-      // Provider can update quote status (withdraw - if implemented)
+      // Provider could update (e.g. withdraw, if implemented)
       allow update: if request.auth != null && 
-        (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.providerId);
+                      (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.providerId); 
     }
 
     // Reviews collection
     match /reviews/{reviewId} {
-      allow read: if true; // Reviews are public
-      // Clients can create reviews for jobs they posted, if they are the client for that review
+      allow read: if request.auth != null; // All authenticated users can read reviews
+      
+      // Only client who posted the job can create a review for that job's provider
       allow create: if request.auth != null && request.auth.uid == request.resource.data.clientId;
-      // Client can update their own review
-      allow update: if request.auth != null && request.auth.uid == resource.data.clientId;
+      
+      // Optionally allow client to update/delete their review
+      // allow update, delete: if request.auth != null && request.auth.uid == resource.data.clientId;
     }
-
-    // Chats collection
+    
+    // Chats & Messages
     match /chats/{chatId} {
-      // Participants can read/write the chat document itself (e.g., lastMessage, updatedAt)
+      // Only participants of the chat can read/write
       allow read, write: if request.auth != null && request.auth.uid in resource.data.participantUids;
       
-      // Messages subcollection within a chat
       match /messages/{messageId} {
-        // Participants can read messages in their chat
-        allow read: if request.auth != null && get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids.hasAny([request.auth.uid]);
-        // Senders can create messages
-        allow create: if request.auth != null && request.auth.uid == request.resource.data.senderUid && get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids.hasAny([request.auth.uid]);
-        // Add update/delete rules for messages if needed (e.g., sender can edit/delete their own recent message)
+        // Only participants of the parent chat can read/write messages
+        allow read, write: if request.auth != null && 
+                             request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
       }
     }
   }
