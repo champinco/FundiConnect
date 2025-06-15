@@ -2,21 +2,24 @@
 "use server";
 
 import { getSmartMatchSuggestions, type SmartMatchSuggestionsInput, type SmartMatchSuggestionsOutput } from '@/ai/flows/smart-match-suggestions';
-import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint } from 'firebase-admin/firestore'; // Changed to firebase-admin/firestore
+import { adminDb } from '@/lib/firebaseAdmin'; // Use adminDb
 import type { ProviderProfile } from '@/models/provider';
 
-// Helper to fetch providers from Firestore
+// Helper to fetch providers from Firestore using Admin SDK
 async function fetchProvidersForSmartMatch(jobDescription: string, location: string): Promise<SmartMatchSuggestionsInput['availableProviders']> {
+  if (!adminDb) {
+    console.error("[fetchProvidersForSmartMatch] CRITICAL: Admin DB not initialized. Cannot fetch providers.");
+    return []; // Or throw new Error("Server error: Database service is not available.");
+  }
   try {
-    const providersRef = collection(db, 'providerProfiles');
-    // Fetch a broader set of providers. For a real app, you might filter by location proximity or general service relevance based on jobDescription keywords.
-    // For MVP, let's fetch a general list, maybe limit by those verified or with decent ratings.
+    const providersRef = adminDb.collection('providerProfiles'); // Use adminDb
+    
     const q = query(
       providersRef, 
-      where('isVerified', '==', true), // Example: prefer verified providers
+      where('isVerified', '==', true), 
       orderBy('rating', 'desc'), 
-      limit(50) // Limit the number of providers sent to the AI
+      limit(50) 
     ); 
     
     const querySnapshot = await getDocs(q);
@@ -34,9 +37,9 @@ async function fetchProvidersForSmartMatch(jobDescription: string, location: str
       });
     });
     return availableProviders;
-  } catch (error) {
-    console.error("Error fetching providers for smart match:", error);
-    return []; // Return empty if error, AI flow can handle empty provider list
+  } catch (error: any) {
+    console.error("[fetchProvidersForSmartMatch] Error fetching providers for smart match (Admin SDK). Error Details:", error.message, error.stack);
+    return []; 
   }
 }
 
@@ -47,10 +50,7 @@ export async function getSmartMatchSuggestionsAction(
     const availableProviders = await fetchProvidersForSmartMatch(input.jobDescription, input.location);
     
     if (availableProviders.length === 0) {
-      // Return empty suggestions or a specific message if no providers could be fetched
-      // This helps the AI by not sending an empty list if it expects providers.
-      // Or, the AI prompt could be designed to handle an empty list gracefully.
-      console.warn("Smart Match: No providers found to send to AI. Returning empty suggestions.");
+      console.warn("[getSmartMatchSuggestionsAction] Smart Match: No providers found to send to AI. Returning empty suggestions.");
       return [];
     }
 
@@ -61,8 +61,8 @@ export async function getSmartMatchSuggestionsAction(
     
     const suggestions = await getSmartMatchSuggestions(fullInput);
     return suggestions;
-  } catch (error) {
-    console.error("Error in getSmartMatchSuggestionsAction:", error);
-    throw new Error("Failed to get smart match suggestions due to a server error.");
+  } catch (error: any) {
+    console.error("[getSmartMatchSuggestionsAction] Error in getting smart match suggestions. Error Details:", error.message, error.stack);
+    throw new Error("Failed to get smart match suggestions due to a server error. Please check server logs for details.");
   }
 }

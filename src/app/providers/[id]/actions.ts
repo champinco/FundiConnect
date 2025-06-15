@@ -5,6 +5,7 @@ import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { getReviewsForProvider } from '@/services/reviewService';
 import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
+import { adminDb } from '@/lib/firebaseAdmin';
 
 interface PublicProviderProfilePageData {
   provider: ProviderProfile | null;
@@ -13,6 +14,10 @@ interface PublicProviderProfilePageData {
 }
 
 export async function fetchPublicProviderProfileDataAction(providerId: string): Promise<PublicProviderProfilePageData> {
+  if (!adminDb) {
+    console.error("[fetchPublicProviderProfileDataAction] CRITICAL: Admin DB not initialized. Aborting fetch.");
+    return { provider: null, reviews: [], error: "Server error: Database service is not available. Please try again later." };
+  }
   if (!providerId) {
     return { provider: null, reviews: [], error: "Provider ID is missing." };
   }
@@ -29,7 +34,7 @@ export async function fetchPublicProviderProfileDataAction(providerId: string): 
 
     return { provider: profile, reviews: reviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime()) };
   } catch (error: any) {
-    console.error("Error fetching public provider profile data:", error);
-    return { provider: null, reviews: [], error: error.message || "Failed to load provider data." };
+    console.error("[fetchPublicProviderProfileDataAction] Error fetching public provider profile data. Provider ID:", providerId, "Error Details:", error.message, error.stack);
+    return { provider: null, reviews: [], error: error.message || "Failed to load provider data due to an unexpected server error." };
   }
 }

@@ -203,9 +203,8 @@ export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobD
     }
     return { job, quotes };
   } catch (error: any) {
-    console.error("[fetchJobDetailsPageDataAction] Error fetching job details page data. Job ID:", jobId, "Error:", error);
-    // Log the specific error for server-side debugging
-    // Return a more generic error to the client to avoid exposing sensitive details
+    console.error("[fetchJobDetailsPageDataAction] Error fetching job details page data. Job ID:", jobId, "Error Details:", error.message, error.stack);
     return { job: null, quotes: [], error: "An unexpected error occurred while fetching job details. Please try again." };
   }
 }
+

@@ -57,7 +57,8 @@ export async function fetchDashboardDataAction(userId: string): Promise<Dashboar
     console.warn(`[fetchDashboardDataAction] Unknown account type "${userProfile.accountType}" for user ID: ${userId}`);
     return { appUser: userProfile, dashboardData: null, error: "Unknown account type encountered." };
   } catch (error: any) {
-    console.error("[fetchDashboardDataAction] Error fetching dashboard data. User ID:", userId, "Error:", error);
+    console.error("[fetchDashboardDataAction] Error fetching dashboard data. User ID:", userId, "Error Details:", error.message, error.stack);
     return { appUser: null, dashboardData: null, error: error.message || "Failed to load dashboard data due to an unexpected server error." };
   }
 }
+
