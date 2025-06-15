@@ -16,6 +16,26 @@ export interface ReviewData {
   comment: string;
 }
 
+// Helper function to robustly convert Firestore Timestamps or other date representations to JS Date objects
+const robustTimestampToDate = (timestamp: any, defaultVal: Date | null = null): Date | null => {
+    if (!timestamp) return defaultVal;
+    if (timestamp instanceof Date) { // Already a Date object
+        return timestamp;
+    }
+    if (typeof (timestamp as any).toDate === 'function') { // Firestore Timestamp
+        return (timestamp as import('firebase-admin/firestore').Timestamp).toDate();
+    }
+    // Attempt to parse if it's a string or number (e.g., ISO string, milliseconds)
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+        const d = new Date(timestamp);
+        if (!isNaN(d.getTime())) {
+            return d;
+        }
+    }
+    // console.warn('Invalid timestamp encountered during conversion, using default.', timestamp);
+    return defaultVal;
+};
+
 /**
  * Submits a review for a provider and updates the provider's average rating and reviews count using Admin SDK.
  * @param reviewData - The data for the review.
@@ -106,12 +126,18 @@ export async function getReviewForJobByClient(jobId: string, clientId: string): 
     const querySnapshot = await q.get();
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
-      const data = docSnap.data();
+      const data = docSnap.data()!;
       return {
         id: docSnap.id,
-        ...data,
-        reviewDate: (data.reviewDate as Timestamp)?.toDate(),
-        editedAt: (data.editedAt as Timestamp)?.toDate() || undefined,
+        jobId: data.jobId,
+        providerId: data.providerId,
+        clientId: data.clientId,
+        rating: typeof data.rating === 'number' ? data.rating : 0,
+        comment: data.comment || '',
+        reviewDate: robustTimestampToDate(data.reviewDate, new Date())!,
+        isEdited: !!data.isEdited,
+        editedAt: robustTimestampToDate(data.editedAt, undefined),
+        clientDetails: data.clientDetails || { name: "Anonymous", photoURL: null },
       } as Review;
     }
     return null;
@@ -137,12 +163,18 @@ export async function getReviewsForProvider(providerId: string): Promise<Review[
     const querySnapshot = await q.get();
     const reviews: Review[] = [];
     querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
+      const data = docSnap.data()!;
       reviews.push({
         id: docSnap.id,
-        ...data,
-        reviewDate: (data.reviewDate as Timestamp)?.toDate(),
-        editedAt: (data.editedAt as Timestamp)?.toDate() || undefined,
+        jobId: data.jobId,
+        providerId: data.providerId,
+        clientId: data.clientId,
+        rating: typeof data.rating === 'number' ? data.rating : 0,
+        comment: data.comment || '',
+        reviewDate: robustTimestampToDate(data.reviewDate, new Date())!,
+        isEdited: !!data.isEdited,
+        editedAt: robustTimestampToDate(data.editedAt, undefined),
+        clientDetails: data.clientDetails || { name: "Anonymous", photoURL: null },
       } as Review);
     });
     return reviews;

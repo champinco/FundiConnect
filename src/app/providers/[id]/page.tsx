@@ -52,7 +52,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
         .then((data) => {
           if (data.error) {
             setError(data.error);
-            toast({ title: "Error", description: data.error, variant: "destructive" });
+            // toast({ title: "Error", description: data.error, variant: "destructive" });
             setProvider(null);
             setReviews([]);
           } else {
@@ -63,13 +63,13 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
         .catch(err => {
           const errorMessage = err.message || "An unexpected error occurred while loading provider data.";
           setError(errorMessage);
-          toast({ title: "Error", description: errorMessage, variant: "destructive" });
+          // toast({ title: "Error", description: errorMessage, variant: "destructive" });
           setProvider(null);
           setReviews([]);
         })
         .finally(() => setIsLoading(false)); 
     }
-  }, [providerId, toast]);
+  }, [providerId]); // Removed toast from dependencies
 
   const handleRequestQuoteOrMessage = async () => {
     if (!currentUser) {

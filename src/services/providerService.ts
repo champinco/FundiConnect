@@ -4,8 +4,29 @@
  */
 import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
-import type { ProviderProfile, Certification } from '@/models/provider';
+import type { ProviderProfile, Certification, PortfolioItem } from '@/models/provider';
 import type { ServiceCategory } from '@/components/service-category-icon';
+
+
+// Helper function to robustly convert Firestore Timestamps or other date representations to JS Date objects
+const robustTimestampToDate = (timestamp: any, defaultVal: Date | null = null): Date | null => {
+    if (!timestamp) return defaultVal;
+    if (timestamp instanceof Date) { // Already a Date object
+        return timestamp;
+    }
+    if (typeof (timestamp as any).toDate === 'function') { // Firestore Timestamp
+        return (timestamp as import('firebase-admin/firestore').Timestamp).toDate();
+    }
+    // Attempt to parse if it's a string or number (e.g., ISO string, milliseconds)
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+        const d = new Date(timestamp);
+        if (!isNaN(d.getTime())) {
+            return d;
+        }
+    }
+    // console.warn('Invalid timestamp encountered during conversion, using default.', timestamp);
+    return defaultVal;
+};
 
 
 /**
@@ -22,7 +43,7 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
     const profileRef = adminDb.collection('providerProfiles').doc(profileData.id);
     const now = FieldValue.serverTimestamp();
 
-    const certificationsWithAdminTimestamps = profileData.certifications.map(cert => ({
+    const certificationsWithAdminTimestamps = (Array.isArray(profileData.certifications) ? profileData.certifications : []).map(cert => ({
       ...cert,
       issueDate: cert.issueDate ? Timestamp.fromDate(new Date(cert.issueDate)) : null,
       expiryDate: cert.expiryDate ? Timestamp.fromDate(new Date(cert.expiryDate)) : null,
@@ -31,8 +52,14 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
     await profileRef.set({
       ...profileData,
       certifications: certificationsWithAdminTimestamps,
-      rating: 0,
-      reviewsCount: 0,
+      rating: 0, // Default initial rating
+      reviewsCount: 0, // Default initial reviews count
+      // Ensure all fields from model are present with defaults if not in profileData
+      specialties: Array.isArray(profileData.specialties) ? profileData.specialties : [],
+      portfolio: Array.isArray(profileData.portfolio) ? profileData.portfolio : [],
+      serviceAreas: Array.isArray(profileData.serviceAreas) ? profileData.serviceAreas : [],
+      isVerified: profileData.isVerified || false,
+      yearsOfExperience: typeof profileData.yearsOfExperience === 'number' ? profileData.yearsOfExperience : 0,
       createdAt: now,
       updatedAt: now,
     }, { merge: true });
@@ -50,30 +77,60 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
 export async function getProviderProfileFromFirestore(providerId: string): Promise<ProviderProfile | null> {
   if (!adminDb) {
     console.error("Admin DB not initialized. Cannot fetch provider profile.");
-    return null;
+    return null; // Or throw an error if this state is unexpected
   }
   try {
     const profileRef = adminDb.collection('providerProfiles').doc(providerId);
     const profileSnap = await profileRef.get();
 
     if (profileSnap.exists) {
-      const profileData = profileSnap.data() as Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'certifications'> & {
-          createdAt: Timestamp;
-          updatedAt: Timestamp;
-          certifications: Array<Omit<Certification, 'issueDate' | 'expiryDate'> & { issueDate?: Timestamp | null, expiryDate?: Timestamp | null }>;
-      };
+      const data = profileSnap.data()!; 
 
-      const certifications = (profileData.certifications || []).map(cert => ({
+      const certifications = (Array.isArray(data.certifications) ? data.certifications : []).map(cert => ({
           ...cert,
-          issueDate: cert.issueDate ? (cert.issueDate as Timestamp).toDate() : null,
-          expiryDate: cert.expiryDate ? (cert.expiryDate as Timestamp).toDate() : null,
-      }));
+          id: cert.id || '', // Ensure id is a string
+          name: cert.name || '',
+          number: cert.number || '',
+          issuingBody: cert.issuingBody || '',
+          documentUrl: cert.documentUrl || null,
+          status: cert.status || 'pending_review',
+          verificationNotes: cert.verificationNotes || null,
+          issueDate: robustTimestampToDate(cert.issueDate, null),
+          expiryDate: robustTimestampToDate(cert.expiryDate, null),
+      } as Certification));
+      
+      const portfolio = (Array.isArray(data.portfolio) ? data.portfolio : []).map(item => ({
+          id: item.id || '',
+          imageUrl: item.imageUrl || '',
+          description: item.description || '',
+          dataAiHint: item.dataAiHint,
+      } as PortfolioItem));
+
 
       return {
-        ...profileData,
         id: profileSnap.id,
-        createdAt: (profileData.createdAt as Timestamp)?.toDate(),
-        updatedAt: (profileData.updatedAt as Timestamp)?.toDate(),
+        userId: data.userId || '',
+        businessName: data.businessName || 'N/A',
+        mainService: data.mainService || 'Other',
+        specialties: Array.isArray(data.specialties) ? data.specialties : [],
+        bio: data.bio || '',
+        location: data.location || 'N/A',
+        fullAddress: data.fullAddress,
+        yearsOfExperience: typeof data.yearsOfExperience === 'number' ? data.yearsOfExperience : 0,
+        isVerified: !!data.isVerified,
+        verificationAuthority: data.verificationAuthority,
+        portfolio,
+        rating: typeof data.rating === 'number' ? data.rating : 0,
+        reviewsCount: typeof data.reviewsCount === 'number' ? data.reviewsCount : 0,
+        contactPhoneNumber: data.contactPhoneNumber || '',
+        operatingHours: data.operatingHours,
+        serviceAreas: Array.isArray(data.serviceAreas) ? data.serviceAreas : [],
+        profilePictureUrl: data.profilePictureUrl,
+        bannerImageUrl: data.bannerImageUrl,
+        website: data.website,
+        socialMediaLinks: typeof data.socialMediaLinks === 'object' && data.socialMediaLinks !== null ? data.socialMediaLinks : undefined,
+        createdAt: robustTimestampToDate(data.createdAt, new Date())!, // createdAt is not optional
+        updatedAt: robustTimestampToDate(data.updatedAt, new Date())!, // updatedAt is not optional
         certifications,
       } as ProviderProfile;
     } else {
@@ -102,17 +159,52 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
     const querySnapshot = await q.get();
     const providers: ProviderProfile[] = [];
     querySnapshot.forEach((docSnap) => {
-      const profileData = docSnap.data();
-      providers.push({
-        ...profileData,
-        id: docSnap.id,
-        createdAt: (profileData.createdAt as Timestamp)?.toDate(),
-        updatedAt: (profileData.updatedAt as Timestamp)?.toDate(),
-         certifications: (profileData.certifications || []).map((cert: any) => ({
+      const data = docSnap.data()!;
+       const certifications = (Array.isArray(data.certifications) ? data.certifications : []).map(cert => ({
           ...cert,
-          issueDate: cert.issueDate ? (cert.issueDate as Timestamp).toDate() : null,
-          expiryDate: cert.expiryDate ? (cert.expiryDate as Timestamp).toDate() : null,
-        })),
+          id: cert.id || '',
+          name: cert.name || '',
+          number: cert.number || '',
+          issuingBody: cert.issuingBody || '',
+          documentUrl: cert.documentUrl || null,
+          status: cert.status || 'pending_review',
+          verificationNotes: cert.verificationNotes || null,
+          issueDate: robustTimestampToDate(cert.issueDate, null),
+          expiryDate: robustTimestampToDate(cert.expiryDate, null),
+      } as Certification));
+      
+      const portfolio = (Array.isArray(data.portfolio) ? data.portfolio : []).map(item => ({
+          id: item.id || '',
+          imageUrl: item.imageUrl || '',
+          description: item.description || '',
+          dataAiHint: item.dataAiHint,
+      } as PortfolioItem));
+
+      providers.push({
+        id: docSnap.id,
+        userId: data.userId || '',
+        businessName: data.businessName || 'N/A',
+        mainService: data.mainService || 'Other',
+        specialties: Array.isArray(data.specialties) ? data.specialties : [],
+        bio: data.bio || '',
+        location: data.location || 'N/A',
+        fullAddress: data.fullAddress,
+        yearsOfExperience: typeof data.yearsOfExperience === 'number' ? data.yearsOfExperience : 0,
+        isVerified: !!data.isVerified,
+        verificationAuthority: data.verificationAuthority,
+        portfolio,
+        rating: typeof data.rating === 'number' ? data.rating : 0,
+        reviewsCount: typeof data.reviewsCount === 'number' ? data.reviewsCount : 0,
+        contactPhoneNumber: data.contactPhoneNumber || '',
+        operatingHours: data.operatingHours,
+        serviceAreas: Array.isArray(data.serviceAreas) ? data.serviceAreas : [],
+        profilePictureUrl: data.profilePictureUrl,
+        bannerImageUrl: data.bannerImageUrl,
+        website: data.website,
+        socialMediaLinks: typeof data.socialMediaLinks === 'object' && data.socialMediaLinks !== null ? data.socialMediaLinks : undefined,
+        createdAt: robustTimestampToDate(data.createdAt, new Date())!,
+        updatedAt: robustTimestampToDate(data.updatedAt, new Date())!,
+        certifications,
       } as ProviderProfile);
     });
     return providers;
