@@ -1,9 +1,18 @@
 
 'use server';
 
-import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint, FieldPath } from 'firebase-admin/firestore'; // Ensure FieldPath is imported for Admin SDK
 import { adminDb } from '@/lib/firebaseAdmin';
-import type { Timestamp } from 'firebase-admin/firestore';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  orderBy, 
+  limit, 
+  type QueryConstraint, 
+  FieldPath,
+  Timestamp as AdminTimestamp // Import AdminTimestamp
+} from 'firebase-admin/firestore';
 import type { ProviderProfile } from '@/models/provider';
 import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
@@ -25,7 +34,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
   }
 
   try {
-    const providersRef = adminDb.collection('providerProfiles');
+    const providersRef = collection(adminDb, 'providerProfiles');
     const queryConstraints: QueryConstraint[] = [];
 
     if (params.category && params.category !== 'All') {
@@ -38,44 +47,41 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
 
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
+      // Assuming serviceAreas is an array field in Firestore
       queryConstraints.push(where('serviceAreas', 'array-contains', locationSearchTerm));
     }
 
     if (params.minRating && params.minRating > 0) {
       queryConstraints.push(where('rating', '>=', params.minRating));
-      if (!queryConstraints.some(c => {
-            const constraint = c as any; // Type assertion to access internal-like properties
-            return constraint._fieldPath && constraint._fieldPath.isEqual(new FieldPath('rating'));
-        })) {
-        queryConstraints.push(orderBy('rating', 'desc'));
-      }
+      // Add orderBy if not already added by another constraint (FieldPath check might be complex here)
+      // It's generally safe to add orderBy if a where filter on the same field exists.
+      // Firestore requires an orderBy for inequality filters if not the first orderBy.
+       if (!queryConstraints.some(c => (c as any)._fieldPath?.isEqual?.(new FieldPath('rating')) && (c as any)._op === 'orderBy')) {
+         queryConstraints.push(orderBy('rating', 'desc'));
+       }
     }
 
     // Default sort order if no rating sort is applied
-    if (!queryConstraints.some(c => {
-        const constraint = c as any;
-        const fieldPath = constraint._fieldPath;
-        return fieldPath && (fieldPath.isEqual(new FieldPath('rating')) || fieldPath.isEqual(new FieldPath('businessName')))
-    })) {
+    if (!queryConstraints.some(c => (c as any)._fieldPath?.isEqual?.(new FieldPath('rating')) || (c as any)._fieldPath?.isEqual?.(new FieldPath('businessName')))) {
         queryConstraints.push(orderBy('businessName'));
     }
 
     queryConstraints.push(limit(50));
 
     const firestoreQuery = query(providersRef, ...queryConstraints);
-    const querySnapshot = await firestoreQuery.get();
+    const querySnapshot = await getDocs(firestoreQuery);
     let providersData: Provider[] = [];
 
     querySnapshot.forEach((doc) => {
-      const data = doc.data() as ProviderProfile; // Assume data conforms to ProviderProfile
+      const data = doc.data() as ProviderProfile;
       providersData.push({
         id: doc.id,
-        name: data.businessName, // Required in ProviderProfile
+        name: data.businessName,
         profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/600x400.png',
         rating: data.rating || 0,
         reviewsCount: data.reviewsCount || 0,
-        location: data.location, // Required in ProviderProfile
-        mainService: data.mainService, // Required in ProviderProfile
+        location: data.location,
+        mainService: data.mainService,
         isVerified: data.isVerified || false,
         verificationAuthority: data.verificationAuthority,
         bioSummary: data.bio ? (data.bio.substring(0, 100) + (data.bio.length > 150 ? '...' : '')) : 'No bio available.',
@@ -94,9 +100,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
 
     return providersData;
   } catch (error: any) {
-    console.error("[searchProvidersAction] Error during provider search:", error);
-    // Log the specific error for server-side debugging
-    // Re-throw a more generic error to the client
+    console.error("[searchProvidersAction] Error during provider search:", error.message, error.stack);
     throw new Error("An error occurred while searching for providers. Please try again.");
   }
 }
@@ -106,7 +110,7 @@ export interface JobSearchParams {
   location?: string | null;
   category?: ServiceCategory | 'All' | null;
   currentUserId?: string | null;
-  filterByStatus?: JobStatus | JobStatus[] | string | null;
+  filterByStatus?: JobStatus | JobStatus[] | string | null; 
   isMyJobsSearch?: boolean;
 }
 
@@ -117,7 +121,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
   }
 
   try {
-    const jobsRef = adminDb.collection('jobs');
+    const jobsCollectionRef = collection(adminDb, 'jobs');
     const queryConstraints: QueryConstraint[] = [];
 
     if (params.isMyJobsSearch) {
@@ -134,12 +138,9 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
           queryConstraints.push(where('status', '==', params.filterByStatus));
         }
       } else if (params.filterByStatus === null || params.filterByStatus === undefined) {
-        // Default active statuses for "my jobs" if no specific status filter is applied
         queryConstraints.push(where('status', 'in', ['open', 'pending_quotes', 'assigned', 'in_progress', 'completed']));
       }
-      // If params.filterByStatus === 'all_my', no additional status constraint is added for 'my jobs'.
     } else {
-      // Default behavior for general job search: only open or pending_quotes
       queryConstraints.push(where('status', 'in', ['open', 'pending_quotes']));
     }
 
@@ -150,18 +151,23 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     queryConstraints.push(orderBy('postedAt', 'desc'));
     queryConstraints.push(limit(50));
 
-    const firestoreQuery = query(jobsRef, ...queryConstraints);
-    const querySnapshot = await firestoreQuery.get();
+    const firestoreQuery = query(jobsCollectionRef, ...queryConstraints);
+    const querySnapshot = await getDocs(firestoreQuery);
 
     let jobsData: Job[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
+      // Convert Timestamps to Dates
+      const postedAt = (data.postedAt as AdminTimestamp)?.toDate();
+      const updatedAt = (data.updatedAt as AdminTimestamp)?.toDate();
+      const deadline = data.deadline ? (data.deadline as AdminTimestamp).toDate() : null;
+
       jobsData.push({
         id: docSnap.id,
         ...data,
-        postedAt: (data.postedAt as Timestamp)?.toDate(),
-        updatedAt: (data.updatedAt as Timestamp)?.toDate(),
-        deadline: (data.deadline as Timestamp)?.toDate() || null,
+        postedAt,
+        updatedAt,
+        deadline,
       } as Job);
     });
 
@@ -177,14 +183,14 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
         (job.description && job.description.toLowerCase().includes(keywordTerm))
       );
     }
-
+    
     const jobCardData: JobCardProps['job'][] = jobsData.map(job => ({
       id: job.id,
       title: job.title,
       serviceCategory: job.serviceCategory,
       otherCategoryDescription: job.otherCategoryDescription,
       location: job.location,
-      postedAt: job.postedAt,
+      postedAt: job.postedAt, // This is now a Date object
       status: job.status,
       description: job.description,
     }));
@@ -192,9 +198,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     return jobCardData;
 
   } catch (error: any) {
-    console.error("[searchJobsAction] Error during job search:", error);
-    // Log the specific error for server-side debugging
-    // Re-throw a more generic error to the client
+    console.error("[searchJobsAction] Error during job search:", error.message, error.stack);
     throw new Error("An error occurred while searching for jobs. Please try again.");
   }
 }

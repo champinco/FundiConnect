@@ -1,4 +1,5 @@
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+
+import { initializeApp, getApps, cert, App, type AppOptions } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 import { getAuth, Auth } from 'firebase-admin/auth';
 import * as fs from 'fs';
@@ -15,17 +16,35 @@ let adminDbInstance: Firestore | null = null;
 let adminAuthInstance: Auth | null = null;
 
 try {
-  // Check if Firebase Admin is already initialized
   const existingApps = getApps();
   console.log(`[FirebaseAdmin] Existing apps count: ${existingApps.length}`);
-  
+
   if (existingApps.length === 0) {
     console.log('[FirebaseAdmin] No existing Firebase admin apps. Attempting to initialize a new app...');
     
     let credential;
-    
-    // Method 1: Try to use service account key file
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const appOptions: AppOptions = {
+      projectId: process.env.FIREBASE_PROJECT_ID || 'myfundi-10db8',
+      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://myfundi-10db8-default-rtdb.firebaseio.com',
+    };
+
+    // Method 1: Try to use service account key from environment variable
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      console.log('[FirebaseAdmin] Using service account key from FIREBASE_SERVICE_ACCOUNT_KEY environment variable');
+      try {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        credential = cert(serviceAccount);
+        appOptions.credential = credential;
+        console.log('[FirebaseAdmin] Successfully parsed FIREBASE_SERVICE_ACCOUNT_KEY.');
+      } catch (e: any) {
+        console.error('[FirebaseAdmin] Error parsing FIREBASE_SERVICE_ACCOUNT_KEY. Ensure it is a valid JSON string.', e.message);
+        console.log('[FirebaseAdmin] Warning: FIREBASE_SERVICE_ACCOUNT_KEY was set but could not be parsed. Attempting next credential method.');
+        credential = null; // Reset credential if parsing failed
+      }
+    }
+
+    // Method 2: Try to use service account key file (if env var failed or wasn't set)
+    if (!credential && process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       console.log('[FirebaseAdmin] Using service account key file from GOOGLE_APPLICATION_CREDENTIALS');
       const serviceAccountPath = path.resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS);
       
@@ -33,58 +52,49 @@ try {
         console.log(`[FirebaseAdmin] Service account file found at: ${serviceAccountPath}`);
         const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
         credential = cert(serviceAccount);
+        appOptions.credential = credential;
       } else {
         console.log(`[FirebaseAdmin] Service account file not found at: ${serviceAccountPath}`);
-        // Do not throw error here, allow fallback to next method
         console.warn(`[FirebaseAdmin] Warning: GOOGLE_APPLICATION_CREDENTIALS was set but file not found at ${serviceAccountPath}. Attempting next credential method.`);
+        credential = null;
       }
+    } else if (!credential && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        // Attempt to load default file if GOOGLE_APPLICATION_CREDENTIALS is not set
+        try {
+            const defaultServiceAccountPath = path.join(process.cwd(), 'firebase-service-account.json');
+            if (fs.existsSync(defaultServiceAccountPath)) {
+                console.log(`[FirebaseAdmin] Found default service account file: ${defaultServiceAccountPath}`);
+                const serviceAccount = JSON.parse(fs.readFileSync(defaultServiceAccountPath, 'utf8'));
+                credential = cert(serviceAccount);
+                appOptions.credential = credential;
+                 console.log('[FirebaseAdmin] Using default service account file.');
+            } else {
+                 console.log('[FirebaseAdmin] Default service account file (firebase-service-account.json) not found in project root.');
+            }
+        } catch (fileError: any) {
+            console.log('[FirebaseAdmin] Error trying to load default service account file:', fileError.message);
+            credential = null;
+        }
+    }
+
+
+    // Method 3: Fallback to Application Default Credentials if no specific credential was loaded successfully
+    if (!appOptions.credential) {
+      console.log('[FirebaseAdmin] No specific service account key loaded (env var or file). Attempting Application Default Credentials.');
+      // No need to set appOptions.credential if we want Firebase to use ADC.
     }
     
-    // Method 2: Try to use service account key from environment variable (if Method 1 failed or wasn't tried)
-    if (!credential && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      console.log('[FirebaseAdmin] Using service account key from FIREBASE_SERVICE_ACCOUNT_KEY environment variable');
-      try {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-        credential = cert(serviceAccount);
-      } catch (e) {
-        console.error('[FirebaseAdmin] Error parsing FIREBASE_SERVICE_ACCOUNT_KEY. Ensure it is a valid JSON string.', e);
-        // Do not throw error here, allow fallback to next method if parsing failed
-        console.warn('[FirebaseAdmin] Warning: FIREBASE_SERVICE_ACCOUNT_KEY was set but could not be parsed. Attempting next credential method.');
-      }
-    }
-    
-    // Method 3: Try Application Default Credentials (fallback if no specific credential was loaded)
-    if (!credential) {
-      console.log('[FirebaseAdmin] No specific service account key found (file or env var), trying Application Default Credentials');
-      // Don't set credential, let Firebase use ADC by not providing it in initConfig if it's undefined
-    }
-    
-    const initConfig: any = {
-      projectId: process.env.FIREBASE_PROJECT_ID || 'myfundi-10db8',
-      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://myfundi-10db8-default-rtdb.firebaseio.com'
-    };
-    
-    if (credential) {
-      initConfig.credential = credential;
-      console.log('[FirebaseAdmin] Initializing with explicitly loaded service account credential.');
-    } else {
-      console.log('[FirebaseAdmin] Initializing with Application Default Credentials (no explicit credential loaded).');
-    }
-    
-    // Initialize the Firebase Admin app
-    adminApp = initializeApp(initConfig);
+    adminApp = initializeApp(appOptions);
     console.log('[FirebaseAdmin] Admin App initialized successfully. App Name:', adminApp.name);
   } else {
     console.log('[FirebaseAdmin] Using existing Firebase admin app.');
     adminApp = existingApps[0];
   }
   
-  // Initialize Firestore
   console.log('[FirebaseAdmin] Attempting to get Firestore instance...');
   adminDbInstance = getFirestore(adminApp);
   console.log('[FirebaseAdmin] Firestore Admin instance (adminDb) CREATED successfully.');
   
-  // Initialize Auth
   console.log('[FirebaseAdmin] Attempting to get Auth instance...');
   adminAuthInstance = getAuth(adminApp);
   console.log('[FirebaseAdmin] Auth Admin instance (adminAuth) CREATED successfully.');
@@ -96,23 +106,20 @@ try {
   console.log('[FirebaseAdmin] Error Code:', (error as any)?.code || 'undefined');
   console.log('[FirebaseAdmin] Error Message:', (error as any)?.message || 'No error message');
   console.log('[FirebaseAdmin] This usually means:');
-  console.log('[FirebaseAdmin] 1. Service account key file (if GOOGLE_APPLICATION_CREDENTIALS used) is missing or invalid.');
-  console.log('[FirebaseAdmin] 2. FIREBASE_SERVICE_ACCOUNT_KEY (if used) is not a valid JSON string or the key itself is invalid.');
-  console.log('[FirebaseAdmin] 3. Application Default Credentials (if fallback used) are not set up or lack permissions.');
-  console.log('[FirebaseAdmin] 4. Firebase project ID or database URL might be incorrect if not discoverable.');
-  console.log('[FirebaseAdmin] 5. Service account (from key or ADC) lacks necessary IAM permissions.');
+  console.log('[FirebaseAdmin] 1. Service account key (from env var or file) is missing, malformed, or invalid.');
+  console.log('[FirebaseAdmin] 2. Application Default Credentials (if fallback used) are not set up or lack permissions.');
+  console.log('[FirebaseAdmin] 3. Firebase project ID or database URL might be incorrect if not discoverable.');
+  console.log('[FirebaseAdmin] 4. Service account (from key or ADC) lacks necessary IAM permissions.');
   console.log('[FirebaseAdmin] Full Error Object:', JSON.stringify({
     stack: (error as any)?.stack,
     message: (error as any)?.message,
     code: (error as any)?.code
   }, null, 2));
   
-  // Set instances to null on failure
   adminDbInstance = null;
   adminAuthInstance = null;
 }
 
-// Log final status
 console.log('\n[FirebaseAdmin] FINAL STATUS before export:');
 console.log(`[FirebaseAdmin] adminDbInstance is ${adminDbInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL and UNUSABLE >>>>>'}`);
 console.log(`[FirebaseAdmin] adminAuthInstance is ${adminAuthInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL and UNUSABLE >>>>>'}`);
@@ -120,9 +127,5 @@ console.log('*******************************************************************
 console.log('***** [FirebaseAdmin] END OF INITIALIZATION ATTEMPT (firebaseAdmin.ts) *****');
 console.log('******************************************************************************');
 
-// Export the instances
 export const adminDb = adminDbInstance;
 export const adminAuth = adminAuthInstance;
-// adminApp is not typically exported directly unless needed by other parts of the app
-// If you need to export it, you can use:
-// export const adminAppInstance = adminApp;

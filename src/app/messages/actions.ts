@@ -4,7 +4,7 @@
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
-import { getUserProfileFromFirestore } // Assuming this uses adminDb if called server-side
+import { getUserProfileFromFirestore } 
 from '@/services/userService'; 
 
 // Helper to generate chat ID, can be co-located or imported if it's pure
@@ -13,21 +13,23 @@ function generateChatId(uid1: string, uid2: string): string {
 }
 
 interface GetOrCreateChatResult {
-  chatId: string;
+  chatId: string | null; // Changed to null in case of error
   error?: string;
   isNew?: boolean;
 }
 
 export async function getOrCreateChatAction(currentUserUid: string, otherUserUid: string): Promise<GetOrCreateChatResult> {
   if (!adminDb) {
-    console.error("[getOrCreateChatAction] Admin DB not initialized.");
-    return { chatId: '', error: "Server error: Could not connect to the database." };
+    console.error("[getOrCreateChatAction] CRITICAL: Admin DB not initialized. Aborting chat creation/retrieval.");
+    return { chatId: null, error: "Server error: Database service is not available. Please try again later." };
   }
   if (!currentUserUid || !otherUserUid) {
-    return { chatId: '', error: "User IDs are required to create or get a chat." };
+    console.error("[getOrCreateChatAction] User IDs are required to create or get a chat.");
+    return { chatId: null, error: "User IDs are required to create or get a chat." };
   }
   if (currentUserUid === otherUserUid) {
-    return { chatId: '', error: "Cannot create a chat with oneself." };
+    console.error("[getOrCreateChatAction] Cannot create a chat with oneself.");
+    return { chatId: null, error: "Cannot create a chat with oneself." };
   }
 
   const chatId = generateChatId(currentUserUid, otherUserUid);
@@ -37,7 +39,6 @@ export async function getOrCreateChatAction(currentUserUid: string, otherUserUid
     const chatSnap = await chatRef.get();
 
     if (!chatSnap.exists) {
-      // Fetch minimal participant details (ideally, these would be passed or more robustly fetched)
       const currentUserProfile = await getUserProfileFromFirestore(currentUserUid);
       const otherUserProfile = await getUserProfileFromFirestore(otherUserUid);
 
@@ -67,8 +68,8 @@ export async function getOrCreateChatAction(currentUserUid: string, otherUserUid
     }
     return { chatId, isNew: false };
   } catch (error: any) {
-    console.error(`[getOrCreateChatAction] Error for chatId ${chatId}:`, error);
-    return { chatId: '', error: error.message || "Failed to create or get chat session." };
+    console.error(`[getOrCreateChatAction] Error for chatId ${chatId}. CurrentUserUID: ${currentUserUid}, OtherUserUID: ${otherUserUid}. Error Details:`, error.message, error.stack);
+    return { chatId: null, error: error.message || "Failed to create or get chat session due to an unexpected server error." };
   }
 }
 
@@ -83,17 +84,19 @@ export async function sendMessageAction(
   senderUid: string,
   text: string | null,
   imageUrl: string | null = null,
-  senderDisplayName?: string, // Optional, but good for updating participant details
-  senderPhotoURL?: string | null // Optional
+  senderDisplayName?: string, 
+  senderPhotoURL?: string | null 
 ): Promise<SendMessageResult> {
   if (!adminDb) {
-    console.error("[sendMessageAction] Admin DB not initialized.");
-    return { success: false, error: "Server error: Could not send message." };
+    console.error("[sendMessageAction] CRITICAL: Admin DB not initialized. Aborting message send.");
+    return { success: false, error: "Server error: Database service is not available. Please try again later." };
   }
   if (!chatId || !senderUid) {
+    console.error("[sendMessageAction] Chat ID and Sender ID are required.");
     return { success: false, error: "Chat ID and Sender ID are required." };
   }
   if (!text && !imageUrl) {
+    console.error("[sendMessageAction] Message must have text or an image.");
     return { success: false, error: 'Message must have text or an image.' };
   }
 
@@ -103,22 +106,24 @@ export async function sendMessageAction(
   try {
     const chatSnap = await chatRef.get();
     if (!chatSnap.exists) {
+      console.error(`[sendMessageAction] Chat session not found for chatId: ${chatId}`);
       return { success: false, error: "Chat session not found." };
     }
     const chatData = chatSnap.data() as Chat;
     const receiverUid = chatData.participantUids.find(uid => uid !== senderUid);
     if (!receiverUid) {
+      console.error(`[sendMessageAction] Could not determine receiver UID for chat: ${chatId}`);
       return { success: false, error: "Could not determine receiver UID for the chat." };
     }
 
-    const newMessageDocRef = messagesCollectionRef.doc(); // Auto-generate ID for the message
+    const newMessageDocRef = messagesCollectionRef.doc(); 
     const newMessageData: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp: FieldValue } = {
       chatId,
       senderUid,
-      receiverUid, // For context, derived from chat participants
+      receiverUid, 
       text,
       imageUrl,
-      isRead: false, // Default to false, client can update this locally or via another mechanism
+      isRead: false, 
       timestamp: FieldValue.serverTimestamp(),
     };
 
@@ -129,31 +134,25 @@ export async function sendMessageAction(
     if (imageUrl && !text) {
       lastMessageText = "Sent an image";
     } else if (imageUrl && text) {
-      lastMessageText = text; // Prefer text if both are present for snippet
+      lastMessageText = text; 
     }
 
-    // Prepare update payload for the chat document
     const updatePayload: any = {
       lastMessage: {
         text: lastMessageText,
         senderUid,
         timestamp: FieldValue.serverTimestamp(),
-        // isReadBy will be handled by client subscriptions or specific read receipt actions
-        isReadBy: { [senderUid]: true } // Mark as read by sender
+        isReadBy: { [senderUid]: true } 
       },
       updatedAt: FieldValue.serverTimestamp(),
     };
     
-    // Update participant details if provided and different or missing
     const currentSenderParticipant = chatData.participants[senderUid];
-    let participantUpdated = false;
     if (senderDisplayName && (!currentSenderParticipant?.displayName || currentSenderParticipant.displayName.startsWith("User ") || currentSenderParticipant.displayName !== senderDisplayName)) {
         updatePayload[`participants.${senderUid}.displayName`] = senderDisplayName;
-        participantUpdated = true;
     }
     if (senderPhotoURL !== undefined && currentSenderParticipant?.photoURL !== senderPhotoURL) {
         updatePayload[`participants.${senderUid}.photoURL`] = senderPhotoURL;
-        participantUpdated = true;
     }
 
     batch.update(chatRef, updatePayload);
@@ -162,7 +161,7 @@ export async function sendMessageAction(
     return { success: true, messageId: newMessageDocRef.id };
 
   } catch (error: any) {
-    console.error(`[sendMessageAction] Error sending message to chatId ${chatId}:`, error);
-    return { success: false, error: error.message || "Failed to send message." };
+    console.error(`[sendMessageAction] Error sending message to chatId ${chatId}. SenderUID: ${senderUid}. Error Details:`, error.message, error.stack);
+    return { success: false, error: error.message || "Failed to send message due to an unexpected server error." };
   }
 }

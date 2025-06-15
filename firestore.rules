@@ -4,89 +4,88 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Rules for 'jobs' collection
+    // Users collection: Allow users to read and write their own profile.
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Consider if admins need access:
+      // allow read, write: if request.auth != null && get(/databases/$(database)/documents/admins/$(request.auth.uid)).exists;
+    }
+
+    // ProviderProfiles collection:
+    match /providerProfiles/{providerId} {
+      // Allow anyone to read provider profiles (public listings)
+      allow read: if true; 
+      // Allow providers to create and update their own profiles
+      allow create, update: if request.auth != null && request.auth.uid == providerId;
+      // Delete might be restricted or handled by admins
+      allow delete: if false; // Or specific admin role check
+    }
+
+    // Jobs collection
     match /jobs/{jobId} {
-      // Allow authenticated users (providers) to read 'open' or 'pending_quotes' jobs
+      // Allow authenticated users (clients and providers) to read open/pending_quotes jobs for browsing
       allow read: if request.auth != null && (resource.data.status == 'open' || resource.data.status == 'pending_quotes');
       
-      // Allow job creators (clients) to write (create, update, delete) their own jobs
-      allow write: if request.auth != null && request.auth.uid == resource.data.clientId;
-      
-      // Allow job creators (clients) to read their own jobs, regardless of status
-      // This rule is additive to the general read rule above.
-      // If a job is 'completed' and belongs to the client, this rule allows them to read it.
-      // If it's 'open' and belongs to client, both rules might grant access.
+      // Allow clients to read their own jobs regardless of status, and to update/delete them if they are still 'open' or 'pending_quotes'
       allow read: if request.auth != null && request.auth.uid == resource.data.clientId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.clientId && (resource.data.status == 'open' || resource.data.status == 'pending_quotes');
+
+      // Allow assigned providers to read their assigned jobs
+      allow read: if request.auth != null && request.auth.uid == resource.data.assignedProviderId;
       
-      // Allow authenticated users to create jobs (covered by specific write above for client,
-      // but good to have a general create for logged-in users if UI allows broader creation in future)
-      allow create: if request.auth != null;
+      // Allow authenticated users (clients) to create jobs
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.clientId;
+
+      // For other updates (e.g., status changes by system or specific roles), more specific rules might be needed.
+      // Example: allow providers to update status to 'in_progress' if assigned.
+      // allow update: if request.auth != null && request.auth.uid == resource.data.assignedProviderId && request.resource.data.status == 'in_progress';
     }
 
-    // Rules for 'users' collection
-    match /users/{userId} {
-      // Users can read their own profile
-      allow read: if request.auth != null && request.auth.uid == userId;
-      // Users can create their own profile (on signup)
-      allow create: if request.auth != null && request.auth.uid == userId;
-      // Users can update their own profile
-      allow update: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // Rules for 'providerProfiles' collection
-    match /providerProfiles/{providerId} {
-      // Anyone can read provider profiles (public profiles)
-      allow read: if true;
-      // Providers can update their own profile
-      allow update: if request.auth != null && request.auth.uid == providerId;
-      // Providers can create their own profile (on signup if accountType is provider)
-      allow create: if request.auth != null && request.auth.uid == providerId;
-    }
-
-    // Rules for 'quotes' collection
+    // Quotes collection
     match /quotes/{quoteId} {
-      // Client can read quotes for their jobs
-      // Provider can read quotes they submitted
-      allow read: if request.auth != null && 
-                     (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.providerId);
+      // Allow client who posted the job to read quotes for their job
+      allow read: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.clientId;
+      // Allow provider who submitted the quote to read their own quote
+      allow read: if request.auth != null && request.auth.uid == resource.data.providerId;
       
-      // Providers can create quotes for jobs
-      allow create: if request.auth != null; // Further refinement: check if job is open, if user is provider
+      // Allow providers to create quotes for open jobs
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.providerId &&
+                       get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.status == 'open';
       
-      // Client can update status (accept/reject)
-      allow update: if request.auth != null && request.auth.uid == resource.data.clientId;
+      // Allow clients to update quote status (e.g., accept/reject) for their jobs
+      allow update: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/jobs/$(resource.data.jobId)).data.clientId &&
+                       (request.resource.data.status == 'accepted' || request.resource.data.status == 'rejected');
+      // Providers might be allowed to withdraw pending quotes
+      allow update: if request.auth != null && request.auth.uid == resource.data.providerId &&
+                       resource.data.status == 'pending' && request.resource.data.status == 'withdrawn';
     }
 
-    // Rules for 'reviews' collection
+    // Reviews collection
     match /reviews/{reviewId} {
-      // Anyone can read reviews (they are public on provider profiles)
+      // Allow anyone to read reviews (public)
       allow read: if true;
-      // Clients can create reviews for jobs they posted and are completed, for the assigned provider
-      allow create: if request.auth != null && request.auth.uid == resource.data.clientId;
+      // Allow clients to create reviews for jobs they posted and that are completed,
+      // and only if they haven't reviewed it before.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.clientId &&
+                       get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.status == 'completed' &&
+                       get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.clientId == request.auth.uid &&
+                       !exists(/databases/$(database)/documents/reviews/{reviewId}); // Simplistic check, real check in backend
+      // Allow users to update/delete their own reviews (if needed)
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.clientId;
     }
-    
-    // Rules for 'chats' collection
+
+    // Chats collection
     match /chats/{chatId} {
-      // Participants can read/write to their own chat documents
+      // Allow participants of the chat to read and write
       allow read, write: if request.auth != null && request.auth.uid in resource.data.participantUids;
-      allow create: if request.auth != null; 
-    }
-
-    // Rules for 'messages' subcollection within 'chats'
-    match /chats/{chatId}/messages/{messageId} {
-      // Participants of the parent chat can read/write messages
-      allow read, write: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
-      // Senders can create messages
-      allow create: if request.auth != null && request.resource.data.senderUid == request.auth.uid
-                      && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
-    }
-
-    // Default deny all other paths for collections not explicitly defined
-    // This is a good security practice, but be mindful if you add new top-level collections.
-    match /{path=**}/documents/{document} {
-        allow read, write: if false;
+      
+      match /messages/{messageId} {
+        // Allow participants of the chat to read messages
+        allow read: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+        // Allow participants to create messages in their chat
+        allow create: if request.auth != null && request.auth.uid == request.resource.data.senderUid &&
+                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+      }
     }
   }
 }
-
-    
