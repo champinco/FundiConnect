@@ -1,11 +1,12 @@
 
 "use server";
 
+import { adminDb } from '@/lib/firebaseAdmin';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { getReviewsForProvider } from '@/services/reviewService';
 import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
-import { adminDb } from '@/lib/firebaseAdmin';
+
 
 interface PublicProviderProfilePageData {
   provider: ProviderProfile | null;
@@ -14,11 +15,14 @@ interface PublicProviderProfilePageData {
 }
 
 export async function fetchPublicProviderProfileDataAction(providerId: string): Promise<PublicProviderProfilePageData> {
-  console.log(`[fetchPublicProviderProfileDataAction] Initiated for providerId: ${providerId}`);
   if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("[fetchPublicProviderProfileDataAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function. Aborting fetch.");
-    return { provider: null, reviews: [], error: "Server error: Database service is not available. Please try again later." };
+    const errorMsg = "[fetchPublicProviderProfileDataAction] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    console.error(errorMsg);
+    return { provider: null, reviews: [], error: "Server error: Core database service is not available. Please try again later." };
   }
+  
+  console.log(`[fetchPublicProviderProfileDataAction] Initiated for providerId: ${providerId}`);
+
   if (!providerId) {
     console.error("[fetchPublicProviderProfileDataAction] Provider ID is missing.");
     return { provider: null, reviews: [], error: "Provider ID is missing." };

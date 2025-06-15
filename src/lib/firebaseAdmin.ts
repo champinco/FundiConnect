@@ -32,7 +32,6 @@ try {
       console.log('[FirebaseAdmin] Using service account key from FIREBASE_SERVICE_ACCOUNT_KEY environment variable');
       try {
         const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-        // Ensure the private_key newlines are correctly interpreted if they were double-escaped for env var storage
         const potentiallyFixedKey = serviceAccountString.replace(/\\\\n/g, '\\n');
         const serviceAccount = JSON.parse(potentiallyFixedKey);
         appCredential = cert(serviceAccount);
@@ -72,40 +71,37 @@ try {
     adminApp = initializeApp(appOptions);
     console.log('[FirebaseAdmin] Admin App initialized successfully. App Name:', adminApp.name);
   } else {
-    adminApp = existingApps[0]; // Use the first existing app
+    adminApp = existingApps[0]; 
     console.log('[FirebaseAdmin] Using existing Firebase admin app:', adminApp.name);
   }
   
   if (adminApp) {
     console.log('[FirebaseAdmin] Attempting to get Firestore instance for app:', adminApp.name);
-    adminDbInstance = getFirestore(adminApp); // Pass app instance
-    console.log('[FirebaseAdmin] Firestore Admin instance (adminDb) CREATED successfully.');
+    adminDbInstance = getFirestore(adminApp);
+    console.log('[FirebaseAdmin] Firestore Admin instance (adminDb) obtained.');
     
     console.log('[FirebaseAdmin] Attempting to get Auth instance for app:', adminApp.name);
-    adminAuthInstance = getAuth(adminApp); // Pass app instance
-    console.log('[FirebaseAdmin] Auth Admin instance (adminAuth) CREATED successfully.');
+    adminAuthInstance = getAuth(adminApp); 
+    console.log('[FirebaseAdmin] Auth Admin instance (adminAuth) obtained.');
     
     console.log('\n[FirebaseAdmin] Firebase Admin SDK initialized successfully!');
   } else {
-    // This case should ideally not be reached if initialization logic is correct
     throw new Error("[FirebaseAdmin] CRITICAL: Admin App could not be obtained or initialized.");
   }
   
-} catch (error) {
-  // Catch any error during initialization
+} catch (error: any) {
   console.log('!!!!!!!!!!!!!! [FirebaseAdmin] CRITICAL: Firebase Admin SDK initializeApp() or service retrieval FAILED !!!!!!!!!!!!!!');
-  console.log('[FirebaseAdmin] Error Code:', (error as any)?.code || 'undefined');
-  console.log('[FirebaseAdmin] Error Message:', (error as any)?.message || 'No error message');
-  console.error('[FirebaseAdmin] Full Error Object:', error); // Log the full error object
+  console.log('[FirebaseAdmin] Error Code:', error?.code || 'undefined');
+  console.log('[FirebaseAdmin] Error Message:', error?.message || 'No error message');
+  console.error('[FirebaseAdmin] Full Error Object:', error); 
   
-  // Ensure instances are null if initialization failed
   adminDbInstance = null;
   adminAuthInstance = null;
 }
 
 console.log('\n[FirebaseAdmin] FINAL STATUS before export:');
-console.log(`[FirebaseAdmin] adminDbInstance is ${adminDbInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL and UNUSABLE >>>>>'}`);
-console.log(`[FirebaseAdmin] adminAuthInstance is ${adminAuthInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL and UNUSABLE >>>>>'}`);
+console.log(`[FirebaseAdmin] adminDbInstance is ${adminDbInstance && typeof adminDbInstance.collection === 'function' ? 'INITIALIZED and USABLE' : '<<<<< NULL or INVALID >>>>>'}`);
+console.log(`[FirebaseAdmin] adminAuthInstance is ${adminAuthInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL or INVALID >>>>>'}`);
 console.log('******************************************************************************');
 console.log('***** [FirebaseAdmin] END OF INITIALIZATION ATTEMPT (firebaseAdmin.ts) *****');
 console.log('******************************************************************************');

@@ -1,11 +1,12 @@
 
 "use server";
 
+import { adminDb } from '@/lib/firebaseAdmin';
 import { createUserProfileInFirestore } from '@/services/userService';
 import { createProviderProfileInFirestore } from '@/services/providerService';
 import type { User, AccountType } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
-import type { SignupFormValues } from './schemas'; // This now includes more fields
+import type { SignupFormValues } from './schemas'; 
 
 interface SignupResult {
   success: boolean;
@@ -15,6 +16,12 @@ interface SignupResult {
 }
 
 export async function signupUserAction(values: SignupFormValues, firebaseUserId: string): Promise<SignupResult> {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[signupUserAction] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    console.error(errorMsg);
+    return { success: false, message: "Server error: Core database service is not available. Please try again later." };
+  }
+
   console.log("[SignupAction] Initiated for firebaseUserId:", firebaseUserId, "with values:", JSON.stringify(values));
   try {
     const userProfileData: Omit<User, 'createdAt' | 'updatedAt' | 'uid'> = {
@@ -32,8 +39,6 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
       console.log("[SignupAction] Successfully created user profile in Firestore for UID:", firebaseUserId);
     } catch (userProfileError: any) {
       console.error("[SignupAction] Error creating user profile in Firestore for UID:", firebaseUserId, "Details:", userProfileError.message, userProfileError.stack);
-      // Do not re-throw here immediately, let the outer catch handle a generic message
-      // Or, construct a more specific message to return
       return { success: false, message: `Failed to create user profile: ${userProfileError.message}. Check server logs for details.` };
     }
 
@@ -68,8 +73,6 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
     console.log("[SignupAction] All profiles created successfully for firebaseUserId:", firebaseUserId);
     return { success: true, message: "Account profiles created successfully!", userId: firebaseUserId, firebaseUserId: firebaseUserId };
   } catch (error: any) {
-    // This catch block is now less likely to be hit if inner try-catches return directly,
-    // but it's a good fallback for unexpected errors outside those specific Firestore calls.
     console.error("[SignupAction] Unexpected overall error during profile creation for firebaseUserId:", firebaseUserId, "Error:", error);
     return { success: false, message: error.message || "An unexpected error occurred while creating your profile details. Check server logs." };
   }

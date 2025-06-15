@@ -1,10 +1,11 @@
 
 "use server";
 
+import { adminDb } from '@/lib/firebaseAdmin';
 import { createJobInFirestore } from '@/services/jobService';
 import type { Job } from '@/models/job';
-import type { PostJobFormValues } from './schemas'; // Updated import
-import { adminDb } from '@/lib/firebaseAdmin'; // Import adminDb for check
+import type { PostJobFormValues } from './schemas';
+
 
 interface PostJobResult {
   success: boolean;
@@ -17,9 +18,10 @@ export async function postJobAction(
   clientIdFromFrontend: string | null, 
   photoUrls?: string[]
 ): Promise<PostJobResult> {
-  if (!adminDb) {
-    console.error("[postJobAction] CRITICAL: Admin DB not initialized. Aborting job post.");
-    return { success: false, message: "Server error: Database service is not available. Please try again later." };
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[postJobAction] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    console.error(errorMsg);
+    return { success: false, message: "Server error: Core database service is not available. Please try again later." };
   }
   
   let actualClientId: string | null = clientIdFromFrontend;

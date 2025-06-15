@@ -1,28 +1,32 @@
 
 "use server";
 
+import { adminDb } from '@/lib/firebaseAdmin';
 import { getSmartMatchSuggestions, type SmartMatchSuggestionsInput, type SmartMatchSuggestionsOutput } from '@/ai/flows/smart-match-suggestions';
-import { collection, query, where, getDocs, orderBy, limit, type QueryConstraint } from 'firebase-admin/firestore'; // Changed to firebase-admin/firestore
-import { adminDb } from '@/lib/firebaseAdmin'; // Use adminDb
 import type { ProviderProfile } from '@/models/provider';
+import type { Query as AdminQuery } from 'firebase-admin/firestore';
 
-// Helper to fetch providers from Firestore using Admin SDK
-async function fetchProvidersForSmartMatch(jobDescription: string, location: string): Promise<SmartMatchSuggestionsInput['availableProviders']> {
-  if (!adminDb) {
-    console.error("[fetchProvidersForSmartMatch] CRITICAL: Admin DB not initialized. Cannot fetch providers.");
-    return []; // Or throw new Error("Server error: Database service is not available.");
+
+// Helper to ensure adminDb is available
+function ensureDbInitialized() {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[SmartMatchActions] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service is not available. Please try again later.");
   }
+}
+
+async function fetchProvidersForSmartMatch(jobDescription: string, location: string): Promise<SmartMatchSuggestionsInput['availableProviders']> {
+  ensureDbInitialized();
   try {
-    const providersRef = adminDb.collection('providerProfiles'); // Use adminDb
+    const providersRef = adminDb.collection('providerProfiles'); 
     
-    const q = query(
-      providersRef, 
-      where('isVerified', '==', true), 
-      orderBy('rating', 'desc'), 
-      limit(50) 
-    ); 
+    const q: AdminQuery<FirebaseFirestore.DocumentData> = providersRef
+      .where('isVerified', '==', true) 
+      .orderBy('rating', 'desc') 
+      .limit(50); 
     
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
     const availableProviders: SmartMatchSuggestionsInput['availableProviders'] = [];
 
     querySnapshot.forEach(doc => {
@@ -46,6 +50,7 @@ async function fetchProvidersForSmartMatch(jobDescription: string, location: str
 export async function getSmartMatchSuggestionsAction(
   input: Omit<SmartMatchSuggestionsInput, 'availableProviders'> & { jobDescription: string; location: string }
 ): Promise<SmartMatchSuggestionsOutput> {
+  ensureDbInitialized(); // Check at the beginning of the exported action
   try {
     const availableProviders = await fetchProvidersForSmartMatch(input.jobDescription, input.location);
     
@@ -63,6 +68,7 @@ export async function getSmartMatchSuggestionsAction(
     return suggestions;
   } catch (error: any) {
     console.error("[getSmartMatchSuggestionsAction] Error in getting smart match suggestions. Error Details:", error.message, error.stack);
+    // Re-throw the error so the client can handle it, or return a structured error
     throw new Error("Failed to get smart match suggestions due to a server error. Please check server logs for details.");
   }
 }

@@ -4,25 +4,31 @@
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
-import { getUserProfileFromFirestore } 
-from '@/services/userService'; 
+import { getUserProfileFromFirestore } from '@/services/userService'; 
 
-// Helper to generate chat ID, can be co-located or imported if it's pure
+// Helper function (can be co-located or imported)
 function generateChatId(uid1: string, uid2: string): string {
   return [uid1, uid2].sort().join('_');
 }
 
+// Helper to ensure adminDb is available
+function ensureDbInitialized() {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[ChatActions] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service is not available. Please try again later.");
+  }
+}
+
 interface GetOrCreateChatResult {
-  chatId: string | null; // Changed to null in case of error
+  chatId: string | null;
   error?: string;
   isNew?: boolean;
 }
 
 export async function getOrCreateChatAction(currentUserUid: string, otherUserUid: string): Promise<GetOrCreateChatResult> {
-  if (!adminDb) {
-    console.error("[getOrCreateChatAction] CRITICAL: Admin DB not initialized. Aborting chat creation/retrieval.");
-    return { chatId: null, error: "Server error: Database service is not available. Please try again later." };
-  }
+  ensureDbInitialized();
+  
   if (!currentUserUid || !otherUserUid) {
     console.error("[getOrCreateChatAction] User IDs are required to create or get a chat.");
     return { chatId: null, error: "User IDs are required to create or get a chat." };
@@ -87,10 +93,8 @@ export async function sendMessageAction(
   senderDisplayName?: string, 
   senderPhotoURL?: string | null 
 ): Promise<SendMessageResult> {
-  if (!adminDb) {
-    console.error("[sendMessageAction] CRITICAL: Admin DB not initialized. Aborting message send.");
-    return { success: false, error: "Server error: Database service is not available. Please try again later." };
-  }
+  ensureDbInitialized();
+  
   if (!chatId || !senderUid) {
     console.error("[sendMessageAction] Chat ID and Sender ID are required.");
     return { success: false, error: "Chat ID and Sender ID are required." };

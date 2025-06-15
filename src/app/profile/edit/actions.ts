@@ -2,14 +2,25 @@
 "use server";
 
 import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { adminDb } from '@/lib/firebaseAdmin'; // Use adminDb
+import { adminDb } from '@/lib/firebaseAdmin'; 
 import { uploadFileToStorage } from '@/services/storageService';
 import type { ProviderProfile, Certification } from '@/models/provider';
 import type { ProviderProfileEditFormValues } from './schemas';
 import { revalidatePath } from 'next/cache';
 import { getUserProfileFromFirestore } from '@/services/userService';
-import { getProviderProfileFromFirestore } from '@/services/providerService';
+import { getProviderProfileFromFirestore, createProviderProfileInFirestore } from '@/services/providerService'; 
 import type { User as AppUser } from '@/models/user';
+import type { ServiceCategory } from '@/components/service-category-icon';
+
+
+// Helper to ensure adminDb is available
+function ensureDbInitialized() {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[ProviderEditActions] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service is not available. Please try again later.");
+  }
+}
 
 interface ProviderEditPageData {
   appUser: AppUser | null;
@@ -18,10 +29,8 @@ interface ProviderEditPageData {
 }
 
 export async function fetchProviderEditPageDataAction(userId: string): Promise<ProviderEditPageData> {
-  if (!adminDb) {
-    console.error("[fetchProviderEditPageDataAction] CRITICAL: Admin DB not initialized. Aborting fetch.");
-    return { appUser: null, providerProfile: null, error: "Server error: Database service is not available. Please try again later." };
-  }
+  ensureDbInitialized();
+
   if (!userId) {
     return { appUser: null, providerProfile: null, error: "User not authenticated." };
   }
@@ -31,10 +40,53 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
       return { appUser: null, providerProfile: null, error: "User profile not found." };
     }
     if (appUser.accountType !== 'provider') {
-      return { appUser, providerProfile: null, error: "User is not a provider." };
+      return { appUser, providerProfile: null, error: "User is not a provider. Profile editing is for providers." };
     }
-    const providerProfile = await getProviderProfileFromFirestore(userId);
+
+    let providerProfile = await getProviderProfileFromFirestore(userId);
+
+    if (!providerProfile) {
+      console.warn(`[fetchProviderEditPageDataAction] Provider profile not found for provider UID: ${userId}. Attempting to create a default profile.`);
+      
+      const defaultProviderData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount'> = {
+        id: userId,
+        userId: userId,
+        businessName: appUser.fullName || `Provider ${userId.substring(0, 6)}`,
+        mainService: 'Other' as ServiceCategory,
+        specialties: [],
+        bio: 'Welcome to FundiConnect! Please complete your profile to attract clients.',
+        location: 'Please update your location',
+        fullAddress: undefined,
+        yearsOfExperience: 0,
+        isVerified: false,
+        verificationAuthority: undefined,
+        certifications: [],
+        portfolio: [],
+        contactPhoneNumber: appUser.phoneNumber || '',
+        operatingHours: 'Mon-Fri 9am-5pm', 
+        serviceAreas: [],
+        profilePictureUrl: appUser.photoURL || undefined,
+        bannerImageUrl: undefined,
+        website: undefined,
+        socialMediaLinks: undefined,
+      };
+
+      try {
+        await createProviderProfileInFirestore(defaultProviderData);
+        console.log(`[fetchProviderEditPageDataAction] Default provider profile created for UID: ${userId}`);
+        providerProfile = await getProviderProfileFromFirestore(userId);
+        if (!providerProfile) {
+           console.error(`[fetchProviderEditPageDataAction] CRITICAL: Failed to re-fetch provider profile after default creation for UID: ${userId}.`);
+           return { appUser, providerProfile: null, error: "Failed to load profile after attempting to create a default. Please try again." };
+        }
+      } catch (creationError: any) {
+        console.error(`[fetchProviderEditPageDataAction] Error creating default provider profile for UID: ${userId}. Details:`, creationError.message, creationError.stack);
+        return { appUser, providerProfile: null, error: `Failed to initialize provider profile: ${creationError.message}. Please contact support.` };
+      }
+    }
+    
     return { appUser, providerProfile };
+
   } catch (error: any) {
     console.error("[fetchProviderEditPageDataAction] Error fetching provider edit page data. User ID:", userId, "Error Details:", error.message, error.stack);
     return { appUser: null, providerProfile: null, error: error.message || "Failed to load profile data due to an unexpected server error." };
@@ -55,10 +107,8 @@ export async function updateProviderProfileAction(
   uploadedBannerImageUrl?: string | null,
   uploadedCertificationDocuments?: Array<{ index: number; url: string | null }>
 ): Promise<UpdateProviderProfileResult> {
-  if (!adminDb) {
-    console.error("[updateProviderProfileAction] CRITICAL: Admin DB not initialized. Aborting update.");
-    return { success: false, message: "Server error: Database service is not available. Please try again later." };
-  }
+  ensureDbInitialized();
+
   if (!providerId) {
     return { success: false, message: "Provider ID is missing." };
   }

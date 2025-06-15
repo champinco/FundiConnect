@@ -1,7 +1,7 @@
 
 "use server";
 
-import { auth } from '@/lib/firebase'; // For getting current user server-side if needed by actions
+import { adminDb } from '@/lib/firebaseAdmin';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { getJobSummaryForClient, getAssignedJobsForProvider, type ClientJobSummary } from '@/services/jobService';
@@ -9,7 +9,7 @@ import { getSubmittedQuotesSummaryForProvider, type ProviderQuoteSummary } from 
 import type { User as AppUser } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
 import type { Job } from '@/models/job';
-import { adminDb } from '@/lib/firebaseAdmin';
+
 
 interface ClientDashboardData {
   jobSummary: ClientJobSummary;
@@ -28,13 +28,16 @@ export interface DashboardPageData {
 }
 
 export async function fetchDashboardDataAction(userId: string): Promise<DashboardPageData> {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[fetchDashboardDataAction] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    console.error(errorMsg);
+    // Returning a structured error for this action as the page expects it
+    return { appUser: null, dashboardData: null, error: "Server error: Core database service is not available. Please try again later." };
+  }
+  
   console.log(`[fetchDashboardDataAction] Initiated for userId: ${userId}`);
   console.log(`[fetchDashboardDataAction] Verifying adminDb. typeof adminDb: ${typeof adminDb}, typeof adminDb?.collection: ${typeof adminDb?.collection}`);
 
-  if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("[fetchDashboardDataAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function. Aborting fetch.");
-    return { appUser: null, dashboardData: null, error: "Server error: Database service is not available for dashboard." };
-  }
   if (!userId) {
     console.warn("[fetchDashboardDataAction] userId is missing.");
     return { appUser: null, dashboardData: null, error: "User not authenticated." };
