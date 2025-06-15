@@ -21,9 +21,10 @@ import { auth } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider'; 
 import type { Review } from '@/models/review';
 import Link from 'next/link'; 
-import { format, formatDistanceToNowStrict } from 'date-fns';
+import { format } from 'date-fns';
+import { formatDynamicDate } from '@/lib/dateUtils'; // Updated import
 import { fetchPublicProviderProfileDataAction } from './actions';
-import { getOrCreateChatAction } from '@/app/messages/actions'; // Import the server action
+import { getOrCreateChatAction } from '@/app/messages/actions';
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
   const router = useRouter();
@@ -52,24 +53,22 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
         .then((data) => {
           if (data.error) {
             setError(data.error);
-            // toast({ title: "Error", description: data.error, variant: "destructive" });
             setProvider(null);
             setReviews([]);
           } else {
             setProvider(data.provider);
-            setReviews(data.reviews);
+            setReviews(data.reviews || []); // Ensure reviews is an array
           }
         })
         .catch(err => {
           const errorMessage = err.message || "An unexpected error occurred while loading provider data.";
           setError(errorMessage);
-          // toast({ title: "Error", description: errorMessage, variant: "destructive" });
           setProvider(null);
           setReviews([]);
         })
         .finally(() => setIsLoading(false)); 
     }
-  }, [providerId]); // Removed toast from dependencies
+  }, [providerId]);
 
   const handleRequestQuoteOrMessage = async () => {
     if (!currentUser) {
@@ -82,8 +81,8 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     setIsChatLoading(true);
     try {
       const result = await getOrCreateChatAction(currentUser.uid, provider.userId); 
-      if (result.error) {
-        throw new Error(result.error);
+      if (result.error || !result.chatId) {
+        throw new Error(result.error || "Could not initiate chat.");
       }
       router.push(`/messages/${result.chatId}`);
     } catch (error: any) {
@@ -135,7 +134,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                         <h1 className="text-3xl md:text-4xl font-bold font-headline text-white" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>{provider.businessName}</h1>
                         <div className="flex items-center space-x-2 mt-1">
                             <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
-                            <span className="text-white font-semibold">{provider.rating.toFixed(1)} ({provider.reviewsCount} reviews)</span>
+                            <span className="text-white font-semibold">{(provider.rating || 0).toFixed(1)} ({provider.reviewsCount || 0} reviews)</span>
                         </div>
                          {provider.isVerified && provider.verificationAuthority && (
                             <div className="mt-2">
@@ -154,8 +153,8 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
               <Tabs defaultValue="about" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="about">About</TabsTrigger>
-                  <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews ({reviews.length})</TabsTrigger>
+                  <TabsTrigger value="portfolio">Portfolio ({provider.portfolio?.length || 0})</TabsTrigger>
+                  <TabsTrigger value="reviews">Reviews ({reviews?.length || 0})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="about">
                   <Card>
@@ -163,7 +162,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       <CardTitle className="text-xl">About {provider.businessName}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 text-foreground/90">
-                      <p className="whitespace-pre-line">{provider.bio}</p>
+                      <p className="whitespace-pre-line">{provider.bio || "No biography provided."}</p>
                       {provider.specialties && provider.specialties.length > 0 && (
                         <div>
                           <h4 className="font-semibold mb-1 text-md">Specialties:</h4>
@@ -196,7 +195,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                                     cert.status === 'requires_attention' ? 'destructive' :
                                     cert.status === 'expired' ? 'outline' : 'outline'
                                   } className="capitalize text-xs shrink-0 ml-2">
-                                    {cert.status.replace('_', ' ')}
+                                    {cert.status ? cert.status.replace('_', ' ') : 'Status Unknown'}
                                   </Badge>
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1 space-x-3">
@@ -228,10 +227,10 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       {provider.portfolio && provider.portfolio.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {provider.portfolio.map(item => (
-                            <div key={item.id} className="rounded-lg overflow-hidden shadow group aspect-video relative border">
-                              <Image src={item.imageUrl} alt={item.description} fill style={{objectFit: 'cover'}} className="transition-transform duration-300 group-hover:scale-105" data-ai-hint={item.dataAiHint || 'project image'}/>
+                            <div key={item.id || item.imageUrl} className="rounded-lg overflow-hidden shadow group aspect-video relative border">
+                              <Image src={item.imageUrl || 'https://placehold.co/600x400.png'} alt={item.description || 'Portfolio item'} fill style={{objectFit: 'cover'}} className="transition-transform duration-300 group-hover:scale-105" data-ai-hint={item.dataAiHint || 'project image'}/>
                               <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <p className="text-sm text-white truncate">{item.description}</p>
+                                <p className="text-sm text-white truncate">{item.description || 'Project Image'}</p>
                               </div>
                             </div>
                           ))}
@@ -252,24 +251,24 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       <CardTitle className="text-xl">Client Reviews</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {isLoading ? ( 
+                      {isLoading && (!reviews || reviews.length === 0) ? ( 
                         <div className="space-y-4">
                           {[...Array(3)].map((_, i) => (
                             <div key={i} className="flex space-x-3 border-b pb-4 last:border-b-0">
                               <Avatar className="h-10 w-10 opacity-50"><AvatarFallback>C</AvatarFallback></Avatar>
                               <div className="flex-1 space-y-1.5">
                                 <div className="flex justify-between items-center">
-                                   <div className="h-4 bg-muted rounded w-1/3 animate-pulse"></div>
-                                   <div className="h-3 bg-muted rounded w-1/4 animate-pulse"></div>
+                                   <Skeleton className="h-4 bg-muted rounded w-1/3 animate-pulse"></Skeleton>
+                                   <Skeleton className="h-3 bg-muted rounded w-1/4 animate-pulse"></Skeleton>
                                 </div>
-                                <div className="h-3 bg-muted rounded w-1/5 animate-pulse mb-1.5"></div>
-                                <div className="h-4 bg-muted rounded w-full animate-pulse"></div>
-                                <div className="h-4 bg-muted rounded w-5/6 animate-pulse"></div>
+                                <Skeleton className="h-3 bg-muted rounded w-1/5 animate-pulse mb-1.5"></Skeleton>
+                                <Skeleton className="h-4 bg-muted rounded w-full animate-pulse"></Skeleton>
+                                <Skeleton className="h-4 bg-muted rounded w-5/6 animate-pulse"></Skeleton>
                               </div>
                             </div>
                           ))}
                         </div>
-                      ) : reviews.length > 0 ? reviews.map(review => (
+                      ) : reviews && reviews.length > 0 ? reviews.map(review => (
                         <div key={review.id} className="border-b pb-4 last:border-b-0 last:pb-0">
                           <div className="flex items-start space-x-3">
                             <Avatar className="h-10 w-10">
@@ -281,12 +280,12 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                                     <h4 className="font-semibold text-sm">{review.clientDetails?.name || "Anonymous Client"}</h4>
                                     <div className="flex items-center">
                                     {[...Array(5)].map((_, i) => (
-                                        <Star key={i} className={`h-4 w-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/50'}`} />
+                                        <Star key={i} className={`h-4 w-4 ${i < (review.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/50'}`} />
                                     ))}
                                     </div>
                                 </div>
                                 <p className="text-xs text-muted-foreground mb-1.5">
-                                    {formatDistanceToNowStrict(new Date(review.reviewDate), { addSuffix: true })}
+                                    {review.reviewDate ? formatDynamicDate(review.reviewDate) : 'Date N/A'}
                                 </p>
                                 <p className="text-sm text-foreground/90 whitespace-pre-line">{review.comment}</p>
                             </div>
@@ -314,7 +313,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                     <MapPin className="h-5 w-5 mr-3 mt-1 text-primary shrink-0" />
                     <div>
                         <p className="font-medium">Location</p>
-                        <p className="text-muted-foreground">{provider.location}</p>
+                        <p className="text-muted-foreground">{provider.location || "Not specified"}</p>
                          {provider.fullAddress && <p className="text-xs text-muted-foreground">{provider.fullAddress}</p>}
                     </div>
                   </div>
@@ -323,8 +322,8 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                      <div>
                         <p className="font-medium">Main Service</p>
                          <div className="flex items-center text-muted-foreground">
-                           <ServiceCategoryIcon category={provider.mainService} iconOnly className="h-4 w-4 mr-1.5"/>
-                           {provider.mainService}
+                           <ServiceCategoryIcon category={provider.mainService || 'Other'} iconOnly className="h-4 w-4 mr-1.5"/>
+                           {provider.mainService || 'Other'}
                          </div>
                     </div>
                   </div>
@@ -340,11 +339,11 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                   <Separator />
                    <Button onClick={handleRequestQuoteOrMessage} className="w-full bg-primary hover:bg-primary/90" disabled={isChatLoading || currentUser?.uid === provider.userId}>
                     {isChatLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
-                     {currentUser?.uid === provider.userId ? "This is Your Profile" : `Message ${provider.businessName.split(' ')[0]}`}
+                     {currentUser?.uid === provider.userId ? "This is Your Profile" : `Message ${provider.businessName?.split(' ')[0] || 'Provider'}`}
                   </Button>
                   {provider.contactPhoneNumber && (
-                    <Button variant="outline" className="w-full" onClick={() => toast({title: "Call Information", description: `Phone: ${provider.contactPhoneNumber}. Revealed upon quote acceptance or direct contact.`})}>
-                        <Phone className="mr-2 h-4 w-4" /> Call (Info)
+                    <Button variant="outline" className="w-full" onClick={() => toast({title: "Contact Information", description: `Phone: ${provider.contactPhoneNumber}. Please use in-app messaging for initial contact or quotes.`})}>
+                        <Phone className="mr-2 h-4 w-4" /> Show Contact Info
                     </Button>
                   )}
                 </CardContent>
@@ -356,3 +355,9 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     </div>
   );
 }
+
+// Added Skeleton for review loading state
+const Skeleton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
+  <div className={cn("animate-pulse rounded-md bg-muted", className)} {...props} />
+);
+

@@ -7,28 +7,12 @@ import ServiceCategoryIcon, { type ServiceCategory } from './service-category-ic
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Job, JobStatus } from '@/models/job'; // Assuming Job model exists
-import { formatDistanceToNowStrict, isDate, format } from 'date-fns';
+import type { Job, JobStatus } from '@/models/job'; 
+import { formatDynamicDate } from '@/lib/dateUtils'; // Updated import
 
 export interface JobCardProps {
   job: Pick<Job, 'id' | 'title' | 'serviceCategory' | 'otherCategoryDescription' | 'location' | 'postedAt' | 'status' | 'description'>;
 }
-
-// Helper function to format dates dynamically, similar to what's used elsewhere
-const formatDynamicDate = (dateInput: Date | string | number | undefined | null): string => {
-  if (!dateInput) return 'N/A';
-  const date = isDate(dateInput) ? dateInput : new Date(dateInput);
-  if (isNaN(date.getTime())) return 'Invalid Date';
-
-  const now = new Date();
-  const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
-  now.setDate(now.getDate() + 1); // Reset now
-
-  if (date > oneDayAgo) {
-    return formatDistanceToNowStrict(date, { addSuffix: true });
-  }
-  return format(date, 'MMM d, yyyy');
-};
 
 export default function JobCard({ job }: JobCardProps) {
   const jobStatusDisplay: Record<JobStatus, string> = {

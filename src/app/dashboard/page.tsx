@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle } from 'lucide-react';
-import { format, formatDistanceToNowStrict, isDate } from 'date-fns';
+import { formatDynamicDate } from '@/lib/dateUtils'; // Updated import
 import { fetchDashboardDataAction, type DashboardPageData } from './actions';
 import type { ClientJobSummary } from '@/services/jobService';
 import type { ProviderQuoteSummary } from '@/services/quoteService';
@@ -29,23 +29,6 @@ interface ProviderDashboardDisplayData {
 }
 
 type DashboardDisplayData = ClientDashboardDisplayData | ProviderDashboardDisplayData | null;
-
-
-// Helper function to format dates dynamically
-const formatDynamicDate = (dateInput: Date | string | number | undefined | null): string => {
-  if (!dateInput) return 'N/A';
-  const date = isDate(dateInput) ? dateInput : new Date(dateInput);
-  if (isNaN(date.getTime())) return 'Invalid Date';
-
-  const now = new Date();
-  const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
-  now.setDate(now.getDate() + 1); // Reset now to current
-
-  if (date > oneDayAgo) {
-    return formatDistanceToNowStrict(date, { addSuffix: true });
-  }
-  return format(date, 'MMM d, yyyy');
-};
 
 
 export default function DashboardPage() {
@@ -230,7 +213,7 @@ export default function DashboardPage() {
             </CardContent>
              <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
                 <Button asChild className="w-full sm:flex-1 bg-primary hover:bg-primary/90">
-                  <Link href="/search"><Search className="mr-2" /> Browse Open Jobs</Link>
+                  <Link href="/search?mode=jobs"><Search className="mr-2" /> Browse Open Jobs</Link>
                 </Button>
                  <Button asChild variant="outline" className="w-full sm:flex-1">
                   <Link href="/profile/edit"><Edit className="mr-2" /> Edit Profile</Link>

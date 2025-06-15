@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react';
-import { format, formatDistanceToNowStrict, isDate } from 'date-fns';
+import { format } from 'date-fns';
+import { formatDynamicDate } from '@/lib/dateUtils'; // Updated import
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
@@ -12,22 +13,6 @@ import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
 import MarkAsCompletedButton from './components/mark-as-completed-button'; 
 import { fetchJobDetailsPageDataAction } from './actions';
-
-// Helper function to format dates dynamically
-const formatDynamicDate = (dateInput: Date | string | number | undefined | null, includeTime: boolean = false): string => {
-  if (!dateInput) return 'N/A';
-  const date = isDate(dateInput) ? dateInput : new Date(dateInput);
-  if (isNaN(date.getTime())) return 'Invalid Date';
-
-  const now = new Date();
-  const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
-   now.setDate(now.getDate() + 1); // Reset now to current day to correctly compare against oneDayAgo
-
-  if (date > oneDayAgo) { // If the date is within the last 24 hours
-    return formatDistanceToNowStrict(date, { addSuffix: true });
-  }
-  return format(date, includeTime ? 'MMM d, yyyy p' : 'PPP');
-};
 
 
 export default async function JobDetailPage({ params: routeParams }: { params: { jobId: string } }) {
@@ -253,4 +238,3 @@ const AvatarFallback: React.FC<{children: React.ReactNode}> = ({children}) => (
     {children}
   </div>
 );
-
