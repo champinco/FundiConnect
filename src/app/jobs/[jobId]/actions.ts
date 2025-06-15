@@ -20,8 +20,8 @@ interface SubmitQuoteResult {
 export async function submitQuoteAction(
   data: Omit<SubmitQuoteData, 'providerId'> & { providerId: string }
 ): Promise<SubmitQuoteResult> {
-  if (!adminDb) {
-    console.error("[submitQuoteAction] Admin DB not initialized.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[submitQuoteAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function.");
     return { success: false, message: "Server error: Could not submit quote." };
   }
   try {
@@ -37,7 +37,7 @@ export async function submitQuoteAction(
     const quoteId = await submitQuoteForJob(quoteDataForService);
     return { success: true, message: "Quote submitted successfully!", quoteId };
   } catch (error: any) {
-    console.error("Submit Quote Action Error:", error);
+    console.error("Submit Quote Action Error:", error.message, error.stack);
     return { success: false, message: error.message || "An unexpected error occurred." };
   }
 }
@@ -49,8 +49,8 @@ interface UpdateQuoteStatusResult {
 }
 
 export async function acceptQuoteAction(jobId: string, quoteId: string, providerIdToAssign: string): Promise<UpdateQuoteStatusResult> {
-  if (!adminDb) {
-    console.error("[acceptQuoteAction] Admin DB not initialized.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[acceptQuoteAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function.");
     return { success: false, message: "Server error: Could not accept quote." };
   }
   try {
@@ -70,14 +70,14 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
     
     return { success: true, message: "Quote accepted and job assigned!" };
   } catch (error: any) {
-    console.error("Accept Quote Action Error:", error);
+    console.error("Accept Quote Action Error:", error.message, error.stack);
     return { success: false, message: error.message || "Failed to accept quote." };
   }
 }
 
 export async function rejectQuoteAction(quoteId: string): Promise<UpdateQuoteStatusResult> {
-  if (!adminDb) {
-    console.error("[rejectQuoteAction] Admin DB not initialized.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[rejectQuoteAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function.");
     return { success: false, message: "Server error: Could not reject quote." };
   }
   try {
@@ -92,7 +92,7 @@ export async function rejectQuoteAction(quoteId: string): Promise<UpdateQuoteSta
     await updateQuoteStatus(quoteId, 'rejected');
     return { success: true, message: "Quote rejected." };
   } catch (error: any) {
-    console.error("Reject Quote Action Error:", error);
+    console.error("Reject Quote Action Error:", error.message, error.stack);
     return { success: false, message: error.message || "Failed to reject quote." };
   }
 }
@@ -104,15 +104,15 @@ interface SubmitReviewResult {
   reviewId?: string;
 }
 export async function submitReviewAction(data: ReviewData): Promise<SubmitReviewResult> {
-  if (!adminDb) {
-    console.error("[submitReviewAction] Admin DB not initialized.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[submitReviewAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function.");
     return { success: false, message: "Server error: Could not submit review." };
   }
   try {
     const reviewId = await submitReview(data);
     return { success: true, message: "Review submitted successfully!", reviewId };
   } catch (error: any) {
-    console.error("Submit Review Action Error:", error);
+    console.error("Submit Review Action Error:", error.message, error.stack);
     return { success: false, message: error.message || "An unexpected error occurred while submitting your review." };
   }
 }
@@ -123,8 +123,8 @@ interface MarkJobAsCompletedResult {
 }
 
 export async function markJobAsCompletedAction(jobId: string, expectedClientId: string): Promise<MarkJobAsCompletedResult> {
-  if (!adminDb) {
-    console.error("[markJobAsCompletedAction] Admin DB not initialized.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[markJobAsCompletedAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function.");
     return { success: false, message: "Server error: Could not mark job as completed." };
   }
   try {
@@ -142,15 +142,15 @@ export async function markJobAsCompletedAction(jobId: string, expectedClientId: 
     await updateJobStatus(jobId, 'completed');
     return { success: true, message: "Job marked as completed!" };
   } catch (error: any) {
-    console.error("Mark Job As Completed Action Error:", error);
+    console.error("Mark Job As Completed Action Error:", error.message, error.stack);
     return { success: false, message: error.message || "Failed to mark job as completed." };
   }
 }
 
 
 export async function checkUserAccountTypeAction(userId: string): Promise<{ accountType: AppUser['accountType'] | null, error?: string }> {
-    if (!adminDb) {
-      console.error("[checkUserAccountTypeAction] Admin DB not initialized.");
+    if (!adminDb || typeof adminDb.collection !== 'function') {
+      console.error("[checkUserAccountTypeAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function.");
       return { accountType: null, error: "Server error: Admin DB not available." };
     }
     if (!userId) return { accountType: null, error: "User ID not provided" };
@@ -158,14 +158,14 @@ export async function checkUserAccountTypeAction(userId: string): Promise<{ acco
         const userProfile = await getUserProfileFromFirestore(userId);
         return { accountType: userProfile?.accountType || null };
     } catch (error: any) {
-        console.error("Error in checkUserAccountTypeAction:", error);
+        console.error("Error in checkUserAccountTypeAction:", error.message, error.stack);
         return { accountType: null, error: error.message || "Failed to get user account type." };
     }
 }
 
 export async function checkExistingReviewAction(jobId: string, clientId: string): Promise<{ hasReviewed: boolean, error?: string }> {
-    if (!adminDb) {
-      console.error("[checkExistingReviewAction] Admin DB not initialized.");
+    if (!adminDb || typeof adminDb.collection !== 'function') {
+      console.error("[checkExistingReviewAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function.");
       return { hasReviewed: false, error: "Server error: Admin DB not available." };
     }
     if (!jobId || !clientId) return { hasReviewed: false, error: "Job ID or Client ID not provided." };
@@ -173,7 +173,7 @@ export async function checkExistingReviewAction(jobId: string, clientId: string)
         const existingReview = await getReviewForJobByClient(jobId, clientId);
         return { hasReviewed: !!existingReview };
     } catch (error: any) {
-        console.error("Error in checkExistingReviewAction:", error);
+        console.error("Error in checkExistingReviewAction:", error.message, error.stack);
         return { hasReviewed: false, error: error.message || "Failed to check for existing review." };
     }
 }
@@ -186,8 +186,8 @@ export interface JobDetailsPageData {
 
 export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobDetailsPageData> {
   console.log(`[fetchJobDetailsPageDataAction] Received jobId: ${jobId}, typeof: ${typeof jobId}`);
-  if (!adminDb) {
-    console.error("[fetchJobDetailsPageDataAction] CRITICAL: Admin DB not initialized. Aborting fetch.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[fetchJobDetailsPageDataAction] CRITICAL: Admin DB not initialized or adminDb.collection is not a function. Aborting fetch.");
     return { job: null, quotes: [], error: "Server error: Database service is not available. Please try again later." };
   }
   if (!jobId) {
@@ -207,4 +207,3 @@ export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobD
     return { job: null, quotes: [], error: "An unexpected error occurred while fetching job details. Please try again." };
   }
 }
-

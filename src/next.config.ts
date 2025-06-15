@@ -2,13 +2,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    turbo: {
-      rules: {
-        // Add any custom webpack rules here for Turbopack
-      },
-    },
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -46,3 +39,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
