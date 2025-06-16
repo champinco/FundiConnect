@@ -20,6 +20,7 @@ const SmartMatchSuggestionsInputSchema = z.object({
     .string()
     .describe('Preferred criteria for selecting a service provider (e.g., experience, rating, certifications).'),
   availableProviders: z.array(z.object({
+    id: z.string().describe('The unique ID of the service provider.'), // Added provider ID
     name: z.string(),
     profile: z.string(),
     location: z.string(),
@@ -31,6 +32,7 @@ const SmartMatchSuggestionsInputSchema = z.object({
 export type SmartMatchSuggestionsInput = z.infer<typeof SmartMatchSuggestionsInputSchema>;
 
 const SmartMatchSuggestionsOutputSchema = z.array(z.object({
+  providerId: z.string().describe('The Firestore document ID of the suggested service provider.'), // Added providerId
   name: z.string().describe('Name of the suggested service provider.'),
   reason: z.string().describe('Reason why this provider is a good match.'),
 }));
@@ -55,8 +57,8 @@ const prompt = ai.definePrompt({
   output: {schema: SmartMatchSuggestionsOutputSchema},
   prompt: `You are an AI assistant designed to provide smart match suggestions for service providers based on user requirements.
 
-You will receive a job description, the user's location, preferred criteria, and a list of available providers.
-Your task is to analyze the information and return a list of the best service providers, along with a brief reason for each suggestion.
+You will receive a job description, the user's location, preferred criteria, and a list of available providers. Each provider in the list has an 'id' field.
+Your task is to analyze the information and return a list of the best service providers. For each suggested provider, you MUST include their original 'id' as 'providerId' in your response, along with their name and a brief reason for the suggestion.
 
 Job Description: {{{jobDescription}}}
 Location: {{{location}}}
@@ -64,12 +66,12 @@ Preferred Criteria: {{{preferredCriteria}}}
 
 Available Providers:
 {{#each availableProviders}}
-- Name: {{{name}}}, Profile: {{{profile}}}, Location: {{{location}}}, Experience: {{{experience}}}, Certifications: {{#each certifications}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Rating: {{{rating}}}
+- ID: {{{id}}}, Name: {{{name}}}, Profile: {{{profile}}}, Location: {{{location}}}, Experience: {{{experience}}}, Certifications: {{#each certifications}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Rating: {{{rating}}}
 {{/each}}
 
-Based on the above information, which service providers are the best matches?  Explain why you have chosen this particular service provider.
+Based on the above information, which service providers are the best matches? For each match, provide their 'id' (as 'providerId'), 'name', and a 'reason'.
 
-Format your repsonse as a JSON array.
+Format your response as a JSON array.
 `,
 });
 

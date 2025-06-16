@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,10 +13,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, Sparkles, Lightbulb, Info, PackageOpen } from 'lucide-react';
 import type { SmartMatchSuggestionsOutput } from '@/ai/flows/smart-match-suggestions';
-import { getSmartMatchSuggestionsAction } from './actions';
+import { getSmartMatchSuggestionsAction, fetchProviderDetailsForSmartMatchAction } from './actions';
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton'; 
 import Link from 'next/link';
+import type { ProviderProfile } from '@/models/provider';
 
 const smartMatchSchema = z.object({
   jobDescription: z.string().min(20, 'Please provide a detailed job description (min 20 characters).'),
@@ -27,8 +28,10 @@ const smartMatchSchema = z.object({
 type SmartMatchFormValues = z.infer<typeof smartMatchSchema>;
 
 export default function SmartMatchPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<SmartMatchSuggestionsOutput | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<SmartMatchSuggestionsOutput | null>(null);
+  const [suggestedProviderProfiles, setSuggestedProviderProfiles] = useState<ProviderProfile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
 
@@ -37,8 +40,10 @@ export default function SmartMatchPage() {
   });
 
   const onSubmit: SubmitHandler<SmartMatchFormValues> = async (data) => {
-    setIsLoading(true);
-    setSuggestions(null);
+    setIsLoadingAI(true);
+    setIsLoadingProfiles(false); // Reset profile loading state
+    setAiSuggestions(null);
+    setSuggestedProviderProfiles([]);
     setError(null);
     setHasSearched(true);
 
@@ -50,14 +55,35 @@ export default function SmartMatchPage() {
 
     try {
       const result = await getSmartMatchSuggestionsAction(inputForAction);
-      setSuggestions(result);
+      setAiSuggestions(result);
+      if (result && result.length > 0) {
+        setIsLoadingProfiles(true);
+        const providerIds = result.map(s => s.providerId);
+        const profiles = await fetchProviderDetailsForSmartMatchAction(providerIds);
+        setSuggestedProviderProfiles(profiles);
+        setIsLoadingProfiles(false);
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to get suggestions. Please try again.');
       console.error(e);
     } finally {
-      setIsLoading(false);
+      setIsLoadingAI(false);
     }
   };
+
+  const mapProfileToProviderCardData = (profile: ProviderProfile, reason?: string): Provider => ({
+    id: profile.id,
+    name: profile.businessName,
+    profilePictureUrl: profile.profilePictureUrl || 'https://placehold.co/300x300.png',
+    rating: profile.rating,
+    reviewsCount: profile.reviewsCount,
+    location: profile.location,
+    mainService: profile.mainService,
+    isVerified: profile.isVerified,
+    verificationAuthority: profile.verificationAuthority || undefined,
+    bioSummary: reason || profile.bio.substring(0, 100) + (profile.bio.length > 100 ? '...' : ''),
+  });
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -109,11 +135,16 @@ export default function SmartMatchPage() {
               {errors.preferredCriteria && <p className="text-sm text-destructive mt-1">{errors.preferredCriteria.message}</p>}
             </div>
             
-            <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isLoading}>
-              {isLoading ? (
+            <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isLoadingAI || isLoadingProfiles}>
+              {isLoadingAI ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Getting Suggestions...
+                </>
+              ) : isLoadingProfiles ? (
+                 <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading Provider Details...
                 </>
               ) : (
                 <>
@@ -133,16 +164,18 @@ export default function SmartMatchPage() {
         </Alert>
       )}
 
-      {isLoading && hasSearched && (
+      {(isLoadingAI || isLoadingProfiles) && hasSearched && (
         <div className="mt-12">
-          <h2 className="text-2xl font-bold font-headline text-center mb-8 text-muted-foreground">Finding best matches...</h2>
+          <h2 className="text-2xl font-bold font-headline text-center mb-8 text-muted-foreground">
+            {isLoadingAI ? "Finding best matches..." : "Loading provider details..."}
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(3)].map((_, i) => <ProviderCardSkeleton key={i} />)}
           </div>
         </div>
       )}
 
-      {!isLoading && hasSearched && suggestions && suggestions.length > 0 && (
+      {!isLoadingAI && !isLoadingProfiles && hasSearched && suggestedProviderProfiles.length > 0 && (
         <div className="mt-12">
           <h2 className="text-2xl font-bold font-headline text-center mb-8">AI Recommended Fundis</h2>
           <Alert variant="default" className="mb-6 max-w-2xl mx-auto bg-primary/5 dark:bg-primary/10 border-primary/30">
@@ -154,38 +187,25 @@ export default function SmartMatchPage() {
             </AlertDescription>
           </Alert>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {suggestions.map((suggestion, index) => {
-              // The AI flow currently returns only name and reason.
-              // We need to map this to the ProviderCard structure, which expects more details.
-              // For now, we'll use placeholders. A future enhancement would be to fetch full provider
-              // details based on the names returned by the AI, or have the AI return IDs.
-              const cardProvider: Provider = {
-                id: `suggestion-${suggestion.name.replace(/\s+/g, '-')}-${index}`, 
-                name: suggestion.name,
-                profilePictureUrl: 'https://placehold.co/300x300.png', // Placeholder
-                rating: 0, // Placeholder - AI doesn't directly return this in current flow
-                reviewsCount: 0, // Placeholder
-                location: "See Details", // Placeholder - could be derived if AI returns location
-                mainService: 'Other', // Placeholder - could be derived
-                isVerified: false, // Placeholder - AI doesn't return this
-                bioSummary: suggestion.reason, 
-              };
-              return <ProviderCard key={cardProvider.id} provider={cardProvider} />;
+            {suggestedProviderProfiles.map((profile) => {
+              const aiReason = aiSuggestions?.find(s => s.providerId === profile.id)?.reason;
+              const cardData = mapProfileToProviderCardData(profile, aiReason);
+              return <ProviderCard key={cardData.id} provider={cardData} />;
             })}
           </div>
         </div>
       )}
 
-      {!isLoading && hasSearched && (!suggestions || suggestions.length === 0) && !error && (
+      {!isLoadingAI && !isLoadingProfiles && hasSearched && (!aiSuggestions || aiSuggestions.length === 0 || suggestedProviderProfiles.length === 0) && !error && (
          <Alert className="mt-8 max-w-2xl mx-auto" variant="default">
           <PackageOpen className="h-5 w-5" />
           <AlertTitle>No Specific AI Matches Found</AlertTitle>
           <AlertDescription>
-            Our AI couldn&apos;t pinpoint specific matches this time. This might be due to the uniqueness of your request or the current pool of providers.
+            Our AI couldn&apos;t pinpoint specific matches this time, or we couldn&apos;t load their full profiles. This might be due to the uniqueness of your request or the current pool of providers.
             <ul className="list-disc pl-5 mt-2 space-y-1">
               <li>Try rephrasing your job description or preferred criteria for more clarity.</li>
               <li>Consider broadening your criteria if it was very specific.</li>
-              <li>You can also <Link href="/search" className="font-medium text-primary hover:underline">browse all available Fundis</Link> directly.</li>
+              <li>You can also <Link href="/search?mode=providers" className="font-medium text-primary hover:underline">browse all available Fundis</Link> directly.</li>
               <li>Or <Link href="/jobs/post" className="font-medium text-primary hover:underline">post your job publicly</Link> to receive quotes from interested Fundis.</li>
             </ul>
           </AlertDescription>
@@ -194,5 +214,3 @@ export default function SmartMatchPage() {
     </div>
   );
 }
-
-    
