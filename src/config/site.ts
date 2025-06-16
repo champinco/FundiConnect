@@ -8,10 +8,10 @@ const mainNavLinksBase = [
   },
   {
     title: "Find Fundis",
-    href: "/search?mode=providers", 
+    href: "/search?mode=providers",
   },
   {
-    title: "Browse Jobs", 
+    title: "Browse Jobs", // Added
     href: "/jobs",
   },
   {
@@ -22,11 +22,11 @@ const mainNavLinksBase = [
 
 const mainNavLinksLoggedInExclusive = [
   {
-    title: "Post a Job", 
+    title: "Post a Job", // Moved from base
     href: "/jobs/post",
   },
   {
-    title: "My Jobs", 
+    title: "My Jobs", // Added
     href: "/jobs/my-jobs",
   },
   {
@@ -38,12 +38,13 @@ const mainNavLinksLoggedInExclusive = [
     href: "/messages",
   },
   {
-    title: "My Profile", 
+    title: "My Profile",
     href: "/profile",
   },
 ];
 
 const mainNavLinksLoggedOutExclusive = [
+  // Example: { title: "Pricing", href: "/pricing" }
 ];
 
 
@@ -51,12 +52,11 @@ export const siteConfig = {
   name: "FundiConnect",
   description:
     "Find certified electricians, plumbers, and more in Kenya. Get quotes and connect with professionals for your home and business needs.",
-  mainNav: mainNavLinksBase, 
-  mainNavLoggedIn: mainNavLinksLoggedInExclusive, 
+  mainNav: mainNavLinksBase,
+  mainNavLoggedIn: mainNavLinksLoggedInExclusive,
   mainNavLoggedOut: mainNavLinksLoggedOutExclusive,
   links: {
-    twitter: "https://twitter.com/shadcn", 
-    github: "https://github.com/shadcn/ui", 
+    twitter: "https://twitter.com/shadcn", // Replace with actual links
+    github: "https://github.com/shadcn/ui", // Replace with actual links
   },
 };
-

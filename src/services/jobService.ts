@@ -117,7 +117,7 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
  * @returns A promise that resolves with an array of Job objects.
  */
 export async function getJobsByClientIdFromFirestore(clientId: string): Promise<Job[]> {
-   if (!adminDb) {
+   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("Admin DB not initialized. Cannot fetch jobs by client ID.");
     throw new Error("Server error: Admin DB not initialized.");
   }
@@ -150,12 +150,12 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
  * @param assignedProviderId Optional. The UID of the provider if the job is being assigned.
  */
 export async function updateJobStatus(jobId: string, newStatus: JobStatus, assignedProviderId?: string | null): Promise<void> {
-   if (!adminDb) {
+   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("Admin DB not initialized. Cannot update job status.");
     throw new Error("Server error: Admin DB not initialized.");
   }
   const jobRef = adminDb.collection('jobs').doc(jobId);
-  const updateData: UpdateData<Job> = { 
+  const updateData: UpdateData<Job> = {
     status: newStatus,
     updatedAt: FieldValue.serverTimestamp() as Timestamp, // Correct usage for Admin SDK
   };
@@ -189,7 +189,7 @@ export interface ClientJobSummary {
  * @returns A promise that resolves with a ClientJobSummary object.
  */
 export async function getJobSummaryForClient(clientId: string): Promise<ClientJobSummary> {
-   if (!adminDb) {
+   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("Admin DB not initialized. Cannot get job summary.");
     return { open: 0, assigned: 0, inProgress: 0, completed: 0, total: 0 };
   }
@@ -227,7 +227,7 @@ export async function getJobSummaryForClient(clientId: string): Promise<ClientJo
  * @returns A promise that resolves with an array of Job objects.
  */
 export async function getAssignedJobsForProvider(providerId: string, limitCount: number = 3): Promise<Job[]> {
-   if (!adminDb) {
+   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("Admin DB not initialized. Cannot get assigned jobs.");
     return [];
   }
@@ -259,22 +259,22 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
 
 /**
  * Retrieves all jobs from Firestore, intended for general browsing, using Admin SDK.
- * Filters for 'open' or 'pending_quotes' statuses.
+ * Filters for 'open' or 'pending_quotes' statuses by default.
  * @param limitCount - The maximum number of jobs to fetch. Defaults to 50.
  * @returns A promise that resolves with an array of Job objects.
  */
 export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<Job[]> {
-  if (!adminDb) {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("[getAllJobsFromFirestore] Admin DB not initialized.");
     throw new Error("Server error: Admin DB not initialized. Cannot fetch all jobs.");
   }
   try {
     const jobsRef = adminDb.collection('jobs');
-    const q: Query = jobsRef 
+    const q: Query = jobsRef
       .where('status', 'in', ['open', 'pending_quotes'])
       .orderBy('postedAt', 'desc')
       .limit(limitCount);
-      
+
     const querySnapshot = await q.get();
     const jobs: Job[] = [];
     querySnapshot.forEach((docSnap) => {
@@ -296,7 +296,6 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
     return jobs;
   } catch (error: any) {
     console.error('Error fetching all jobs from Firestore (Admin SDK):', error.message, error.stack);
-    // Check if it's an index error
     if (error.message && error.message.includes('FAILED_PRECONDITION') && error.message.includes('index')) {
         console.error("Firestore query requires a composite index. Please create it in the Firebase console. The error message should contain a link to create it.");
         throw new Error(`Query requires a Firestore index. Please check server logs for a link to create it. Original: ${error.message}`);

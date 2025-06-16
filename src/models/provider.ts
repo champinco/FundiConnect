@@ -46,4 +46,3 @@ export interface ProviderProfile {
   createdAt: Date;
   updatedAt: Date;
 }
-

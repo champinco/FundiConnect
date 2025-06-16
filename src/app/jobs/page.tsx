@@ -4,12 +4,12 @@
 import { useEffect, useState } from 'react';
 import JobCard from '@/components/job-card';
 import JobCardSkeleton from '@/components/skeletons/job-card-skeleton';
-import { fetchAllJobsAction } from './actions'; // Updated path
+import { fetchAllJobsAction } from './actions';
 import type { Job } from '@/models/job';
 import { Briefcase, Search, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function BrowseJobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);

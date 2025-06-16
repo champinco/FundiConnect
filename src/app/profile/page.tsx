@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Loader2, UserCircle, Edit, ShieldCheck, Mail, Phone, Briefcase, MapPin, Award, FileText, MessageSquare, Building, Clock } from 'lucide-react';
 import Link from 'next/link';
-import { fetchUserProfilePageDataAction, type UserProfilePageData } from './actions'; 
+import { fetchUserProfilePageDataAction, type UserProfilePageData } from './actions';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 
@@ -20,7 +20,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
-  const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null); 
+  const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,7 +36,7 @@ export default function ProfilePage() {
           setProviderProfile(null);
         } else {
           setAppUser(result.appUser);
-          setProviderProfile(result.providerProfile || null);
+          setProviderProfile(result.providerProfile || null); // Set providerProfile if it exists
         }
       } else {
         setAppUser(null);
@@ -59,7 +59,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (error || !appUser) { 
+  if (error || !appUser) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <div className="max-w-md mx-auto p-8">
@@ -80,7 +80,7 @@ export default function ProfilePage() {
       </div>
     );
   }
-  
+
   if (appUser.accountType === 'client') {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -141,14 +141,14 @@ export default function ProfilePage() {
 
   if (appUser.accountType === 'provider') {
     if (!providerProfile) {
-         return ( // Fallback if provider profile is still loading or truly missing after action attempts
+         return (
             <div className="container mx-auto px-4 py-12 text-center">
                 <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-4 text-foreground">Loading Provider Profile...</h2>
                 <p className="text-muted-foreground mb-6">
                     Fetching your detailed provider information. If this takes too long, please ensure your profile setup was completed.
                 </p>
-                <Button asChild variant="secondary">
+                 <Button asChild variant="secondary">
                     <Link href="/profile/edit">Go to Edit Profile</Link>
                 </Button>
             </div>
@@ -185,14 +185,14 @@ export default function ProfilePage() {
                 <div className="flex items-center"><MapPin className="mr-3 h-5 w-5 text-muted-foreground" /> Location: {providerProfile.location}</div>
                  {providerProfile.fullAddress && <div className="flex items-center ml-8 text-sm text-muted-foreground"> {providerProfile.fullAddress}</div>}
             </div>
-            
+
             {providerProfile.bio && (
                  <div>
                     <h3 className="font-semibold text-lg mb-2 text-primary border-b pb-1 flex items-center"><FileText className="mr-2 h-5 w-5" />About Us</h3>
                     <p className="text-foreground/90 whitespace-pre-line">{providerProfile.bio}</p>
                 </div>
             )}
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                  {providerProfile.yearsOfExperience > 0 && (
                      <div>
@@ -225,8 +225,6 @@ export default function ProfilePage() {
                     </Link>
                 </div>
             )}
-
-
           </CardContent>
           <CardFooter className="flex-col space-y-3 pt-6 border-t">
             <Button asChild className="w-full">
@@ -250,7 +248,6 @@ export default function ProfilePage() {
     );
   }
 
-  // Fallback if logic is somehow bypassed
   return (
     <div className="container mx-auto px-4 py-12 text-center">
       <p className="text-muted-foreground">Loading profile or redirecting...</p>
@@ -260,4 +257,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-

@@ -6,7 +6,7 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import JobCard from '@/components/job-card';
 import JobCardSkeleton from '@/components/skeletons/job-card-skeleton';
-import { fetchMyClientJobsAction } from '../actions'; 
+import { fetchMyClientJobsAction } from '../actions';
 import type { Job } from '@/models/job';
 import { Briefcase, PlusCircle, UserCircle, AlertCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -149,4 +149,3 @@ export default function MyJobsPage() {
     </div>
   );
 }
-
