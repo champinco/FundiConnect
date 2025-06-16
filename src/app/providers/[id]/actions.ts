@@ -16,9 +16,9 @@ interface PublicProviderProfilePageData {
 
 export async function fetchPublicProviderProfileDataAction(providerId: string): Promise<PublicProviderProfilePageData> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
-    const errorMsg = "[fetchPublicProviderProfileDataAction] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    const errorMsg = "[fetchPublicProviderProfileDataAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
     console.error(errorMsg);
-    return { provider: null, reviews: [], error: "Server error: Core database service is not available. Please try again later." };
+    return { provider: null, reviews: [], error: "Server error: Core database service unavailable." };
   }
   
   console.log(`[fetchPublicProviderProfileDataAction] Initiated for providerId: ${providerId}`);
@@ -41,9 +41,7 @@ export async function fetchPublicProviderProfileDataAction(providerId: string): 
     console.log(`[fetchPublicProviderProfileDataAction] Profile found for ${providerId}. Reviews count: ${reviews.length}`);
     return { provider: profile, reviews: reviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime()) };
   } catch (error: any) {
-    console.error("[fetchPublicProviderProfileDataAction] Error fetching public provider profile data. Provider ID:", providerId);
-    console.error("[fetchPublicProviderProfileDataAction] Error Message:", error.message);
-    console.error("[fetchPublicProviderProfileDataAction] Error Stack:", error.stack);
-    return { provider: null, reviews: [], error: error.message || "Failed to load provider data due to an unexpected server error." };
+    console.error(`[fetchPublicProviderProfileDataAction] Error fetching public profile data for Provider ID: ${providerId}. Error:`, error.message, error.stack, error.code);
+    return { provider: null, reviews: [], error: `Failed to load provider data: ${error.message}.` };
   }
 }

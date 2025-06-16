@@ -22,7 +22,7 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
     return { success: false, message: "Server error: Core database service is not available. Please try again later." };
   }
 
-  console.log("[SignupAction] Initiated for firebaseUserId:", firebaseUserId, "with values:", JSON.stringify(values));
+  console.log("[signupUserAction] Initiated for firebaseUserId:", firebaseUserId);
   try {
     const userProfileData: Omit<User, 'createdAt' | 'updatedAt' | 'uid'> = {
       email: values.email,
@@ -33,14 +33,9 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
       providerProfileId: values.accountType === 'provider' ? firebaseUserId : undefined,
     };
 
-    console.log("[SignupAction] Attempting to create user profile in Firestore with data:", JSON.stringify(userProfileData));
-    try {
-      await createUserProfileInFirestore(userProfileData, firebaseUserId);
-      console.log("[SignupAction] Successfully created user profile in Firestore for UID:", firebaseUserId);
-    } catch (userProfileError: any) {
-      console.error("[SignupAction] Error creating user profile in Firestore for UID:", firebaseUserId, "Details:", userProfileError.message, userProfileError.stack);
-      return { success: false, message: `Failed to create user profile: ${userProfileError.message}. Check server logs for details.` };
-    }
+    console.log("[signupUserAction] Attempting to create user profile in Firestore with data:", JSON.stringify(userProfileData));
+    await createUserProfileInFirestore(userProfileData, firebaseUserId);
+    console.log("[signupUserAction] Successfully created user profile in Firestore for UID:", firebaseUserId);
 
     if (values.accountType === 'provider') {
       const providerProfileData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount'> = {
@@ -54,7 +49,7 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
         fullAddress: null,
         yearsOfExperience: values.yearsOfExperience !== undefined ? Number(values.yearsOfExperience) : 0,
         contactPhoneNumber: values.contactPhoneNumber || "",
-        profilePictureUrl: values.profilePictureUrl || undefined,
+        profilePictureUrl: values.profilePictureUrl || null,
         bannerImageUrl: null,
         website: null,
         socialMediaLinks: null,
@@ -62,25 +57,18 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
         verificationAuthority: null,
         certifications: [],
         portfolio: [],
-        // rating and reviewsCount will be initialized by createProviderProfileInFirestore
-        operatingHours: "Mon-Fri 9am-5pm", // Default operating hours
+        operatingHours: "Mon-Fri 9am-5pm",
         serviceAreas: values.providerLocation ? [values.providerLocation] : ["Nairobi"],
       };
-      console.log("[SignupAction] Attempting to create provider profile in Firestore with data:", JSON.stringify(providerProfileData));
-      try {
-        // createProviderProfileInFirestore already sets rating: 0 and reviewsCount: 0
-        await createProviderProfileInFirestore(providerProfileData);
-        console.log("[SignupAction] Successfully created provider profile in Firestore for UID:", firebaseUserId);
-      } catch (providerProfileError: any) {
-        console.error("[SignupAction] Error creating provider profile in Firestore for UID:", firebaseUserId, "Details:", providerProfileError.message, providerProfileError.stack);
-        return { success: false, message: `Failed to create provider profile: ${providerProfileError.message}. Check server logs for details.` };
-      }
+      console.log("[signupUserAction] Attempting to create provider profile in Firestore with data:", JSON.stringify(providerProfileData));
+      await createProviderProfileInFirestore(providerProfileData);
+      console.log("[signupUserAction] Successfully created provider profile in Firestore for UID:", firebaseUserId);
     }
 
-    console.log("[SignupAction] All profiles created successfully for firebaseUserId:", firebaseUserId);
+    console.log("[signupUserAction] All profiles created successfully for firebaseUserId:", firebaseUserId);
     return { success: true, message: "Account profiles created successfully!", userId: firebaseUserId, firebaseUserId: firebaseUserId };
   } catch (error: any) {
-    console.error("[SignupAction] Unexpected overall error during profile creation for firebaseUserId:", firebaseUserId, "Error:", error);
-    return { success: false, message: error.message || "An unexpected error occurred while creating your profile details. Check server logs." };
+    console.error(`[signupUserAction] Error during profile creation for firebaseUserId: ${firebaseUserId}. Values: ${JSON.stringify(values)}. Error:`, error.message, error.stack, error.code);
+    return { success: false, message: `Failed to create profile: ${error.message}. Check server logs.` };
   }
 }

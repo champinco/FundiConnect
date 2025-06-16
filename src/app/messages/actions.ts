@@ -11,15 +11,6 @@ function generateChatId(uid1: string, uid2: string): string {
   return [uid1, uid2].sort().join('_');
 }
 
-// Helper to ensure adminDb is available
-function ensureDbInitialized() {
-  if (!adminDb || typeof adminDb.collection !== 'function') {
-    const errorMsg = "[ChatActions] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
-    console.error(errorMsg);
-    throw new Error("Server error: Core database service is not available. Please try again later.");
-  }
-}
-
 interface GetOrCreateChatResult {
   chatId: string | null;
   error?: string;
@@ -27,7 +18,11 @@ interface GetOrCreateChatResult {
 }
 
 export async function getOrCreateChatAction(currentUserUid: string, otherUserUid: string): Promise<GetOrCreateChatResult> {
-  ensureDbInitialized();
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[getOrCreateChatAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
+    console.error(errorMsg);
+    return { chatId: null, error: "Server error: Core database service unavailable." };
+  }
   
   if (!currentUserUid || !otherUserUid) {
     console.error("[getOrCreateChatAction] User IDs are required to create or get a chat.");
@@ -74,8 +69,8 @@ export async function getOrCreateChatAction(currentUserUid: string, otherUserUid
     }
     return { chatId, isNew: false };
   } catch (error: any) {
-    console.error(`[getOrCreateChatAction] Error for chatId ${chatId}. CurrentUserUID: ${currentUserUid}, OtherUserUID: ${otherUserUid}. Error Details:`, error.message, error.stack);
-    return { chatId: null, error: error.message || "Failed to create or get chat session due to an unexpected server error." };
+    console.error(`[getOrCreateChatAction] Error for chatId ${chatId}. CurrentUserUID: ${currentUserUid}, OtherUserUID: ${otherUserUid}. Error:`, error.message, error.stack, error.code);
+    return { chatId: null, error: `Failed to get or create chat: ${error.message}.` };
   }
 }
 
@@ -93,7 +88,11 @@ export async function sendMessageAction(
   senderDisplayName?: string, 
   senderPhotoURL?: string | null 
 ): Promise<SendMessageResult> {
-  ensureDbInitialized();
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[sendMessageAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
+    console.error(errorMsg);
+    return { success: false, error: "Server error: Core database service unavailable." };
+  }
   
   if (!chatId || !senderUid) {
     console.error("[sendMessageAction] Chat ID and Sender ID are required.");
@@ -165,7 +164,7 @@ export async function sendMessageAction(
     return { success: true, messageId: newMessageDocRef.id };
 
   } catch (error: any) {
-    console.error(`[sendMessageAction] Error sending message to chatId ${chatId}. SenderUID: ${senderUid}. Error Details:`, error.message, error.stack);
-    return { success: false, error: error.message || "Failed to send message due to an unexpected server error." };
+    console.error(`[sendMessageAction] Error sending message to chatId ${chatId}. SenderUID: ${senderUid}. Text: ${text ? text.substring(0,20) : 'N/A'}. Image: ${imageUrl ? 'Yes' : 'No'}. Error:`, error.message, error.stack, error.code);
+    return { success: false, error: `Failed to send message: ${error.message}.` };
   }
 }

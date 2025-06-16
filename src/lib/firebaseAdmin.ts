@@ -38,7 +38,7 @@ try {
         appOptions.credential = appCredential;
         console.log('[FirebaseAdmin] Successfully parsed FIREBASE_SERVICE_ACCOUNT_KEY.');
       } catch (e: any) {
-        console.error('[FirebaseAdmin] Error parsing FIREBASE_SERVICE_ACCOUNT_KEY. Ensure it is a valid JSON string and private_key newlines are escaped (\\\\n). Error:', e.message);
+        console.error('[FirebaseAdmin] Error parsing FIREBASE_SERVICE_ACCOUNT_KEY. Ensure it is a valid JSON string and private_key newlines are escaped (e.g., \\\\n for \\n). Error:', e.message);
         console.log('[FirebaseAdmin] Warning: FIREBASE_SERVICE_ACCOUNT_KEY was set but could not be parsed. Attempting next credential method.');
         appCredential = undefined; 
       }
@@ -78,13 +78,23 @@ try {
   if (adminApp) {
     console.log('[FirebaseAdmin] Attempting to get Firestore instance for app:', adminApp.name);
     adminDbInstance = getFirestore(adminApp);
-    console.log('[FirebaseAdmin] Firestore Admin instance (adminDb) obtained.');
+    if (adminDbInstance && typeof adminDbInstance.collection === 'function') {
+        console.log('[FirebaseAdmin] Firestore Admin instance (adminDb) CREATED successfully.');
+    } else {
+        console.error('[FirebaseAdmin] CRITICAL: Firestore Admin instance (adminDb) FAILED to be created or is invalid.');
+        adminDbInstance = null; 
+    }
     
     console.log('[FirebaseAdmin] Attempting to get Auth instance for app:', adminApp.name);
     adminAuthInstance = getAuth(adminApp); 
-    console.log('[FirebaseAdmin] Auth Admin instance (adminAuth) obtained.');
+    if (adminAuthInstance && typeof adminAuthInstance.getUser === 'function') {
+        console.log('[FirebaseAdmin] Auth Admin instance (adminAuth) CREATED successfully.');
+    } else {
+        console.error('[FirebaseAdmin] CRITICAL: Auth Admin instance (adminAuth) FAILED to be created or is invalid.');
+        adminAuthInstance = null;
+    }
     
-    console.log('\n[FirebaseAdmin] Firebase Admin SDK initialized successfully!');
+    console.log('\n[FirebaseAdmin] Firebase Admin SDK initialization attempt completed.');
   } else {
     throw new Error("[FirebaseAdmin] CRITICAL: Admin App could not be obtained or initialized.");
   }
@@ -95,13 +105,13 @@ try {
   console.log('[FirebaseAdmin] Error Message:', error?.message || 'No error message');
   console.error('[FirebaseAdmin] Full Error Object:', error); 
   
-  adminDbInstance = null;
+  adminDbInstance = null; 
   adminAuthInstance = null;
 }
 
 console.log('\n[FirebaseAdmin] FINAL STATUS before export:');
 console.log(`[FirebaseAdmin] adminDbInstance is ${adminDbInstance && typeof adminDbInstance.collection === 'function' ? 'INITIALIZED and USABLE' : '<<<<< NULL or INVALID >>>>>'}`);
-console.log(`[FirebaseAdmin] adminAuthInstance is ${adminAuthInstance ? 'INITIALIZED and USABLE' : '<<<<< NULL or INVALID >>>>>'}`);
+console.log(`[FirebaseAdmin] adminAuthInstance is ${adminAuthInstance && typeof adminAuthInstance.getUser === 'function' ? 'INITIALIZED and USABLE' : '<<<<< NULL or INVALID >>>>>'}`);
 console.log('******************************************************************************');
 console.log('***** [FirebaseAdmin] END OF INITIALIZATION ATTEMPT (firebaseAdmin.ts) *****');
 console.log('******************************************************************************');

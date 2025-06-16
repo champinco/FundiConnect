@@ -17,9 +17,9 @@ export interface UserProfilePageData {
 
 export async function fetchUserProfilePageDataAction(userId: string, clientFirebaseUser: FirebaseUser | null): Promise<UserProfilePageData> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
-    const errorMsg = "[fetchUserProfilePageDataAction] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
+    const errorMsg = "[fetchUserProfilePageDataAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
     console.error(errorMsg);
-    return { appUser: null, providerProfile: null, error: "Server error: Core database service is not available. Please try again later." };
+    return { appUser: null, providerProfile: null, error: "Server error: Core database service unavailable." };
   }
 
   if (!userId) {
@@ -30,12 +30,12 @@ export async function fetchUserProfilePageDataAction(userId: string, clientFireb
     let userProfile = await getUserProfileFromFirestore(userId);
 
     if (!userProfile && clientFirebaseUser) {
-      console.log(`[fetchUserProfilePageDataAction] No Firestore profile found for UID: ${userId}. Attempting to create default profile from client FirebaseUser.`);
+      console.log(`[fetchUserProfilePageDataAction] No Firestore profile found for UID: ${userId}. Attempting to create default profile.`);
       try {
         userProfile = await createDefaultAppUserProfile(clientFirebaseUser);
         console.log(`[fetchUserProfilePageDataAction] Default profile created successfully for UID: ${userId}`);
       } catch (creationError: any) {
-        console.error(`[fetchUserProfilePageDataAction] Failed to create default profile for UID: ${userId}. Error:`, creationError.message, creationError.stack);
+        console.error(`[fetchUserProfilePageDataAction] Failed to create default profile for UID: ${userId}. Error:`, creationError.message, creationError.stack, creationError.code);
         return { appUser: null, providerProfile: null, error: `Failed to create default profile: ${creationError.message}` };
       }
     } else if (!userProfile && !clientFirebaseUser) {
@@ -43,7 +43,12 @@ export async function fetchUserProfilePageDataAction(userId: string, clientFireb
          return { appUser: null, providerProfile: null, error: "User profile not found and cannot create default without client user info." };
     }
 
-    if (userProfile?.accountType === 'provider') {
+    if (!userProfile) {
+        console.error(`[fetchUserProfilePageDataAction] userProfile is null after creation/fetch attempt for UID: ${userId}. This should not happen.`);
+        return { appUser: null, providerProfile: null, error: "Critical error: User profile is unexpectedly null." };
+    }
+
+    if (userProfile.accountType === 'provider') {
       const providerProfileData = await getProviderProfileFromFirestore(userId);
       return { appUser: userProfile, providerProfile: providerProfileData };
     }
@@ -51,7 +56,7 @@ export async function fetchUserProfilePageDataAction(userId: string, clientFireb
     return { appUser: userProfile, providerProfile: null };
 
   } catch (error: any) {
-    console.error("[fetchUserProfilePageDataAction] Error fetching user profile. User ID:", userId, "Error Details:", error.message, error.stack);
-    return { appUser: null, providerProfile: null, error: error.message || "Failed to load user profile data due to an unexpected server error." };
+    console.error(`[fetchUserProfilePageDataAction] Error fetching profile for User ID: ${userId}. Error:`, error.message, error.stack, error.code);
+    return { appUser: null, providerProfile: null, error: `Failed to load profile data: ${error.message}.` };
   }
 }

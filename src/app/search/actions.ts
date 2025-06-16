@@ -9,14 +9,6 @@ import type { ServiceCategory } from '@/components/service-category-icon';
 import type { Job, JobStatus } from '@/models/job';
 import type { JobCardProps } from '@/components/job-card';
 
-// Helper to ensure adminDb is available
-function ensureDbInitialized() {
-  if (!adminDb || typeof adminDb.collection !== 'function') {
-    const errorMsg = "[SearchActions] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
-    console.error(errorMsg);
-    throw new Error("Server error: Core database service is not available. Please try again later.");
-  }
-}
 
 export interface SearchParams {
   query?: string | null;
@@ -27,7 +19,11 @@ export interface SearchParams {
 }
 
 export async function searchProvidersAction(params: SearchParams): Promise<Provider[]> {
-  ensureDbInitialized();
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[searchProvidersAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service unavailable. Cannot search providers.");
+  }
   console.log('[searchProvidersAction] Initiated with params:', JSON.stringify(params));
   
   try {
@@ -46,8 +42,6 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
       console.log(`[searchProvidersAction] Applying location filter: >= ${locationSearchTerm}, <= ${locationSearchTerm}\\uf8ff`);
-      // Simple prefix match for location - consider more advanced search if needed
-      // This might require an index on 'location' if you also sort by it without an equality filter first.
       providerQuery = providerQuery.where('location', '>=', locationSearchTerm)
                                    .where('location', '<=', locationSearchTerm + '\uf8ff');
     }
@@ -56,18 +50,13 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.minRating && params.minRating > 0) {
       console.log(`[searchProvidersAction] Applying minRating filter: >= ${params.minRating}`);
       providerQuery = providerQuery.where('rating', '>=', params.minRating);
-      // Firestore requires the first orderBy field to match the inequality filter field.
       providerQuery = providerQuery.orderBy('rating', 'desc');
       hasRatingOrder = true;
     }
 
-    // If not sorting by rating, default to sorting by businessName for consistency
-    // Note: Firestore queries require an index for most orderBy clauses if not combined with an equality filter.
-    // If you filter by category (equality) then order by name, it's generally fine.
-    // If you only filter by location (range) then order by name, you'll need a composite index.
     if (!hasRatingOrder) {
       console.log(`[searchProvidersAction] Applying default order by businessName`);
-      providerQuery = providerQuery.orderBy('businessName'); // Default sort
+      providerQuery = providerQuery.orderBy('businessName'); 
     }
 
     providerQuery = providerQuery.limit(50);
@@ -92,9 +81,6 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
       });
     });
 
-    // Client-side filtering for text query (if provided) across multiple fields
-    // This is less efficient than Firestore full-text search (e.g., Algolia, Typesense integration)
-    // but works for smaller datasets or simpler search needs.
     if (params.query && params.query.trim() !== '') {
       const searchTerm = params.query.trim().toLowerCase();
       console.log(`[searchProvidersAction] Applying client-side text filter: ${searchTerm}`);
@@ -108,11 +94,12 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     console.log(`[searchProvidersAction] Found ${providersData.length} providers.`);
     return providersData;
   } catch (error: any) {
-    console.error("[searchProvidersAction] Error during provider search. Params:", JSON.stringify(params));
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    // It's better to re-throw a generic error than expose raw Firestore error details to the client.
-    throw new Error("An error occurred while searching for providers. Please try again.");
+    console.error(`[searchProvidersAction] Error during provider search. Params: ${JSON.stringify(params)}. Error:`, error.message, error.stack, error.code);
+    if (error.message && error.message.includes('FAILED_PRECONDITION') && error.message.includes('index')) {
+        console.error("[searchProvidersAction] Firestore query requires a composite index. The error message should contain a link to create it in the Firebase console.");
+        throw new Error(`Query requires a Firestore index for providers. Check server logs for a link to create it. Original: ${error.message}`);
+    }
+    throw new Error(`An error occurred while searching for providers: ${error.message}.`);
   }
 }
 
@@ -120,13 +107,17 @@ export interface JobSearchParams {
   keywords?: string | null;
   location?: string | null;
   category?: ServiceCategory | 'All' | null;
-  currentUserId?: string | null; // For "My Jobs" search
-  filterByStatus?: JobStatus | JobStatus[] | string | null; // For "My Jobs" status filter
+  currentUserId?: string | null; 
+  filterByStatus?: JobStatus | JobStatus[] | string | null; 
   isMyJobsSearch?: boolean;
 }
 
 export async function searchJobsAction(params: JobSearchParams): Promise<JobCardProps['job'][]> {
-  ensureDbInitialized();
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[searchJobsAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service unavailable. Cannot search jobs.");
+  }
   console.log('[searchJobsAction] Initiated with params:', JSON.stringify(params));
 
   if (params.isMyJobsSearch && !params.currentUserId) {
@@ -140,7 +131,6 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     if (params.isMyJobsSearch && params.currentUserId) {
       console.log(`[searchJobsAction] Filtering by clientId: ${params.currentUserId}`);
       jobQuery = jobQuery.where('clientId', '==', params.currentUserId);
-      // Apply status filter only if it's not 'all_my' (which implies no status filter for user's jobs)
       if (params.filterByStatus && params.filterByStatus !== 'all_my') {
         if (Array.isArray(params.filterByStatus) && params.filterByStatus.length > 0) {
           console.log(`[searchJobsAction] Filtering by status array: ${params.filterByStatus.join(', ')}`);
@@ -151,19 +141,15 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
         }
       }
     } else {
-      // For general job browsing, only show 'open' or 'pending_quotes' jobs
       console.log(`[searchJobsAction] Filtering for open/pending_quotes jobs`);
       jobQuery = jobQuery.where('status', 'in', ['open', 'pending_quotes']);
     }
 
-    // Category filter (for both myJobs and general search)
     if (params.category && params.category !== 'All') {
       console.log(`[searchJobsAction] Filtering by category: ${params.category}`);
       jobQuery = jobQuery.where('serviceCategory', '==', params.category);
     }
 
-    // Location filter (for both myJobs and general search)
-    // This kind of range query on location might require a composite index if combined with other filters/orders.
     if (params.location && params.location.trim() !== '') {
       const locationTerm = params.location.trim();
       console.log(`[searchJobsAction] Filtering by location: >= ${locationTerm}, <= ${locationTerm}\\uf8ff`);
@@ -171,7 +157,6 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
                        .where('location', '<=', locationTerm + '\uf8ff');
     }
 
-    // Default ordering for all job searches
     console.log(`[searchJobsAction] Ordering by postedAt desc, limiting to 50`);
     jobQuery = jobQuery.orderBy('postedAt', 'desc').limit(50);
 
@@ -181,7 +166,6 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     let jobsData: Job[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      // Ensure Timestamps are converted to Date objects
       const postedAt = (data.postedAt as Timestamp)?.toDate();
       const updatedAt = (data.updatedAt as Timestamp)?.toDate();
       const deadline = data.deadline ? (data.deadline as Timestamp).toDate() : null;
@@ -195,7 +179,6 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       } as Job);
     });
 
-    // Client-side keyword filtering for jobs (if keywords are provided)
     if (params.keywords && params.keywords.trim() !== '') {
       const keywordTerm = params.keywords.trim().toLowerCase();
       console.log(`[searchJobsAction] Applying client-side text filter for jobs: ${keywordTerm}`);
@@ -205,7 +188,6 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       );
     }
 
-    // Map to the structure expected by JobCardProps
     const jobCardData: JobCardProps['job'][] = jobsData.map(job => ({
       id: job.id,
       title: job.title,
@@ -214,17 +196,19 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       location: job.location,
       postedAt: job.postedAt,
       status: job.status,
-      description: job.description, // Ensure description is passed
-      budget: job.budget, // Pass budget
-      deadline: job.deadline, // Pass deadline
+      description: job.description, 
+      budget: job.budget, 
+      deadline: job.deadline, 
     }));
     console.log(`[searchJobsAction] Found ${jobCardData.length} jobs.`);
     return jobCardData;
 
   } catch (error: any) {
-    console.error("[searchJobsAction] Error during job search. Params:", JSON.stringify(params));
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    throw new Error("An error occurred while searching for jobs. Please try again.");
+    console.error(`[searchJobsAction] Error during job search. Params: ${JSON.stringify(params)}. Error:`, error.message, error.stack, error.code);
+    if (error.message && error.message.includes('FAILED_PRECONDITION') && error.message.includes('index')) {
+        console.error("[searchJobsAction] Firestore query requires a composite index. The error message should contain a link to create it in the Firebase console.");
+        throw new Error(`Query requires a Firestore index for jobs. Check server logs for a link to create it. Original: ${error.message}`);
+    }
+    throw new Error(`An error occurred while searching for jobs: ${error.message}.`);
   }
 }

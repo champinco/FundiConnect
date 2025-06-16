@@ -35,9 +35,9 @@ const robustTimestampToDate = (timestamp: any, defaultVal: Date | null = null): 
  * @returns A promise that resolves when the operation is complete.
  */
 export async function createProviderProfileInFirestore(profileData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount'>): Promise<void> {
-  if (!adminDb) {
-    console.error("Admin DB not initialized. Provider profile creation failed.");
-    throw new Error("Server error: Admin DB not initialized.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[providerService] Admin DB not initialized or adminDb.collection is not a function. Provider profile creation failed.");
+    throw new Error("Server error: Admin DB not initialized correctly.");
   }
   try {
     const profileRef = adminDb.collection('providerProfiles').doc(profileData.id);
@@ -49,12 +49,11 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
       expiryDate: cert.expiryDate ? Timestamp.fromDate(new Date(cert.expiryDate)) : null,
     }));
 
-    await profileRef.set({
+    const dataToSave = {
       ...profileData,
       certifications: certificationsWithAdminTimestamps,
       rating: 0, // Default initial rating
       reviewsCount: 0, // Default initial reviews count
-      // Ensure all fields from model are present with defaults if not in profileData
       specialties: Array.isArray(profileData.specialties) ? profileData.specialties : [],
       portfolio: Array.isArray(profileData.portfolio) ? profileData.portfolio : [],
       serviceAreas: Array.isArray(profileData.serviceAreas) ? profileData.serviceAreas : [],
@@ -62,9 +61,24 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
       yearsOfExperience: typeof profileData.yearsOfExperience === 'number' ? profileData.yearsOfExperience : 0,
       createdAt: now,
       updatedAt: now,
-    }, { merge: true });
-  } catch (error) {
-    console.error('Error creating provider profile in Firestore (Admin SDK):', error);
+    };
+
+    console.log(`[providerService] Attempting to create/merge provider profile for ID: ${profileData.id}. Payload being sent to Firestore:`, JSON.stringify(dataToSave, (key, value) => {
+        if (value && value._delegate && value._delegate.constructor.name === 'Timestamp') { // Check for FieldValue.serverTimestamp()
+          return '[SERVER_TIMESTAMP]';
+        }
+        return value;
+      }, 2));
+
+
+    await profileRef.set(dataToSave, { merge: true });
+    console.log(`[providerService] Successfully created/merged provider profile for ID: ${profileData.id}`);
+  } catch (error: any) {
+    console.error(`[providerService] Critical error creating provider profile in Firestore for ID: ${profileData.id}.`);
+    console.error(`[providerService] Error Code: ${error.code}`);
+    console.error(`[providerService] Error Message: ${error.message}`);
+    console.error("[providerService] Full Error Object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    console.error("[providerService] Error Stack:", error.stack);
     throw new Error('Could not create provider profile.');
   }
 }
@@ -75,9 +89,9 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
  * @returns A promise that resolves with the ProviderProfile object or null if not found.
  */
 export async function getProviderProfileFromFirestore(providerId: string): Promise<ProviderProfile | null> {
-  if (!adminDb) {
-    console.error("Admin DB not initialized. Cannot fetch provider profile.");
-    return null; // Or throw an error if this state is unexpected
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[providerService] Admin DB not initialized or adminDb.collection is not a function. Cannot fetch provider profile.");
+    throw new Error("Server error: Admin DB not initialized correctly. Cannot fetch provider profile.");
   }
   try {
     const profileRef = adminDb.collection('providerProfiles').doc(providerId);
@@ -137,7 +151,7 @@ export async function getProviderProfileFromFirestore(providerId: string): Promi
       return null;
     }
   } catch (error) {
-    console.error('Error fetching provider profile from Firestore (Admin SDK):', error);
+    console.error('[providerService] Error fetching provider profile from Firestore (Admin SDK):', error);
     throw new Error('Could not fetch provider profile.');
   }
 }
@@ -149,9 +163,9 @@ export async function getProviderProfileFromFirestore(providerId: string): Promi
  * @returns A promise that resolves with an array of ProviderProfile objects.
  */
 export async function getProvidersByServiceFromFirestore(serviceCategory: ServiceCategory): Promise<ProviderProfile[]> {
-   if (!adminDb) {
-    console.error("Admin DB not initialized. Cannot fetch providers by service.");
-    return [];
+   if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[providerService] Admin DB not initialized or adminDb.collection is not a function. Cannot fetch providers by service.");
+    throw new Error("Server error: Admin DB not initialized correctly.");
   }
   try {
     const profilesRef = adminDb.collection('providerProfiles');
@@ -209,7 +223,7 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
     });
     return providers;
   } catch (error) {
-    console.error('Error fetching providers by service (Admin SDK):', error);
+    console.error('[providerService] Error fetching providers by service (Admin SDK):', error);
     throw new Error('Could not fetch providers by service.');
   }
 }
@@ -220,9 +234,9 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
  * @param newPhotoURL - The new URL of the profile picture.
  */
 export async function updateProviderPhotoURL(providerId: string, newPhotoURL: string): Promise<void> {
-  if (!adminDb) {
-    console.error("Admin DB not initialized. Cannot update provider photo URL.");
-    throw new Error("Server error: Admin DB not initialized.");
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[providerService] Admin DB not initialized or adminDb.collection is not a function. Cannot update provider photo URL.");
+    throw new Error("Server error: Admin DB not initialized correctly.");
   }
   try {
     const providerRef = adminDb.collection('providerProfiles').doc(providerId);
@@ -232,7 +246,7 @@ export async function updateProviderPhotoURL(providerId: string, newPhotoURL: st
     };
     await providerRef.update(updatePayload);
   } catch (error) {
-    console.error('Error updating provider photo URL (Admin SDK):', error);
+    console.error('[providerService] Error updating provider photo URL (Admin SDK):', error);
     throw new Error('Could not update provider photo URL.');
   }
 }

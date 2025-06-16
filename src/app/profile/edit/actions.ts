@@ -13,15 +13,6 @@ import type { User as AppUser } from '@/models/user';
 import type { ServiceCategory } from '@/components/service-category-icon';
 
 
-// Helper to ensure adminDb is available
-function ensureDbInitialized() {
-  if (!adminDb || typeof adminDb.collection !== 'function') {
-    const errorMsg = "[ProviderEditActions] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
-    console.error(errorMsg);
-    throw new Error("Server error: Core database service is not available. Please try again later.");
-  }
-}
-
 interface ProviderEditPageData {
   appUser: AppUser | null;
   providerProfile: ProviderProfile | null;
@@ -29,7 +20,11 @@ interface ProviderEditPageData {
 }
 
 export async function fetchProviderEditPageDataAction(userId: string): Promise<ProviderEditPageData> {
-  ensureDbInitialized();
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[fetchProviderEditPageDataAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
+    console.error(errorMsg);
+    return { appUser: null, providerProfile: null, error: "Server error: Core database service unavailable." };
+  }
 
   if (!userId) {
     return { appUser: null, providerProfile: null, error: "User not authenticated." };
@@ -56,31 +51,31 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         specialties: [],
         bio: 'Welcome to FundiConnect! Please complete your profile to attract clients.',
         location: 'Please update your location',
-        fullAddress: undefined,
+        fullAddress: null,
         yearsOfExperience: 0,
         isVerified: false,
-        verificationAuthority: undefined,
+        verificationAuthority: null,
         certifications: [],
         portfolio: [],
         contactPhoneNumber: appUser.phoneNumber || '',
-        operatingHours: 'Mon-Fri 9am-5pm', 
+        operatingHours: "Mon-Fri 9am-5pm", 
         serviceAreas: [],
-        profilePictureUrl: appUser.photoURL || undefined,
-        bannerImageUrl: undefined,
-        website: undefined,
-        socialMediaLinks: undefined,
+        profilePictureUrl: appUser.photoURL || null,
+        bannerImageUrl: null,
+        website: null,
+        socialMediaLinks: null,
       };
 
       try {
         await createProviderProfileInFirestore(defaultProviderData);
         console.log(`[fetchProviderEditPageDataAction] Default provider profile created for UID: ${userId}`);
-        providerProfile = await getProviderProfileFromFirestore(userId);
+        providerProfile = await getProviderProfileFromFirestore(userId); 
         if (!providerProfile) {
            console.error(`[fetchProviderEditPageDataAction] CRITICAL: Failed to re-fetch provider profile after default creation for UID: ${userId}.`);
            return { appUser, providerProfile: null, error: "Failed to load profile after attempting to create a default. Please try again." };
         }
       } catch (creationError: any) {
-        console.error(`[fetchProviderEditPageDataAction] Error creating default provider profile for UID: ${userId}. Details:`, creationError.message, creationError.stack);
+        console.error(`[fetchProviderEditPageDataAction] Error creating default provider profile for UID: ${userId}. Error:`, creationError.message, creationError.stack, creationError.code);
         return { appUser, providerProfile: null, error: `Failed to initialize provider profile: ${creationError.message}. Please contact support.` };
       }
     }
@@ -88,8 +83,8 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
     return { appUser, providerProfile };
 
   } catch (error: any) {
-    console.error("[fetchProviderEditPageDataAction] Error fetching provider edit page data. User ID:", userId, "Error Details:", error.message, error.stack);
-    return { appUser: null, providerProfile: null, error: error.message || "Failed to load profile data due to an unexpected server error." };
+    console.error(`[fetchProviderEditPageDataAction] Error fetching provider edit page data for User ID: ${userId}. Error:`, error.message, error.stack, error.code);
+    return { appUser: null, providerProfile: null, error: `Failed to load profile data: ${error.message}.` };
   }
 }
 
@@ -107,7 +102,11 @@ export async function updateProviderProfileAction(
   uploadedBannerImageUrl?: string | null,
   uploadedCertificationDocuments?: Array<{ index: number; url: string | null }>
 ): Promise<UpdateProviderProfileResult> {
-  ensureDbInitialized();
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    const errorMsg = "[updateProviderProfileAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
+    console.error(errorMsg);
+    return { success: false, message: "Server error: Core database service unavailable." };
+  }
 
   if (!providerId) {
     return { success: false, message: "Provider ID is missing." };
@@ -141,16 +140,15 @@ export async function updateProviderProfileAction(
       specialties: data.specialties || [],
       bio: data.bio,
       location: data.location,
-      fullAddress: data.fullAddress || undefined,
+      fullAddress: data.fullAddress || null,
       yearsOfExperience: data.yearsOfExperience,
       contactPhoneNumber: data.contactPhoneNumber,
-      operatingHours: data.operatingHours || undefined,
+      operatingHours: data.operatingHours || null,
       serviceAreas: data.serviceAreas || [], 
-      website: data.website || undefined,
+      website: data.website || null,
       certifications: certificationsToSave,
       updatedAt: currentTimestamp, 
     };
-
 
     if (uploadedProfilePictureUrl !== undefined) {
       updatePayload.profilePictureUrl = uploadedProfilePictureUrl;
@@ -170,18 +168,22 @@ export async function updateProviderProfileAction(
       expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : null,
     }));
 
-
     return { 
       success: true, 
       message: "Profile updated successfully!",
       updatedProfile: { 
         ...updatePayload,
         certifications: clientSafeCertifications,
+        fullAddress: updatePayload.fullAddress,
+        operatingHours: updatePayload.operatingHours,
+        website: updatePayload.website,
+        profilePictureUrl: updatePayload.profilePictureUrl,
+        bannerImageUrl: updatePayload.bannerImageUrl,
       } 
     };
 
   } catch (error: any) {
-    console.error("[updateProviderProfileAction] Error updating provider profile. Provider ID:", providerId, "Error Details:", error.message, error.stack);
-    return { success: false, message: error.message || "An unexpected error occurred while updating profile." };
+    console.error(`[updateProviderProfileAction] Error updating profile for Provider ID: ${providerId}. Data: ${JSON.stringify(data)}. Error:`, error.message, error.stack, error.code);
+    return { success: false, message: `Failed to update profile: ${error.message}.` };
   }
 }

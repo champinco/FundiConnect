@@ -31,12 +31,10 @@ export async function fetchDashboardDataAction(userId: string): Promise<Dashboar
   if (!adminDb || typeof adminDb.collection !== 'function') {
     const errorMsg = "[fetchDashboardDataAction] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
     console.error(errorMsg);
-    // Returning a structured error for this action as the page expects it
     return { appUser: null, dashboardData: null, error: "Server error: Core database service is not available. Please try again later." };
   }
   
   console.log(`[fetchDashboardDataAction] Initiated for userId: ${userId}`);
-  console.log(`[fetchDashboardDataAction] Verifying adminDb. typeof adminDb: ${typeof adminDb}, typeof adminDb?.collection: ${typeof adminDb?.collection}`);
 
   if (!userId) {
     console.warn("[fetchDashboardDataAction] userId is missing.");
@@ -71,9 +69,7 @@ export async function fetchDashboardDataAction(userId: string): Promise<Dashboar
     console.warn(`[fetchDashboardDataAction] Unknown account type "${userProfile.accountType}" for user ID: ${userId}`);
     return { appUser: userProfile, dashboardData: null, error: "Unknown account type encountered." };
   } catch (error: any) {
-    console.error("[fetchDashboardDataAction] Top-level error fetching dashboard data. User ID:", userId);
-    console.error("[fetchDashboardDataAction] Error Message:", error.message);
-    console.error("[fetchDashboardDataAction] Error Stack:", error.stack);
-    return { appUser: null, dashboardData: null, error: error.message || "Failed to load dashboard data due to an unexpected server error." };
+    console.error(`[fetchDashboardDataAction] Error fetching dashboard data for User ID: ${userId}. Error:`, error.message, error.stack, error.code);
+    return { appUser: null, dashboardData: null, error: `Failed to load dashboard data: ${error.message}.` };
   }
 }
