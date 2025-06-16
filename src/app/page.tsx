@@ -7,11 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Search, MapPin } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
-import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; // Use db
-import type { ProviderProfile } from '@/models/provider';
+// Removed client-side Firestore imports: collection, query, where, orderBy, limit, getDocs, Timestamp, db
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { fetchFeaturedProvidersAction } from '@/app/actions/home_page_actions'; // Import the new server action
 
 // Tier 1 services for homepage browsing
 const serviceCategories: ServiceCategory[] = [
@@ -21,38 +20,7 @@ const serviceCategories: ServiceCategory[] = [
   'Garbage Collection',
 ];
 
-async function getFeaturedProviders(): Promise<Provider[]> {
-  try {
-    const providersRef = collection(db, 'providerProfiles'); // Use db
-    const q = query(
-      providersRef,
-      where('isVerified', '==', true),
-      orderBy('rating', 'desc'),
-      limit(3)
-    );
-    const querySnapshot = await getDocs(q);
-    const providers: Provider[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data() as ProviderProfile;
-      providers.push({
-        id: doc.id,
-        name: data.businessName,
-        profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/300x300.png',
-        rating: data.rating,
-        reviewsCount: data.reviewsCount,
-        location: data.location,
-        mainService: data.mainService,
-        isVerified: data.isVerified,
-        verificationAuthority: data.verificationAuthority,
-        bioSummary: data.bio.substring(0, 150) + (data.bio.length > 150 ? '...' : ''),
-      });
-    });
-    return providers;
-  } catch (error) {
-    console.error("Error fetching featured providers:", error);
-    return [];
-  }
-}
+// Client-side getFeaturedProviders function is now removed. Logic moved to fetchFeaturedProvidersAction.
 
 export default function HomePage() {
   const router = useRouter();
@@ -60,15 +28,24 @@ export default function HomePage() {
   const [locationQuery, setLocationQuery] = useState('');
   const [featuredProviders, setFeaturedProviders] = useState<Provider[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchProviders() {
+    async function loadFeaturedProviders() {
       setIsLoadingProviders(true);
-      const providers = await getFeaturedProviders();
-      setFeaturedProviders(providers);
-      setIsLoadingProviders(false);
+      setFetchError(null);
+      try {
+        const providers = await fetchFeaturedProvidersAction();
+        setFeaturedProviders(providers);
+      } catch (error: any) {
+        console.error("Error fetching featured providers from action:", error);
+        setFetchError(error.message || "Could not load featured providers.");
+        setFeaturedProviders([]); // Ensure it's an empty array on error
+      } finally {
+        setIsLoadingProviders(false);
+      }
     }
-    fetchProviders();
+    loadFeaturedProviders();
   }, []);
 
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -80,7 +57,7 @@ export default function HomePage() {
     if (locationQuery.trim()) {
       params.set('location', locationQuery.trim());
     }
-    router.push(`/search?${params.toString()}`);
+    router.push(`/search?mode=providers&${params.toString()}`); // Added mode=providers for clarity
   };
 
   return (
@@ -123,7 +100,7 @@ export default function HomePage() {
            <div className="mt-8">
             <Button asChild variant="link" className="text-primary hover:text-primary/80">
               <Link href="/smart-match">
-                Try our AI Smart Match tool &rarr;
+                <span>Try our AI Smart Match tool &rarr;</span>
               </Link>
             </Button>
           </div>
@@ -138,7 +115,7 @@ export default function HomePage() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
             {serviceCategories.map((category) => (
-              <Link href={`/search?category=${encodeURIComponent(category)}`} key={category}>
+              <Link href={`/search?mode=providers&category=${encodeURIComponent(category)}`} key={category}> {/* Added mode=providers */}
                 <ServiceCategoryIcon category={category} />
               </Link>
             ))}
@@ -154,18 +131,22 @@ export default function HomePage() {
           </h2>
           {isLoadingProviders ? (
              <p className="text-center text-muted-foreground">Loading featured providers...</p>
-          ) : featuredProviders.length > 0 ? (
+          ) : fetchError ? (
+            <p className="text-center text-destructive">Error: {fetchError}</p>
+          ): featuredProviders.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
               {featuredProviders.map((provider) => (
                 <ProviderCard key={provider.id} provider={provider} />
               ))}
             </div>
           ) : (
-            <p className="text-center text-muted-foreground">Could not load featured providers at this time.</p>
+            <p className="text-center text-muted-foreground">No featured providers available at this time.</p>
           )}
           <div className="text-center mt-12">
             <Button asChild size="lg" variant="outline" className="border-primary text-primary hover:bg-primary/10 hover:text-primary">
-              <Link href="/search">View All Providers</Link>
+              <Link href="/search?mode=providers">
+                <span>View All Providers</span>
+              </Link>
             </Button>
           </div>
         </div>

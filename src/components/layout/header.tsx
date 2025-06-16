@@ -215,8 +215,10 @@ export function SiteHeader() {
                         className="block rounded-md px-3 py-2 text-base font-medium hover:bg-muted"
                         onClick={() => setMobileNavOpen(false)}
                       >
-                        {item.title === "Browse Jobs" && <Briefcase className="inline-block mr-2 h-5 w-5" />}
-                        {item.title}
+                        <span className="flex items-center">
+                          {item.title === "Browse Jobs" && <Briefcase className="inline-block mr-2 h-5 w-5" />}
+                          {item.title}
+                        </span>
                       </Link>
                     )
                   ))}
@@ -253,10 +255,18 @@ export function SiteHeader() {
                   ) : (
                     <>
                       <Button asChild variant="default" className="w-full justify-start">
-                         <Link href="/auth/login" onClick={() => setMobileNavOpen(false)}><LogIn className="mr-2 h-4 w-4" />Login</Link>
+                         <Link href="/auth/login" onClick={() => setMobileNavOpen(false)}>
+                           <span className="flex items-center">
+                             <LogIn className="mr-2 h-4 w-4" />Login
+                           </span>
+                         </Link>
                       </Button>
                        <Button asChild variant="outline" className="w-full justify-start">
-                          <Link href="/auth/signup" onClick={() => setMobileNavOpen(false)}><UserPlus className="mr-2 h-4 w-4" />Sign Up</Link>
+                          <Link href="/auth/signup" onClick={() => setMobileNavOpen(false)}>
+                            <span className="flex items-center">
+                              <UserPlus className="mr-2 h-4 w-4" />Sign Up
+                            </span>
+                          </Link>
                       </Button>
                     </>
                   )}
