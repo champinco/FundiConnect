@@ -2,16 +2,17 @@
 "use client";
 
 import Link from 'next/link';
-import { MapPin, CalendarDays, Briefcase, ChevronRight } from 'lucide-react';
+import { MapPin, CalendarDays, Briefcase, ChevronRight, DollarSign, Clock } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from './service-category-icon';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Job, JobStatus } from '@/models/job'; 
-import { formatDynamicDate } from '@/lib/dateUtils'; // Updated import
+import { formatDynamicDate } from '@/lib/dateUtils'; 
+import { format } from 'date-fns';
 
 export interface JobCardProps {
-  job: Pick<Job, 'id' | 'title' | 'serviceCategory' | 'otherCategoryDescription' | 'location' | 'postedAt' | 'status' | 'description'>;
+  job: Pick<Job, 'id' | 'title' | 'serviceCategory' | 'otherCategoryDescription' | 'location' | 'postedAt' | 'status' | 'description' | 'budget' | 'deadline'>;
 }
 
 export default function JobCard({ job }: JobCardProps) {
@@ -58,11 +59,23 @@ export default function JobCard({ job }: JobCardProps) {
           <MapPin className="h-4 w-4 mr-2 text-primary shrink-0" />
           <span>{job.location}</span>
         </div>
-        <div className="flex items-center text-muted-foreground mb-3">
+        <div className="flex items-center text-muted-foreground mb-1.5">
           <CalendarDays className="h-4 w-4 mr-2 text-primary shrink-0" />
           <span>Posted: {formatDynamicDate(job.postedAt)}</span>
         </div>
-        <p className="text-muted-foreground line-clamp-3">
+        {job.budget && (
+          <div className="flex items-center text-muted-foreground mb-1.5">
+            <DollarSign className="h-4 w-4 mr-2 text-primary shrink-0" />
+            <span>Budget: KES {job.budget.toLocaleString()}</span>
+          </div>
+        )}
+        {job.deadline && (
+          <div className="flex items-center text-muted-foreground mb-3">
+            <Clock className="h-4 w-4 mr-2 text-primary shrink-0" />
+            <span>Deadline: {format(new Date(job.deadline), 'PPP')}</span>
+          </div>
+        )}
+        <p className="text-muted-foreground line-clamp-3 mt-2">
           {job.description}
         </p>
       </CardContent>
