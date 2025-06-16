@@ -41,7 +41,7 @@ export default function SmartMatchPage() {
 
   const onSubmit: SubmitHandler<SmartMatchFormValues> = async (data) => {
     setIsLoadingAI(true);
-    setIsLoadingProfiles(false); // Reset profile loading state
+    setIsLoadingProfiles(false); 
     setAiSuggestions(null);
     setSuggestedProviderProfiles([]);
     setError(null);
@@ -62,10 +62,14 @@ export default function SmartMatchPage() {
         const profiles = await fetchProviderDetailsForSmartMatchAction(providerIds);
         setSuggestedProviderProfiles(profiles);
         setIsLoadingProfiles(false);
+      } else {
+        // If AI returns no suggestions, ensure profile loading is also false
+        setIsLoadingProfiles(false);
       }
     } catch (e: any) {
       setError(e.message || 'Failed to get suggestions. Please try again.');
       console.error(e);
+      setIsLoadingProfiles(false); // Ensure loading states are reset on error
     } finally {
       setIsLoadingAI(false);
     }
@@ -175,7 +179,7 @@ export default function SmartMatchPage() {
         </div>
       )}
 
-      {!isLoadingAI && !isLoadingProfiles && hasSearched && suggestedProviderProfiles.length > 0 && (
+      {!isLoadingAI && !isLoadingProfiles && hasSearched && suggestedProviderProfiles.length > 0 && aiSuggestions && aiSuggestions.length > 0 && (
         <div className="mt-12">
           <h2 className="text-2xl font-bold font-headline text-center mb-8">AI Recommended Fundis</h2>
           <Alert variant="default" className="mb-6 max-w-2xl mx-auto bg-primary/5 dark:bg-primary/10 border-primary/30">
@@ -183,7 +187,7 @@ export default function SmartMatchPage() {
             <AlertTitle className="text-primary font-semibold">Smart Suggestions</AlertTitle>
             <AlertDescription>
               These suggestions are based on our AI analysis of your job requirements and available provider profiles. 
-              Consider these as a starting point, and always verify provider details independently.
+              The reason provided is from the AI. Consider these as a starting point, and always verify provider details independently.
             </AlertDescription>
           </Alert>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -29,7 +29,7 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
       fullName: values.fullName,
       phoneNumber: values.accountType === 'provider' ? values.contactPhoneNumber : null,
       accountType: values.accountType as AccountType,
-      photoURL: values.accountType === 'provider' ? values.profilePictureUrl : null,
+      photoURL: values.accountType === 'provider' ? values.profilePictureUrl : null, // Use passed URL
       providerProfileId: values.accountType === 'provider' ? firebaseUserId : undefined,
     };
 
@@ -46,19 +46,19 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
         specialties: [],
         bio: values.bio || `Fundi specializing in ${values.mainService || 'various services'}. Profile for ${values.businessName || values.fullName}.`,
         location: values.providerLocation || 'Nairobi',
-        fullAddress: null,
+        fullAddress: null, // Not collected at signup
         yearsOfExperience: values.yearsOfExperience !== undefined ? Number(values.yearsOfExperience) : 0,
         contactPhoneNumber: values.contactPhoneNumber || "",
-        profilePictureUrl: values.profilePictureUrl || null,
-        bannerImageUrl: null,
-        website: null,
-        socialMediaLinks: null,
+        profilePictureUrl: values.profilePictureUrl || null, // Use passed URL
+        bannerImageUrl: null, // Not collected at signup
+        website: null, // Not collected at signup
+        socialMediaLinks: null, // Not collected at signup
         isVerified: false,
-        verificationAuthority: null,
+        verificationAuthority: null, // Not set at signup
         certifications: [],
         portfolio: [],
-        operatingHours: "Mon-Fri 9am-5pm",
-        serviceAreas: values.providerLocation ? [values.providerLocation] : ["Nairobi"],
+        operatingHours: "Mon-Fri 9am-5pm", // Default or make optional later
+        serviceAreas: values.providerLocation ? [values.providerLocation] : ["Nairobi"], // Default based on location
       };
       console.log("[signupUserAction] Attempting to create provider profile in Firestore with data:", JSON.stringify(providerProfileData));
       await createProviderProfileInFirestore(providerProfileData);

@@ -1,10 +1,15 @@
 
+"use client"; // This page needs to be a client component to use hooks like useState, useEffect, and onAuthStateChanged
+
+import { useEffect, useState, Suspense } from 'react';
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, CheckCircle, XCircle, Loader2, ShieldCheck, ArrowLeft, Clock, FileText } from 'lucide-react';
+import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
-import { formatDynamicDate } from '@/lib/dateUtils'; // Updated import
+import { formatDynamicDate } from '@/lib/dateUtils';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
@@ -12,16 +17,91 @@ import SubmitQuoteForm from './components/submit-quote-form';
 import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
 import MarkAsCompletedButton from './components/mark-as-completed-button'; 
-import { fetchJobDetailsPageDataAction } from './actions';
+import { fetchJobDetailsPageDataAction, type JobDetailsPageData } from './actions';
+import type { Job, JobStatus } from '@/models/job';
+import type { Quote } from '@/models/quote';
+import { Avatar as ShadCNAvatar, AvatarFallback as ShadCNAvatarFallback, AvatarImage as ShadCNAvatarImage } from '@/components/ui/avatar'; // Explicit import for clarity
 
 
-export default async function JobDetailPage({ params: routeParams }: { params: { jobId: string } }) {
-  // Await params as suggested by the Next.js error message for dynamic server components
-  const params = await routeParams;
-  const jobId = params.jobId;
-  console.log(`[JobDetailPage] Resolved jobId: ${jobId}`);
+// Loader for Suspense boundary if JobDetails itself is not async
+function JobDetailLoader() {
+    return (
+        <div className="container mx-auto px-4 py-8">
+            <div className="animate-pulse">
+                <div className="mb-6 h-10 w-32 bg-muted rounded"></div> {/* Back button skeleton */}
+                <Card className="shadow-xl">
+                    <CardHeader className="border-b">
+                        <div className="h-8 w-3/4 bg-muted rounded mb-2"></div> {/* Title skeleton */}
+                        <div className="h-6 w-1/2 bg-muted rounded"></div> {/* Category skeleton */}
+                    </CardHeader>
+                    <CardContent className="pt-6 grid md:grid-cols-3 gap-6">
+                        <div className="md:col-span-2 space-y-6">
+                            <div className="h-20 bg-muted rounded"></div> {/* Description skeleton */}
+                            <div className="h-32 bg-muted rounded"></div> {/* Photos skeleton */}
+                        </div>
+                        <aside className="space-y-4 md:border-l md:pl-6">
+                            <Card>
+                                <CardHeader><div className="h-6 w-1/2 bg-muted rounded"></div></CardHeader>
+                                <CardContent className="space-y-3">
+                                    <div className="h-5 w-3/4 bg-muted rounded"></div>
+                                    <div className="h-5 w-2/3 bg-muted rounded"></div>
+                                    <div className="h-5 w-3/4 bg-muted rounded"></div>
+                                </CardContent>
+                            </Card>
+                        </aside>
+                    </CardContent>
+                </Card>
+            </div>
+        </div>
+    );
+}
 
-  const { job, quotes, error } = await fetchJobDetailsPageDataAction(jobId);
+
+interface JobDetailsProps {
+  jobId: string;
+}
+
+function JobDetails({ jobId }: JobDetailsProps) {
+  const [job, setJob] = useState<Job | null>(null);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUserId(user ? user.uid : null);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (jobId) {
+      setIsLoading(true);
+      fetchJobDetailsPageDataAction(jobId)
+        .then(data => {
+          if (data.error || !data.job) {
+            setError(data.error || "Job not found.");
+            setJob(null);
+            setQuotes([]);
+          } else {
+            setJob(data.job);
+            setQuotes(data.quotes || []);
+            setError(null);
+          }
+        })
+        .catch(err => {
+          setError("Failed to load job details: " + err.message);
+          setJob(null);
+          setQuotes([]);
+        })
+        .finally(() => setIsLoading(false));
+    }
+  }, [jobId]);
+
+  if (isLoading) {
+    return <JobDetailLoader />;
+  }
 
   if (error || !job) {
     return (
@@ -42,12 +122,22 @@ export default async function JobDetailPage({ params: routeParams }: { params: {
     );
   }
   
+  const jobStatusDisplay: Record<JobStatus, string> = {
+    open: 'Open',
+    pending_quotes: 'Awaiting Quotes',
+    assigned: 'Assigned',
+    in_progress: 'In Progress',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    disputed: 'Disputed',
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Button variant="outline" asChild>
-          <Link href="/search">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Jobs
+          <Link href="/search?mode=jobs"> {/* Default to job search */}
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Search
           </Link>
         </Button>
       </div>
@@ -68,14 +158,14 @@ export default async function JobDetailPage({ params: routeParams }: { params: {
             <Badge 
               variant={job.status === 'open' ? 'secondary' : job.status === 'completed' ? 'default' : 'outline'}
               className={`capitalize text-sm px-3 py-1 ${
-                job.status === 'open' ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-800/30 dark:text-blue-300 dark:border-blue-700' : 
+                job.status === 'open' || job.status === 'pending_quotes' ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-800/30 dark:text-blue-300 dark:border-blue-700' : 
                 job.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-800/30 dark:text-yellow-300 dark:border-yellow-700' :
                 job.status === 'completed' ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-800/30 dark:text-green-300 dark:border-green-700' :
                 job.status === 'assigned' ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-800/30 dark:text-purple-300 dark:border-purple-700' :
                 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-700' 
               }`}
             >
-              {job.status.replace('_', ' ')}
+              {jobStatusDisplay[job.status] || job.status.replace('_', ' ')}
             </Badge>
           </div>
         </CardHeader>
@@ -102,25 +192,28 @@ export default async function JobDetailPage({ params: routeParams }: { params: {
               </div>
             )}
             
-            <MarkAsCompletedButton 
-                jobId={job.id} 
-                currentJobStatus={job.status} 
-                jobClientId={job.clientId} 
-            />
+            {currentUserId === job.clientId && (
+              <MarkAsCompletedButton 
+                  jobId={job.id} 
+                  currentJobStatus={job.status} 
+                  jobClientId={job.clientId} 
+              />
+            )}
 
-            {job.status === 'open' && (
+            { (job.status === 'open' || job.status === 'pending_quotes') && currentUserId !== job.clientId && ( // Only show if job is open and current user is NOT client
               <SubmitQuoteForm jobId={jobId} clientId={job.clientId} />
             )}
             
-            <SubmitReviewForm 
-                jobId={job.id} 
-                providerId={job.assignedProviderId} 
-                clientId={job.clientId} 
-                currentJobStatus={job.status} 
-            />
+            {currentUserId === job.clientId && job.assignedProviderId && ( // Only client can review their assigned provider
+              <SubmitReviewForm 
+                  jobId={job.id} 
+                  providerId={job.assignedProviderId} 
+                  clientId={job.clientId} 
+                  currentJobStatus={job.status} 
+              />
+            )}
 
-
-             {quotes.length > 0 && (
+             {quotes.length > 0 && (job.status !== 'completed' && job.status !== 'cancelled') && ( // Show quotes unless job is completed or cancelled
                 <div className="mt-8">
                   <h3 className="text-xl font-semibold mb-4">Received Quotes ({quotes.length})</h3>
                   <div className="space-y-4">
@@ -129,12 +222,12 @@ export default async function JobDetailPage({ params: routeParams }: { params: {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
-                                <Avatar className="h-10 w-10">
-                                    <AvatarImage src={quote.providerDetails?.profilePictureUrl || undefined} alt={quote.providerDetails?.businessName} data-ai-hint="provider avatar" />
-                                    <AvatarFallback>
+                                <ShadCNAvatar className="h-10 w-10">
+                                    <ShadCNAvatarImage src={quote.providerDetails?.profilePictureUrl || undefined} alt={quote.providerDetails?.businessName || 'Provider'} data-ai-hint="provider avatar" />
+                                    <ShadCNAvatarFallback>
                                     {quote.providerDetails?.businessName ? quote.providerDetails.businessName.substring(0,1).toUpperCase() : "P"}
-                                    </AvatarFallback>
-                                </Avatar>
+                                    </ShadCNAvatarFallback>
+                                </ShadCNAvatar>
                                 <div>
                                     <Link href={`/providers/${quote.providerId}`} className="font-semibold hover:underline">
                                     {quote.providerDetails?.businessName || 'Provider Profile'}
@@ -156,14 +249,11 @@ export default async function JobDetailPage({ params: routeParams }: { params: {
                         <CardContent>
                           <p className="text-2xl font-bold text-primary mb-2">{quote.currency} {quote.amount.toLocaleString()}</p>
                           <p className="text-sm text-foreground/80 whitespace-pre-line mb-3">{quote.messageToClient}</p>
-                           {(job.status === 'open' || job.status === 'pending_quotes') && (
-                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={null} /> 
+                           {(job.status === 'open' || job.status === 'pending_quotes') && currentUserId === job.clientId && ( // Only job client can accept/reject
+                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={currentUserId} /> 
                            )}
-                           {quote.status === 'accepted' && job.status !== 'completed' && (
+                           {quote.status === 'accepted' && (
                              <p className="text-sm text-green-600 font-medium mt-2">This quote has been accepted for the job.</p>
-                           )}
-                           {quote.status === 'accepted' && job.status === 'completed' && (
-                             <p className="text-sm text-green-700 font-medium mt-2">This quote was accepted and the job is now complete.</p>
                            )}
                         </CardContent>
                       </Card>
@@ -194,6 +284,12 @@ export default async function JobDetailPage({ params: routeParams }: { params: {
                   <CalendarDays className="h-4 w-4 mr-2 text-primary" />
                   <span className="text-muted-foreground">Posted: {formatDynamicDate(job.postedAt)}</span>
                 </div>
+                {job.budget && (
+                    <div className="flex items-center">
+                        <DollarSign className="h-4 w-4 mr-2 text-primary" />
+                        <span className="text-muted-foreground">Budget: {job.budget.toLocaleString()} {job.budgetRange?.currency || 'KES'}</span>
+                    </div>
+                )}
                 {job.deadline && (
                    <div className="flex items-center">
                     <Clock className="h-4 w-4 mr-2 text-primary" />
@@ -224,17 +320,11 @@ export default async function JobDetailPage({ params: routeParams }: { params: {
   );
 }
 
-// Minimal Avatar components for this page, can be removed if Avatar from ui/avatar is globally available and styled
-const Avatar: React.FC<{className?: string, children: React.ReactNode}> = ({ className, children }) => (
-  <div className={`relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ${className}`}>
-    {children}
-  </div>
-);
-const AvatarImage: React.FC<{src?: string | null, alt?: string, "data-ai-hint"?: string}> = ({src, alt, ...props}) => (
-  src ? <Image src={src} alt={alt || ""} fill style={{objectFit: 'cover'}} {...props} /> : null
-);
-const AvatarFallback: React.FC<{children: React.ReactNode}> = ({children}) => (
-  <div className="flex h-full w-full items-center justify-center rounded-full bg-muted">
-    {children}
-  </div>
-);
+
+export default function JobDetailPageWrapper({ params }: { params: { jobId: string } }) {
+    return (
+        <Suspense fallback={<JobDetailLoader />}>
+            <JobDetails jobId={params.jobId} />
+        </Suspense>
+    );
+}

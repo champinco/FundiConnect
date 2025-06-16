@@ -13,7 +13,7 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings } from "lucide-react";
+import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings, Briefcase, ListChecks, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -26,18 +26,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { NavItem } from "@/types";
+import type { AccountType } from "@/models/user";
+import { fetchCurrentAppUserTypeAction } from "@/app/profile/actions";
 
 
 export function SiteHeader() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true); 
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     setLoadingAuth(true);
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        const type = await fetchCurrentAppUserTypeAction(user.uid);
+        setAccountType(type);
+      } else {
+        setAccountType(null);
+      }
       setLoadingAuth(false); 
     });
     return () => unsubscribe();
@@ -46,21 +55,32 @@ export function SiteHeader() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // router.push('/auth/login'); // Let onAuthStateChanged handle redirect implicitly or redirect manually
+      setAccountType(null); // Clear account type on logout
       setMobileNavOpen(false); 
+      router.push('/'); // Redirect to home on logout
     } catch (error) {
       console.error("Error logging out:", error);
     }
   };
 
-  // Base navigation items
   const baseNavItems: NavItem[] = [...siteConfig.mainNav];
   
-  // Logged-in specific navigation items (for mobile menu and potentially for dropdown if structured differently)
-  const loggedInSpecificNavItems: NavItem[] = [...siteConfig.mainNavLoggedIn];
+  let userSpecificNavItems: NavItem[] = [];
+  if (currentUser) {
+    userSpecificNavItems = siteConfig.mainNavLoggedIn.filter(item => {
+      if (item.title === "Post a Job" || item.title === "My Jobs") {
+        return accountType === 'client';
+      }
+      // Example for provider-specific link if added in siteConfig
+      // if (item.title === "My Provider Dashboard") {
+      //   return accountType === 'provider';
+      // }
+      return true; // For links common to all logged-in users
+    });
+  }
 
 
-  if (loadingAuth) {
+  if (loadingAuth && !currentUser) { // Show skeleton only during initial auth check
     return (
        <header className="sticky top-0 z-40 w-full border-b bg-background">
          <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
@@ -80,7 +100,6 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background">
       <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
-        {/* MainNav now only receives base navigation items */}
         <MainNav items={baseNavItems} />
         
         <div className="flex flex-1 items-center justify-end space-x-1 md:space-x-2">
@@ -109,13 +128,15 @@ export function SiteHeader() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {loggedInSpecificNavItems.map((item) => (
+                  {userSpecificNavItems.map((item) => (
                      item.href && (
-                        <DropdownMenuItem key={item.href} asChild>
+                        <DropdownMenuItem key={`desktop-${item.href}`} asChild>
                             <Link href={item.href}>
                                 {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-4 w-4" />}
                                 {item.title === "Messages" && <MessageSquare className="mr-2 h-4 w-4" />}
                                 {item.title === "My Profile" && <UserCircle className="mr-2 h-4 w-4" />}
+                                {item.title === "Post a Job" && <Edit3 className="mr-2 h-4 w-4" />}
+                                {item.title === "My Jobs" && <ListChecks className="mr-2 h-4 w-4" />}
                                 {item.title}
                             </Link>
                         </DropdownMenuItem>
@@ -149,7 +170,7 @@ export function SiteHeader() {
 
           {/* Mobile Menu Button & Sheet */}
           <div className="md:hidden flex items-center">
-            <ThemeToggle /> 
+             {!loadingAuth && <ThemeToggle />} {/* Show theme toggle once auth state is resolved */}
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="ml-1">
@@ -179,6 +200,7 @@ export function SiteHeader() {
                       <div>
                         <p className="font-medium text-sm truncate">{currentUser.displayName || currentUser.email}</p>
                         <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
+                        {accountType && <p className="text-xs text-muted-foreground capitalize">Role: {accountType}</p>}
                       </div>
                     </div>
                   </div>
@@ -190,17 +212,15 @@ export function SiteHeader() {
                       <Link
                         key={`mobile-base-${item.href}`}
                         href={item.href}
-                        className={cn(
-                          "block rounded-md px-3 py-2 text-base font-medium hover:bg-muted",
-                           // Add active link styling if desired for mobile
-                        )}
+                        className="block rounded-md px-3 py-2 text-base font-medium hover:bg-muted"
                         onClick={() => setMobileNavOpen(false)}
                       >
+                        {item.title === "Browse Jobs" && <Briefcase className="inline-block mr-2 h-5 w-5" />}
                         {item.title}
                       </Link>
                     )
                   ))}
-                  {currentUser && loggedInSpecificNavItems.map((item) => (
+                  {currentUser && userSpecificNavItems.map((item) => (
                     item.href && (
                         <Link
                             key={`mobile-user-${item.href}`}
@@ -211,6 +231,8 @@ export function SiteHeader() {
                             {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-5 w-5" />}
                             {item.title === "Messages" && <MessageSquare className="mr-2 h-5 w-5" />}
                             {item.title === "My Profile" && <UserCircle className="mr-2 h-5 w-5" />}
+                            {item.title === "Post a Job" && <Edit3 className="mr-2 h-5 w-5" />}
+                            {item.title === "My Jobs" && <ListChecks className="mr-2 h-5 w-5" />}
                             {item.title}
                         </Link>
                     )
@@ -224,7 +246,7 @@ export function SiteHeader() {
                       <Button
                         variant="outline"
                         className="w-full justify-start"
-                        onClick={() => {handleLogout(); setMobileNavOpen(false);}}
+                        onClick={() => {handleLogout();}} // No need to close mobileNavOpen here as it's part of handleLogout
                       >
                         <LogOut className="mr-2 h-4 w-4" /> Logout
                       </Button>
@@ -247,5 +269,3 @@ export function SiteHeader() {
     </header>
   );
 }
-    
-    

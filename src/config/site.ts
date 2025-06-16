@@ -8,10 +8,10 @@ const mainNavLinksBase = [
   },
   {
     title: "Find Fundis",
-    href: "/search?mode=providers",
+    href: "/search?mode=providers", // Specify mode for clarity
   },
   {
-    title: "Browse Jobs", // Added
+    title: "Browse Jobs", // Added for all users
     href: "/jobs",
   },
   {
@@ -22,12 +22,15 @@ const mainNavLinksBase = [
 
 const mainNavLinksLoggedInExclusive = [
   {
-    title: "Post a Job", // Moved from base
+    title: "Post a Job", // Moved from base for logged-in client context
     href: "/jobs/post",
+    // Add a condition if you want to show this only for 'client' type users,
+    // This would require accountType to be available in Header
   },
   {
-    title: "My Jobs", // Added
+    title: "My Jobs", // Added for clients
     href: "/jobs/my-jobs",
+    // Add a condition if you want to show this only for 'client' type users
   },
   {
     title: "Dashboard",
@@ -38,9 +41,15 @@ const mainNavLinksLoggedInExclusive = [
     href: "/messages",
   },
   {
-    title: "My Profile",
+    title: "My Profile", // Generic profile link
     href: "/profile",
   },
+  // Example: Provider specific link
+  // {
+  //   title: "My Provider Dashboard", // If different from general dashboard
+  //   href: "/provider/dashboard", 
+  //   accountType: "provider" // Custom property to help Header filter
+  // },
 ];
 
 const mainNavLinksLoggedOutExclusive = [
@@ -52,11 +61,11 @@ export const siteConfig = {
   name: "FundiConnect",
   description:
     "Find certified electricians, plumbers, and more in Kenya. Get quotes and connect with professionals for your home and business needs.",
-  mainNav: mainNavLinksBase,
-  mainNavLoggedIn: mainNavLinksLoggedInExclusive,
-  mainNavLoggedOut: mainNavLinksLoggedOutExclusive,
+  mainNav: mainNavLinksBase, // Publicly visible links
+  mainNavLoggedIn: mainNavLinksLoggedInExclusive, // Links visible only when logged in
+  mainNavLoggedOut: mainNavLinksLoggedOutExclusive, // Links visible only when logged out (if any)
   links: {
-    twitter: "https://twitter.com/shadcn", // Replace with actual links
-    github: "https://github.com/shadcn/ui", // Replace with actual links
+    twitter: "https://twitter.com/shadcn", 
+    github: "https://github.com/shadcn/ui", 
   },
 };

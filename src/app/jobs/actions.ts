@@ -39,17 +39,14 @@ export async function postJobAction(
       title: values.jobTitle,
       description: values.jobDescription,
       serviceCategory: values.serviceCategory,
+      otherCategoryDescription: values.serviceCategory === 'Other' ? values.otherCategoryDescription : undefined,
       location: values.location,
-      status: 'open',
+      status: 'open', // Default status for new jobs
       photosOrVideos: photoUrls || [],
       budget: values.budget,
       urgency: values.urgency,
-      deadline: values.deadline 
+      deadline: values.deadline ? new Date(values.deadline) : null // Ensure deadline is Date or null
     };
-
-    if (values.serviceCategory === 'Other' && values.otherCategoryDescription) {
-        (jobDataForService as any).otherCategoryDescription = values.otherCategoryDescription.trim();
-    }
 
     console.log('[postJobAction] Data prepared for job creation:', JSON.stringify(jobDataForService));
     const jobId = await createJobInFirestoreService(jobDataForService);
@@ -68,7 +65,9 @@ export async function fetchAllJobsAction(limit?: number): Promise<Job[]> {
     throw new Error("Server error: Core database service unavailable. Cannot fetch all jobs.");
   }
   try {
-    const jobs = await getAllJobsFromFirestoreService(limit);
+    console.log("[fetchAllJobsAction] Fetching all open/pending_quotes jobs from service.");
+    // The service function already filters for open/pending_quotes
+    const jobs = await getAllJobsFromFirestoreService(limit); 
     return jobs;
   } catch (error: any) {
     console.error(`[fetchAllJobsAction] Error. Limit: ${limit}. Error:`, error.message, error.stack, error.code);
@@ -83,13 +82,16 @@ export async function fetchMyClientJobsAction(userId: string): Promise<Job[]> {
     throw new Error("Server error: Core database service unavailable. Cannot fetch client jobs.");
   }
   if (!userId) {
+    console.error("[fetchMyClientJobsAction] User ID is required.");
     throw new Error("User ID is required to fetch client jobs.");
   }
   try {
+    console.log(`[fetchMyClientJobsAction] Fetching jobs for client ${userId} using searchJobsAction.`);
+    // Use existing searchJobsAction which has robust filtering including by clientId
     const jobs = await searchClientJobsAction({
       isMyJobsSearch: true,
       currentUserId: userId,
-      filterByStatus: 'all_my' 
+      filterByStatus: 'all_my' // This tells searchJobsAction to get all statuses for this client
     });
     return jobs;
   } catch (error: any) {

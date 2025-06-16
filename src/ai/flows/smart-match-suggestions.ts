@@ -32,21 +32,20 @@ const SmartMatchSuggestionsInputSchema = z.object({
 export type SmartMatchSuggestionsInput = z.infer<typeof SmartMatchSuggestionsInputSchema>;
 
 const SmartMatchSuggestionsOutputSchema = z.array(z.object({
-  providerId: z.string().describe('The Firestore document ID of the suggested service provider.'), // Added providerId
-  name: z.string().describe('Name of the suggested service provider.'),
+  providerId: z.string().describe('The Firestore document ID of the suggested service provider.'), // Changed from name to providerId
   reason: z.string().describe('Reason why this provider is a good match.'),
 }));
 export type SmartMatchSuggestionsOutput = z.infer<typeof SmartMatchSuggestionsOutputSchema>;
 
 export async function getSmartMatchSuggestions(input: SmartMatchSuggestionsInput): Promise<SmartMatchSuggestionsOutput> {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
+    console.error("[getSmartMatchSuggestions] CRITICAL: Firebase Admin DB not initialized. Aborting.");
+    throw new Error("Server error: Core database service unavailable.");
+  }
   try {
     return await smartMatchSuggestionsFlow(input);
   } catch (error) {
     console.error("[SmartMatchSuggestions] Error in getSmartMatchSuggestions wrapper:", error);
-    // Depending on how the calling action handles errors, you might re-throw or return empty.
-    // The current action `getSmartMatchSuggestionsAction` re-throws a generic error.
-    // To align with schema, we could return empty array, but action will still throw.
-    // For now, let's re-throw so the action's catch block handles it.
     throw error;
   }
 }
@@ -58,7 +57,7 @@ const prompt = ai.definePrompt({
   prompt: `You are an AI assistant designed to provide smart match suggestions for service providers based on user requirements.
 
 You will receive a job description, the user's location, preferred criteria, and a list of available providers. Each provider in the list has an 'id' field.
-Your task is to analyze the information and return a list of the best service providers. For each suggested provider, you MUST include their original 'id' as 'providerId' in your response, along with their name and a brief reason for the suggestion.
+Your task is to analyze the information and return a list of the best service providers. For each suggested provider, you MUST include their original 'id' as 'providerId' in your response, along with a brief 'reason' for the suggestion. Do not include the provider's name in the output, only their ID and the reason.
 
 Job Description: {{{jobDescription}}}
 Location: {{{location}}}
@@ -69,7 +68,7 @@ Available Providers:
 - ID: {{{id}}}, Name: {{{name}}}, Profile: {{{profile}}}, Location: {{{location}}}, Experience: {{{experience}}}, Certifications: {{#each certifications}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}, Rating: {{{rating}}}
 {{/each}}
 
-Based on the above information, which service providers are the best matches? For each match, provide their 'id' (as 'providerId'), 'name', and a 'reason'.
+Based on the above information, which service providers are the best matches? For each match, provide their 'id' (as 'providerId') and a 'reason'.
 
 Format your response as a JSON array.
 `,
@@ -86,14 +85,18 @@ const smartMatchSuggestionsFlow = ai.defineFlow(
       const {output} = await prompt(input);
       if (!output) {
         console.warn("[SmartMatchSuggestionsFlow] AI prompt returned undefined output. Input was:", input);
-        return []; // Return empty array to match schema if output is unexpectedly undefined
+        return []; 
       }
       return output;
     } catch (error) {
       console.error("[SmartMatchSuggestionsFlow] Error during AI prompt execution. Input:", input, "Error:", error);
-      // Return an empty array to satisfy the output schema in case of error.
-      // The calling action (`getSmartMatchSuggestionsAction`) will catch and re-throw a user-facing error.
       return [];
     }
   }
 );
+
+// Helper to ensure adminDb is available
+const adminDb = ai.getPlugin("firebase")?.admin?.firestore();
+if (!adminDb || typeof adminDb.collection !== 'function') {
+  console.warn("[SmartMatchSuggestionsFlow] Could not get adminDb instance from Genkit Firebase plugin. Ensure Firebase Admin plugin is configured for Genkit if DB operations are needed directly in this flow file (they are not currently, but good to check).");
+}

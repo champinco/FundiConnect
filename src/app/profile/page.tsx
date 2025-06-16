@@ -10,7 +10,7 @@ import type { ProviderProfile } from '@/models/provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserCircle, Edit, ShieldCheck, Mail, Phone, Briefcase, MapPin, Award, FileText, MessageSquare, Building, Clock } from 'lucide-react';
+import { Loader2, UserCircle, Edit, ShieldCheck, Mail, Phone, Briefcase, MapPin, Award, FileText, MessageSquare, Building, Clock, LinkIcon } from 'lucide-react';
 import Link from 'next/link';
 import { fetchUserProfilePageDataAction, type UserProfilePageData } from './actions';
 import VerifiedBadge from '@/components/verified-badge';
@@ -29,16 +29,20 @@ export default function ProfilePage() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
+        console.log(`[ProfilePage] Auth state changed, user UID: ${user.uid}. Fetching profile data...`);
         const result = await fetchUserProfilePageDataAction(user.uid, user);
         if (result.error) {
+          console.error(`[ProfilePage] Error fetching profile data: ${result.error}`);
           setError(result.error);
           setAppUser(null);
           setProviderProfile(null);
         } else {
+          console.log(`[ProfilePage] Profile data fetched. AppUser: ${!!result.appUser}, ProviderProfile: ${!!result.providerProfile}`);
           setAppUser(result.appUser);
-          setProviderProfile(result.providerProfile || null); // Set providerProfile if it exists
+          setProviderProfile(result.providerProfile || null); 
         }
       } else {
+        console.log('[ProfilePage] No user logged in. Redirecting to login.');
         setAppUser(null);
         setProviderProfile(null);
         setError(null);
@@ -62,21 +66,25 @@ export default function ProfilePage() {
   if (error || !appUser) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
-        <div className="max-w-md mx-auto p-8">
-          <UserCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-          <h2 className="text-2xl font-bold mb-4 text-foreground">Profile Error</h2>
-          <p className="text-muted-foreground mb-6">
-            {error || "Your profile information could not be loaded. This might be due to an incomplete setup or an error. Please try logging out and logging back in, or contact support if the issue persists."}
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-3">
-            <Button asChild variant="outline">
-              <Link href="/">Go back to Home</Link>
-            </Button>
-            <Button onClick={() => auth.signOut().then(() => router.push('/auth/login'))} variant="default">
-              Logout & Try Again
-            </Button>
-          </div>
-        </div>
+        <Card className="max-w-md mx-auto shadow-lg">
+          <CardHeader>
+            <UserCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
+            <CardTitle className="text-2xl font-bold mb-2 text-foreground">Profile Error</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-6">
+              {error || "Your profile information could not be loaded. This might be due to an incomplete setup or an error. Please try logging out and logging back in, or contact support if the issue persists."}
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-3">
+              <Button asChild variant="outline">
+                <Link href="/">Go back to Home</Link>
+              </Button>
+              <Button onClick={() => auth.signOut().then(() => router.push('/auth/login'))} variant="default">
+                Logout & Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -141,19 +149,31 @@ export default function ProfilePage() {
 
   if (appUser.accountType === 'provider') {
     if (!providerProfile) {
+         // This state can occur if a provider profile document is missing in Firestore
+         // even though the user accountType is 'provider'.
          return (
             <div className="container mx-auto px-4 py-12 text-center">
-                <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-4 text-foreground">Loading Provider Profile...</h2>
-                <p className="text-muted-foreground mb-6">
-                    Fetching your detailed provider information. If this takes too long, please ensure your profile setup was completed.
-                </p>
-                 <Button asChild variant="secondary">
-                    <Link href="/profile/edit">Go to Edit Profile</Link>
-                </Button>
+              <Card className="max-w-md mx-auto shadow-lg">
+                <CardHeader>
+                  <Building className="h-16 w-16 text-destructive mx-auto mb-4" />
+                  <CardTitle className="text-2xl font-bold mb-2 text-foreground">Provider Profile Incomplete</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground mb-6">
+                    Your detailed provider profile could not be loaded. This usually means it wasn&apos;t fully created during signup.
+                  </p>
+                  <p className="text-muted-foreground mb-6">
+                    Please complete your profile information.
+                  </p>
+                  <Button asChild variant="default">
+                      <Link href="/profile/edit">Complete Your Profile</Link>
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
         );
     }
+    // Provider profile exists, display it
     return (
       <div className="container mx-auto px-4 py-8">
         <Card className="max-w-2xl mx-auto shadow-xl">
@@ -219,7 +239,7 @@ export default function ProfilePage() {
             )}
              {providerProfile.website && (
                  <div>
-                    <h3 className="font-semibold text-lg mb-2 text-primary border-b pb-1">Website</h3>
+                    <h3 className="font-semibold text-lg mb-2 text-primary border-b pb-1 flex items-center"><LinkIcon className="mr-2 h-5 w-5"/>Website</h3>
                      <Link href={providerProfile.website.startsWith('http') ? providerProfile.website : `https://${providerProfile.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                         {providerProfile.website}
                     </Link>
@@ -248,11 +268,12 @@ export default function ProfilePage() {
     );
   }
 
+  // Fallback, should ideally not be reached if auth redirects properly.
   return (
     <div className="container mx-auto px-4 py-12 text-center">
-      <p className="text-muted-foreground">Loading profile or redirecting...</p>
+      <p className="text-muted-foreground">Unexpected profile state. Please try logging in again.</p>
        <Button asChild className="mt-4">
-          <Link href="/">Go to Homepage</Link>
+          <Link href="/auth/login">Go to Login</Link>
        </Button>
     </div>
   );

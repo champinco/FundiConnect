@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+JobCardSkeleton
 import JobCard from '@/components/job-card';
 import JobCardSkeleton from '@/components/skeletons/job-card-skeleton';
 import { fetchMyClientJobsAction } from '../actions';
@@ -40,18 +41,19 @@ export default function MyJobsPage() {
         setIsLoading(true);
         setError(null);
         try {
+          console.log(`[MyJobsPage] Fetching jobs for client: ${currentUser.uid}`);
           const fetchedJobs = await fetchMyClientJobsAction(currentUser.uid);
+          console.log(`[MyJobsPage] Successfully fetched ${fetchedJobs.length} jobs for client.`);
           setMyJobs(fetchedJobs);
         } catch (err: any) {
           setError(err.message || "Failed to load your jobs. Please try again.");
-          console.error("Error fetching client jobs:", err);
+          console.error("[MyJobsPage] Error fetching client jobs:", err);
         } finally {
           setIsLoading(false);
         }
       };
       loadMyJobs();
     } else if (!authLoading && !currentUser) {
-      // Handle case where auth is resolved but no user (should be caught by redirect)
       setIsLoading(false);
     }
   }, [currentUser, authLoading]);
@@ -71,7 +73,6 @@ export default function MyJobsPage() {
   }
 
   if (!currentUser) {
-     // This state should ideally be handled by the redirect, but as a fallback:
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <UserCircle className="h-16 w-16 text-primary mx-auto mb-4" />

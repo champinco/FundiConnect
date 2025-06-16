@@ -13,8 +13,9 @@ import type { Job, JobStatus } from '@/models/job';
  */
 export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' | 'updatedAt' | 'quotesReceived'>): Promise<string> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("Admin DB not initialized. Job creation failed.");
-    throw new Error("Server error: Admin DB not initialized.");
+    const errorMsg = "[createJobInFirestore] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service is not available. Please try again later.");
   }
   try {
     const now = FieldValue.serverTimestamp();
@@ -56,17 +57,18 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       dataToSave.budgetRange = jobData.budgetRange;
     }
 
-    console.log('Job data being sent to Firestore (via Admin SDK):', {
-      ...dataToSave,
-      postedAt: '[SERVER_TIMESTAMP]',
-      updatedAt: '[SERVER_TIMESTAMP]',
-      deadline: dataToSave.deadline ? '[CONVERTED_TIMESTAMP]' : null,
-    });
+    console.log('[createJobInFirestore] Data prepared for job creation:', JSON.stringify(dataToSave, (key, value) => {
+        if (value && value._delegate && value._delegate.constructor.name === 'FieldValue') {
+          return '[SERVER_TIMESTAMP]';
+        }
+        return value;
+      }, 2));
+
 
     const docRef = await jobsCollectionRef.add(dataToSave);
     return docRef.id;
   } catch (error: any) {
-    console.error('Error creating job in Firestore (Admin SDK). Original error:', error);
+    console.error('[createJobInFirestore] Error creating job in Firestore (Admin SDK). Original error:', error.message, error.stack, error.code);
     let message = 'Could not create job.';
     if (error.code === 'permission-denied') {
       message = 'Permission denied by Firestore rules (Admin SDK). This is unexpected.';
@@ -86,8 +88,9 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
  */
 export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("Admin DB not initialized. Cannot fetch job by ID.");
-    throw new Error("Server error: Admin DB not initialized.");
+    const errorMsg = "[getJobByIdFromFirestore] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service is not available. Please try again later.");
   }
   try {
     const jobRef = adminDb.collection('jobs').doc(jobId);
@@ -106,7 +109,7 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
       return null;
     }
   } catch (error) {
-    console.error('Error fetching job by ID from Firestore (Admin SDK):', error);
+    console.error('[getJobByIdFromFirestore] Error fetching job by ID from Firestore (Admin SDK):', error);
     throw new Error('Could not fetch job by ID.');
   }
 }
@@ -118,8 +121,9 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
  */
 export async function getJobsByClientIdFromFirestore(clientId: string): Promise<Job[]> {
    if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("Admin DB not initialized. Cannot fetch jobs by client ID.");
-    throw new Error("Server error: Admin DB not initialized.");
+    const errorMsg = "[getJobsByClientIdFromFirestore] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service is not available. Please try again later.");
   }
   try {
     const jobsRef = adminDb.collection('jobs');
@@ -138,7 +142,7 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
     });
     return jobs;
   } catch (error) {
-    console.error('Error fetching jobs by client ID (Admin SDK):', error);
+    console.error('[getJobsByClientIdFromFirestore] Error fetching jobs by client ID (Admin SDK):', error);
     throw new Error('Could not fetch jobs for client.');
   }
 }
@@ -151,26 +155,27 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
  */
 export async function updateJobStatus(jobId: string, newStatus: JobStatus, assignedProviderId?: string | null): Promise<void> {
    if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("Admin DB not initialized. Cannot update job status.");
-    throw new Error("Server error: Admin DB not initialized.");
+    const errorMsg = "[updateJobStatus] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service is not available. Please try again later.");
   }
   const jobRef = adminDb.collection('jobs').doc(jobId);
   const updateData: UpdateData<Job> = {
     status: newStatus,
-    updatedAt: FieldValue.serverTimestamp() as Timestamp, // Correct usage for Admin SDK
+    updatedAt: FieldValue.serverTimestamp() as Timestamp, 
   };
 
   if (newStatus === 'assigned' && assignedProviderId) {
     updateData.assignedProviderId = assignedProviderId;
-  } else if (newStatus === 'open') {
-    updateData.assignedProviderId = null; // Explicitly set to null if unassigning
+  } else if (newStatus === 'open' || newStatus === 'cancelled') { // Clear assignedProviderId if job reopens or is cancelled
+    updateData.assignedProviderId = FieldValue.delete() as unknown as string | null; // Use FieldValue.delete() to remove the field
   }
 
 
   try {
     await jobRef.update(updateData);
   } catch (error) {
-    console.error(`Error updating job ${jobId} to status ${newStatus} (Admin SDK):`, error);
+    console.error(`[updateJobStatus] Error updating job ${jobId} to status ${newStatus} (Admin SDK):`, error);
     throw new Error(`Could not update job status.`);
   }
 }
@@ -190,7 +195,8 @@ export interface ClientJobSummary {
  */
 export async function getJobSummaryForClient(clientId: string): Promise<ClientJobSummary> {
    if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("Admin DB not initialized. Cannot get job summary.");
+    const errorMsg = "[getJobSummaryForClient] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
+    console.error(errorMsg);
     return { open: 0, assigned: 0, inProgress: 0, completed: 0, total: 0 };
   }
   const summary: ClientJobSummary = {
@@ -208,14 +214,14 @@ export async function getJobSummaryForClient(clientId: string): Promise<ClientJo
     querySnapshot.forEach((docSnap) => {
       const job = docSnap.data() as Job;
       summary.total++;
-      if (job.status === 'open') summary.open++;
+      if (job.status === 'open' || job.status === 'pending_quotes') summary.open++;
       else if (job.status === 'assigned') summary.assigned++;
       else if (job.status === 'in_progress') summary.inProgress++;
       else if (job.status === 'completed') summary.completed++;
     });
     return summary;
   } catch (error) {
-    console.error('Error fetching job summary for client (Admin SDK):', error);
+    console.error('[getJobSummaryForClient] Error fetching job summary for client (Admin SDK):', error);
     return summary;
   }
 }
@@ -228,7 +234,8 @@ export async function getJobSummaryForClient(clientId: string): Promise<ClientJo
  */
 export async function getAssignedJobsForProvider(providerId: string, limitCount: number = 3): Promise<Job[]> {
    if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("Admin DB not initialized. Cannot get assigned jobs.");
+    const errorMsg = "[getAssignedJobsForProvider] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
+    console.error(errorMsg);
     return [];
   }
   try {
@@ -252,7 +259,7 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
     });
     return jobs;
   } catch (error) {
-    console.error('Error fetching assigned jobs for provider (Admin SDK):', error);
+    console.error('[getAssignedJobsForProvider] Error fetching assigned jobs for provider (Admin SDK):', error);
     return [];
   }
 }
@@ -265,13 +272,14 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
  */
 export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<Job[]> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("[getAllJobsFromFirestore] Admin DB not initialized.");
-    throw new Error("Server error: Admin DB not initialized. Cannot fetch all jobs.");
+    const errorMsg = "[getAllJobsFromFirestore] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
+    console.error(errorMsg);
+    throw new Error("Server error: Core database service unavailable. Cannot fetch all jobs.");
   }
   try {
     const jobsRef = adminDb.collection('jobs');
     const q: Query = jobsRef
-      .where('status', 'in', ['open', 'pending_quotes'])
+      .where('status', 'in', ['open', 'pending_quotes']) // Ensure only open/pending jobs are browsable
       .orderBy('postedAt', 'desc')
       .limit(limitCount);
 
@@ -279,7 +287,6 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
     const jobs: Job[] = [];
     querySnapshot.forEach((docSnap) => {
       const jobData = docSnap.data();
-      // Ensure Timestamps are converted to Date objects
       const postedAt = (jobData.postedAt as Timestamp)?.toDate();
       const updatedAt = (jobData.updatedAt as Timestamp)?.toDate();
       const deadline = jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null;
@@ -295,9 +302,9 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
     console.log(`[getAllJobsFromFirestore] Fetched ${jobs.length} jobs for browsing.`);
     return jobs;
   } catch (error: any) {
-    console.error('Error fetching all jobs from Firestore (Admin SDK):', error.message, error.stack);
+    console.error('[getAllJobsFromFirestore] Error fetching all jobs from Firestore (Admin SDK):', error.message, error.stack);
     if (error.message && error.message.includes('FAILED_PRECONDITION') && error.message.includes('index')) {
-        console.error("Firestore query requires a composite index. Please create it in the Firebase console. The error message should contain a link to create it.");
+        console.error("[getAllJobsFromFirestore] Firestore query requires a composite index. Please create it in the Firebase console. The error message should contain a link to create it.");
         throw new Error(`Query requires a Firestore index. Please check server logs for a link to create it. Original: ${error.message}`);
     }
     throw new Error('Could not fetch all jobs from Firestore.');
