@@ -33,7 +33,7 @@ type SearchMode = 'providers' | 'jobs';
 
 function SearchPageContent() {
   const router = useRouter();
-  const nextSearchParams = useSearchParams(); 
+  const nextSearchParams = useSearchParams();
 
   const memoizedNextSearchParams = useMemo(() => {
     return new URLSearchParams(nextSearchParams.toString());
@@ -48,11 +48,11 @@ function SearchPageContent() {
   const [selectedProviderCategory, setSelectedProviderCategory] = useState<ServiceCategory | 'All'>('All');
   const [minRating, setMinRating] = useState<number | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
-  
+
   const [jobKeywordsQuery, setJobKeywordsQuery] = useState('');
   const [jobLocationQuery, setJobLocationQuery] = useState('');
   const [selectedJobCategory, setSelectedJobCategory] = useState<ServiceCategory | 'All'>('All');
-  const [jobStatusFilter, setJobStatusFilter] = useState<string | null>(null); 
+  const [jobStatusFilter, setJobStatusFilter] = useState<string | null>(null);
 
   const [providerResults, setProviderResults] = useState<Provider[]>([]);
   const [jobResults, setJobResults] = useState<JobCardProps['job'][]>([]);
@@ -69,49 +69,50 @@ function SearchPageContent() {
     return () => unsubscribe();
   }, []);
 
-  const executeSearch = useCallback(async (executionMode: SearchMode) => {
-    if (authLoading && executionMode === 'jobs' && new URLSearchParams(window.location.search).get('myJobs') === 'true') {
-      // This check might be redundant if the calling useEffect already handles it, but can be a safeguard.
-      // Ensure setIsLoading(true) is called before returning if we want the UI to show loading.
-      // However, the main effect already sets isLoading for this case.
+  const executeSearch = useCallback(async (executionMode: SearchMode, paramsFromUrl: URLSearchParams) => {
+    if (authLoading && executionMode === 'jobs' && paramsFromUrl.get('myJobs') === 'true' && !currentUser) {
+      setIsLoading(false);
       return;
     }
+
     setIsLoading(true);
     setHasSearched(true);
 
     if (executionMode === 'providers') {
-      const params: ProviderSearchParams = {
-        query: providerSearchQuery,
-        location: providerLocationQuery,
-        category: selectedProviderCategory === 'All' ? null : selectedProviderCategory,
-        minRating: minRating,
-        verifiedOnly: verifiedOnly,
+      const apiParams: ProviderSearchParams = {
+        query: paramsFromUrl.get('query') || '',
+        location: paramsFromUrl.get('location') || '',
+        category: (paramsFromUrl.get('category') as ServiceCategory | 'All') || 'All',
+        minRating: paramsFromUrl.has('minRating') ? parseFloat(paramsFromUrl.get('minRating')!) : null,
+        verifiedOnly: paramsFromUrl.get('verifiedOnly') === 'true',
       };
       try {
-        const providers = await searchProvidersAction(params);
+        const providers = await searchProvidersAction(apiParams);
         setProviderResults(providers);
       } catch (error) {
         console.error("Error searching providers:", error);
         setProviderResults([]);
       }
     } else if (executionMode === 'jobs') {
-      const myJobsFlag = new URLSearchParams(window.location.search).get('myJobs') === 'true';
-      const statusParamFromUrl = new URLSearchParams(window.location.search).get('status') as JobStatus | 'all_my' | null;
-      
-      if (myJobsFlag && !currentUser && !authLoading) { 
-        setJobResults([]); setIsLoading(false); return;
+      const myJobsFlag = paramsFromUrl.get('myJobs') === 'true';
+      const statusParamFromUrl = paramsFromUrl.get('status') as JobStatus | 'all_my' | null;
+
+      if (myJobsFlag && !currentUser) {
+        setJobResults([]);
+        setIsLoading(false);
+        return;
       }
-      
-      const params: JobSearchParams = {
-        keywords: jobKeywordsQuery,
-        location: jobLocationQuery,
-        category: selectedJobCategory === 'All' ? null : selectedJobCategory,
+
+      const apiParams: JobSearchParams = {
+        keywords: paramsFromUrl.get('keywords') || '',
+        location: paramsFromUrl.get('jobLocation') || '',
+        category: (paramsFromUrl.get('jobCategory') as ServiceCategory | 'All') || 'All',
         isMyJobsSearch: myJobsFlag,
         currentUserId: myJobsFlag && currentUser ? currentUser.uid : null,
         filterByStatus: statusParamFromUrl,
       };
       try {
-        const jobs = await searchJobsAction(params);
+        const jobs = await searchJobsAction(apiParams);
         setJobResults(jobs);
       } catch (error) {
         console.error("Error searching jobs:", error);
@@ -119,12 +120,7 @@ function SearchPageContent() {
       }
     }
     setIsLoading(false);
-  }, [
-    authLoading, currentUser, 
-    providerSearchQuery, providerLocationQuery, selectedProviderCategory, minRating, verifiedOnly,
-    jobKeywordsQuery, jobLocationQuery, selectedJobCategory,
-    // setIsLoading, setHasSearched, setProviderResults, setJobResults are stable setters from useState
-  ]);
+  }, [authLoading, currentUser, setProviderResults, setJobResults, setIsLoading, setHasSearched]);
 
 
   useEffect(() => {
@@ -133,11 +129,11 @@ function SearchPageContent() {
     const modeFromUrl = (currentUrlParams.get('mode') as SearchMode) || (myJobsActive ? 'jobs' : 'providers');
 
     if (authLoading && myJobsActive && modeFromUrl === 'jobs') {
-      setIsLoading(true); 
+      setIsLoading(true);
       return;
     }
-    
-    setSearchMode(modeFromUrl); 
+
+    setSearchMode(modeFromUrl);
 
     if (modeFromUrl === 'providers') {
       setProviderSearchQuery(currentUrlParams.get('query') || '');
@@ -145,23 +141,21 @@ function SearchPageContent() {
       setSelectedProviderCategory((currentUrlParams.get('category') as ServiceCategory | 'All') || 'All');
       setMinRating(currentUrlParams.get('minRating') ? parseFloat(currentUrlParams.get('minRating')!) : null);
       setVerifiedOnly(currentUrlParams.get('verifiedOnly') === 'true');
-    } else { 
+    } else {
       setJobKeywordsQuery(currentUrlParams.get('keywords') || '');
       setJobLocationQuery(currentUrlParams.get('jobLocation') || '');
       setSelectedJobCategory((currentUrlParams.get('jobCategory') as ServiceCategory | 'All') || 'All');
       setJobStatusFilter(currentUrlParams.get('status') || null);
     }
-    
+
     let performSearchNow = false;
     if (modeFromUrl === 'jobs') {
-      if (myJobsActive) { // For "My Jobs"
-        if (currentUser || !authLoading) { performSearchNow = true; } // Search if user is known or auth is done
-      } else { // For general "Find Jobs"
-         // Search if specific filters are applied or if it's a general browse
+      if (myJobsActive) {
+        if (currentUser || !authLoading) { performSearchNow = true; }
+      } else {
         if (currentUrlParams.has('keywords') || currentUrlParams.has('jobLocation') || (currentUrlParams.get('jobCategory') && currentUrlParams.get('jobCategory') !== 'All')) {
             performSearchNow = true;
         } else if (!currentUrlParams.has('keywords') && !currentUrlParams.has('jobLocation') && (!currentUrlParams.get('jobCategory') || currentUrlParams.get('jobCategory') === 'All')) {
-            // Default: show all open jobs if no specific filters are set for general job search
             performSearchNow = true;
         }
       }
@@ -172,26 +166,24 @@ function SearchPageContent() {
         performSearchNow = true;
       }
     }
-    
+
     if (performSearchNow) {
-      executeSearch(modeFromUrl); 
+      executeSearch(modeFromUrl, currentUrlParams);
     } else {
-      if (!isLoading) { 
+      if (!isLoading) {
           setProviderResults([]);
           setJobResults([]);
-          setHasSearched(false); 
+          setHasSearched(false);
       }
     }
   }, [memoizedNextSearchParams, authLoading, currentUser, executeSearch, isLoading]);
-  // Keep isLoading here for now to manage the "clear results" logic correctly when not performing a search.
-  // And executeSearch is needed because its reference *can* change if its own dependencies change (which are set by this effect).
-  // This structure is common: effect syncs URL to state, those state changes make executeSearch's ref stable for *that* render,
-  // then executeSearch is called. If executeSearch was not a dep, we might call a stale closure.
-  // The key is that executeSearch itself doesn't cause a loop with its *own* state setting.
+  // isLoading is added back here. If executeSearch clears isLoading, and this effect runs again
+  // (e.g. due to memoizedNextSearchParams changing for unrelated reasons but performSearchNow is false),
+  // we need to check isLoading to prevent clearing results while a new, different search might be starting.
 
   const updateUrlAndSearch = (newParams: Record<string, string | null>) => {
     const query = new URLSearchParams(window.location.search);
-    
+
     Object.entries(newParams).forEach(([key, value]) => {
       if (value === null || value === '' || (key === 'minRating' && value === "0")) {
         query.delete(key);
@@ -199,9 +191,9 @@ function SearchPageContent() {
         query.set(key, value);
       }
     });
-    
+
     if (!query.has('mode')) {
-        query.set('mode', searchMode); 
+        query.set('mode', searchMode);
     }
 
     router.push(`/search?${query.toString()}`, { scroll: false });
@@ -213,7 +205,7 @@ function SearchPageContent() {
     if (searchMode === 'providers') {
       paramsToUpdate.query = providerSearchQuery;
       paramsToUpdate.location = providerLocationQuery;
-    } else { 
+    } else {
       paramsToUpdate.keywords = jobKeywordsQuery;
       paramsToUpdate.jobLocation = jobLocationQuery;
     }
@@ -228,22 +220,22 @@ function SearchPageContent() {
       paramsToUpdate.verifiedOnly = verifiedOnly ? 'true' : null;
       paramsToUpdate.query = providerSearchQuery || null;
       paramsToUpdate.location = providerLocationQuery || null;
-    } else { 
+    } else {
       paramsToUpdate.jobCategory = selectedJobCategory === 'All' ? null : selectedJobCategory;
       paramsToUpdate.keywords = jobKeywordsQuery || null;
       paramsToUpdate.jobLocation = jobLocationQuery || null;
     }
     updateUrlAndSearch(paramsToUpdate);
   };
-  
+
   const handleModeChange = (newMode: SearchMode) => {
-    setSearchMode(newMode); 
+    setSearchMode(newMode);
     const query = new URLSearchParams();
     query.set('mode', newMode);
-    
+
     if (newMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true') {
         query.set('myJobs', 'true');
-        if (memoizedNextSearchParams.get('status')) { 
+        if (memoizedNextSearchParams.get('status')) {
             query.set('status', memoizedNextSearchParams.get('status')!);
         }
     }
@@ -266,14 +258,14 @@ function SearchPageContent() {
 
       <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card rounded-lg shadow">
         <h1 className="text-3xl font-headline font-bold mb-2">
-          {searchMode === 'providers' ? 'Find Service Providers' : 
+          {searchMode === 'providers' ? 'Find Service Providers' :
            (memoizedNextSearchParams.get('myJobs') === 'true' ? 'My Posted Jobs' : 'Discover Job Opportunities')}
         </h1>
         <p className="text-muted-foreground mb-6">
           {searchMode === 'providers'
             ? 'Search for skilled and verified Fundis for your specific needs.'
-            : (memoizedNextSearchParams.get('myJobs') === 'true' 
-                ? 'Review and manage jobs you have posted.' 
+            : (memoizedNextSearchParams.get('myJobs') === 'true'
+                ? 'Review and manage jobs you have posted.'
                 : 'Browse open jobs posted by clients and submit your quotes.')}
         </p>
 
@@ -463,18 +455,18 @@ function SearchPageContent() {
                 )}
               </div>
             )}
-          {!isLoading && !hasSearched && ( 
+          {!isLoading && !hasSearched && (
             <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
               <SearchIcon className="mx-auto h-16 w-16 text-primary mb-4" />
               <h3 className="text-2xl font-semibold mb-2">
-                {searchMode === 'providers' ? 'Find Your Fundi' : 
+                {searchMode === 'providers' ? 'Find Your Fundi' :
                  (memoizedNextSearchParams.get('myJobs') === 'true' ? 'Your Posted Jobs' : 'Discover Job Opportunities')}
               </h3>
               <p className="text-muted-foreground">
                 {searchMode === 'providers'
                   ? 'Enter your search criteria above to find available service providers.'
-                  : (memoizedNextSearchParams.get('myJobs') === 'true' 
-                      ? 'Your posted jobs will appear here once loaded. If this is your first time, try posting a job!' 
+                  : (memoizedNextSearchParams.get('myJobs') === 'true'
+                      ? 'Your posted jobs will appear here once loaded. If this is your first time, try posting a job!'
                       : 'Use the filters to discover relevant job postings, or see all open jobs by default.')}
               </p>
             </div>
@@ -528,5 +520,3 @@ export default function SearchPage() {
     </Suspense>
   );
 }
-
-    
