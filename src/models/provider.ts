@@ -28,21 +28,22 @@ export interface ProviderProfile {
   specialties: string[];
   bio: string;
   location: string;
-  fullAddress?: string;
+  fullAddress?: string | null;
   yearsOfExperience: number;
   isVerified: boolean; // Overall profile verification status
-  verificationAuthority?: string; // e.g., "FundiConnect Admin" for overall
+  verificationAuthority?: string | null;
   certifications: Certification[];
   portfolio: PortfolioItem[];
   rating: number;
   reviewsCount: number;
   contactPhoneNumber: string;
-  operatingHours?: string;
+  operatingHours?: string | null;
   serviceAreas: string[];
-  profilePictureUrl?: string;
-  bannerImageUrl?: string;
-  website?: string;
-  socialMediaLinks?: Record<string, string>;
+  profilePictureUrl?: string | null;
+  bannerImageUrl?: string | null;
+  website?: string | null;
+  socialMediaLinks?: Record<string, string> | null;
   createdAt: Date;
   updatedAt: Date;
 }
+

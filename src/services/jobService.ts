@@ -3,7 +3,7 @@
  * @fileOverview Service functions for interacting with job data in Firestore.
  */
 import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
-import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue, type UpdateData, type Query } from 'firebase-admin/firestore';
 import type { Job, JobStatus } from '@/models/job';
 
 /**
@@ -12,7 +12,7 @@ import type { Job, JobStatus } from '@/models/job';
  * @returns A promise that resolves with the ID of the newly created job.
  */
 export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' | 'updatedAt' | 'quotesReceived'>): Promise<string> {
-  if (!adminDb) {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("Admin DB not initialized. Job creation failed.");
     throw new Error("Server error: Admin DB not initialized.");
   }
@@ -85,7 +85,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
  * @returns A promise that resolves with the Job object or null if not found.
  */
 export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null> {
-  if (!adminDb) {
+  if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("Admin DB not initialized. Cannot fetch job by ID.");
     throw new Error("Server error: Admin DB not initialized.");
   }
@@ -254,5 +254,53 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
   } catch (error) {
     console.error('Error fetching assigned jobs for provider (Admin SDK):', error);
     return [];
+  }
+}
+
+/**
+ * Retrieves all jobs from Firestore, intended for general browsing, using Admin SDK.
+ * Filters for 'open' or 'pending_quotes' statuses.
+ * @param limitCount - The maximum number of jobs to fetch. Defaults to 50.
+ * @returns A promise that resolves with an array of Job objects.
+ */
+export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<Job[]> {
+  if (!adminDb) {
+    console.error("[getAllJobsFromFirestore] Admin DB not initialized.");
+    throw new Error("Server error: Admin DB not initialized. Cannot fetch all jobs.");
+  }
+  try {
+    const jobsRef = adminDb.collection('jobs');
+    const q: Query = jobsRef 
+      .where('status', 'in', ['open', 'pending_quotes'])
+      .orderBy('postedAt', 'desc')
+      .limit(limitCount);
+      
+    const querySnapshot = await q.get();
+    const jobs: Job[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const jobData = docSnap.data();
+      // Ensure Timestamps are converted to Date objects
+      const postedAt = (jobData.postedAt as Timestamp)?.toDate();
+      const updatedAt = (jobData.updatedAt as Timestamp)?.toDate();
+      const deadline = jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null;
+
+      jobs.push({
+        id: docSnap.id,
+        ...jobData,
+        postedAt,
+        updatedAt,
+        deadline,
+      } as Job);
+    });
+    console.log(`[getAllJobsFromFirestore] Fetched ${jobs.length} jobs for browsing.`);
+    return jobs;
+  } catch (error: any) {
+    console.error('Error fetching all jobs from Firestore (Admin SDK):', error.message, error.stack);
+    // Check if it's an index error
+    if (error.message && error.message.includes('FAILED_PRECONDITION') && error.message.includes('index')) {
+        console.error("Firestore query requires a composite index. Please create it in the Firebase console. The error message should contain a link to create it.");
+        throw new Error(`Query requires a Firestore index. Please check server logs for a link to create it. Original: ${error.message}`);
+    }
+    throw new Error('Could not fetch all jobs from Firestore.');
   }
 }

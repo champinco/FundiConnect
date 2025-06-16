@@ -3,14 +3,16 @@
 
 import { adminDb } from '@/lib/firebaseAdmin';
 import { getUserProfileFromFirestore, createDefaultAppUserProfile } from '@/services/userService';
+import { getProviderProfileFromFirestore } from '@/services/providerService'; 
 import type { User as AppUser } from '@/models/user';
+import type { ProviderProfile } from '@/models/provider'; 
 import type { User as FirebaseUser } from 'firebase/auth'; 
 
 
-interface UserProfilePageData {
+export interface UserProfilePageData {
   appUser: AppUser | null;
+  providerProfile?: ProviderProfile | null; 
   error?: string;
-  wasRedirectedToEdit?: boolean;
 }
 
 export async function fetchUserProfilePageDataAction(userId: string, clientFirebaseUser: FirebaseUser | null): Promise<UserProfilePageData> {
@@ -41,15 +43,17 @@ export async function fetchUserProfilePageDataAction(userId: string, clientFireb
          return { appUser: null, error: "User profile not found and cannot create default without client user info." };
     }
 
-
     if (userProfile?.accountType === 'provider') {
-      return { appUser: userProfile, wasRedirectedToEdit: true };
+      const providerProfileData = await getProviderProfileFromFirestore(userId);
+      // Removed wasRedirectedToEdit: true
+      return { appUser: userProfile, providerProfile: providerProfileData };
     }
 
-    return { appUser: userProfile };
+    return { appUser: userProfile, providerProfile: null };
 
   } catch (error: any) {
     console.error("[fetchUserProfilePageDataAction] Error fetching user profile. User ID:", userId, "Error Details:", error.message, error.stack);
     return { appUser: null, error: error.message || "Failed to load user profile data due to an unexpected server error." };
   }
 }
+

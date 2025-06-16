@@ -5,19 +5,22 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-// Removed direct service imports
 import type { User as AppUser } from '@/models/user';
+import type { ProviderProfile } from '@/models/provider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserCircle, Edit, ShieldCheck, Mail, Phone, Briefcase } from 'lucide-react';
+import { Loader2, UserCircle, Edit, ShieldCheck, Mail, Phone, Briefcase, MapPin, Award, FileText, MessageSquare, Building, Clock } from 'lucide-react';
 import Link from 'next/link';
-import { fetchUserProfilePageDataAction } from './actions'; // Import the new action
+import { fetchUserProfilePageDataAction, type UserProfilePageData } from './actions'; 
+import VerifiedBadge from '@/components/verified-badge';
+import ServiceCategoryIcon from '@/components/service-category-icon';
 
 export default function ProfilePage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null); 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,15 +33,14 @@ export default function ProfilePage() {
         if (result.error) {
           setError(result.error);
           setAppUser(null);
-        } else if (result.wasRedirectedToEdit) {
-          router.replace('/profile/edit');
-          // Keep isLoading true as redirection is happening
-          return; 
+          setProviderProfile(null);
         } else {
           setAppUser(result.appUser);
+          setProviderProfile(result.providerProfile || null);
         }
       } else {
         setAppUser(null);
+        setProviderProfile(null);
         setError(null);
         router.push('/auth/login?redirect=/profile');
       }
@@ -79,7 +81,6 @@ export default function ProfilePage() {
     );
   }
   
-  // This should only render if appUser exists and accountType is client
   if (appUser.accountType === 'client') {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -127,13 +128,129 @@ export default function ProfilePage() {
                     <Briefcase className="mr-2"/> Go to Dashboard
                 </Link>
             </Button>
+            <Button asChild variant="outline" className="w-full">
+                <Link href="/jobs/my-jobs">
+                     My Posted Jobs
+                </Link>
+            </Button>
           </CardFooter>
         </Card>
       </div>
     );
   }
 
-  // Fallback if logic is somehow bypassed (e.g. accountType is neither client nor provider, or redirection didn't occur)
+  if (appUser.accountType === 'provider') {
+    if (!providerProfile) {
+         return ( // Fallback if provider profile is still loading or truly missing after action attempts
+            <div className="container mx-auto px-4 py-12 text-center">
+                <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-4 text-foreground">Loading Provider Profile...</h2>
+                <p className="text-muted-foreground mb-6">
+                    Fetching your detailed provider information. If this takes too long, please ensure your profile setup was completed.
+                </p>
+                <Button asChild variant="secondary">
+                    <Link href="/profile/edit">Go to Edit Profile</Link>
+                </Button>
+            </div>
+        );
+    }
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-2xl mx-auto shadow-xl">
+          <CardHeader className="text-center pb-4">
+            <Avatar className="mx-auto h-32 w-32 mb-4 border-4 border-primary shadow-lg">
+              <AvatarImage src={providerProfile.profilePictureUrl || appUser.photoURL || undefined} alt={providerProfile.businessName || appUser.fullName || "Provider"} data-ai-hint="provider avatar" />
+              <AvatarFallback className="text-5xl">
+                {(providerProfile.businessName || appUser.fullName || "P").substring(0,1).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <CardTitle className="text-4xl font-headline">{providerProfile.businessName || appUser.fullName}</CardTitle>
+            {providerProfile.mainService && (
+                 <CardDescription className="text-lg text-primary flex items-center justify-center mt-1">
+                    <ServiceCategoryIcon category={providerProfile.mainService} iconOnly className="h-5 w-5 mr-2" />
+                    Specializing in {providerProfile.mainService}
+                 </CardDescription>
+            )}
+             {providerProfile.isVerified && providerProfile.verificationAuthority && (
+                <div className="mt-2 flex justify-center">
+                    <VerifiedBadge authority={`${providerProfile.verificationAuthority} Verified`} isVerified={providerProfile.isVerified} />
+                </div>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6 pt-4 text-base">
+            <div className="space-y-2">
+                <h3 className="font-semibold text-lg mb-2 text-primary border-b pb-1 flex items-center"><Building className="mr-2 h-5 w-5" />Business Details</h3>
+                <div className="flex items-center"><Mail className="mr-3 h-5 w-5 text-muted-foreground" /> Email: {appUser.email}</div>
+                {providerProfile.contactPhoneNumber && <div className="flex items-center"><Phone className="mr-3 h-5 w-5 text-muted-foreground" /> Phone: {providerProfile.contactPhoneNumber}</div>}
+                <div className="flex items-center"><MapPin className="mr-3 h-5 w-5 text-muted-foreground" /> Location: {providerProfile.location}</div>
+                 {providerProfile.fullAddress && <div className="flex items-center ml-8 text-sm text-muted-foreground"> {providerProfile.fullAddress}</div>}
+            </div>
+            
+            {providerProfile.bio && (
+                 <div>
+                    <h3 className="font-semibold text-lg mb-2 text-primary border-b pb-1 flex items-center"><FileText className="mr-2 h-5 w-5" />About Us</h3>
+                    <p className="text-foreground/90 whitespace-pre-line">{providerProfile.bio}</p>
+                </div>
+            )}
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                 {providerProfile.yearsOfExperience > 0 && (
+                     <div>
+                        <h4 className="font-medium flex items-center mb-1"><Award className="mr-2 h-5 w-5 text-muted-foreground" /> Experience</h4>
+                        <p className="text-foreground/90">{providerProfile.yearsOfExperience} years</p>
+                    </div>
+                )}
+                 {providerProfile.operatingHours && (
+                     <div>
+                        <h4 className="font-medium flex items-center mb-1"><Clock className="mr-2 h-5 w-5 text-muted-foreground" /> Operating Hours</h4>
+                        <p className="text-foreground/90 whitespace-pre-line">{providerProfile.operatingHours}</p>
+                    </div>
+                )}
+            </div>
+            {providerProfile.serviceAreas && providerProfile.serviceAreas.length > 0 && (
+                 <div>
+                    <h3 className="font-semibold text-lg mb-2 text-primary border-b pb-1">Service Areas</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {providerProfile.serviceAreas.map(area => (
+                            <span key={area} className="bg-muted px-3 py-1 rounded-full text-sm font-medium">{area}</span>
+                        ))}
+                    </div>
+                </div>
+            )}
+             {providerProfile.website && (
+                 <div>
+                    <h3 className="font-semibold text-lg mb-2 text-primary border-b pb-1">Website</h3>
+                     <Link href={providerProfile.website.startsWith('http') ? providerProfile.website : `https://${providerProfile.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {providerProfile.website}
+                    </Link>
+                </div>
+            )}
+
+
+          </CardContent>
+          <CardFooter className="flex-col space-y-3 pt-6 border-t">
+            <Button asChild className="w-full">
+                <Link href="/profile/edit">
+                    <Edit className="mr-2"/> Edit My Profile
+                </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+                <Link href={`/providers/${appUser.uid}`}>
+                     <UserCircle className="mr-2"/> View My Public Profile
+                </Link>
+            </Button>
+             <Button asChild variant="outline" className="w-full">
+                <Link href="/dashboard">
+                    <Briefcase className="mr-2"/> Go to Dashboard
+                </Link>
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  // Fallback if logic is somehow bypassed
   return (
     <div className="container mx-auto px-4 py-12 text-center">
       <p className="text-muted-foreground">Loading profile or redirecting...</p>
@@ -143,3 +260,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

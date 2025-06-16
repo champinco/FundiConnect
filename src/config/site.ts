@@ -8,11 +8,11 @@ const mainNavLinksBase = [
   },
   {
     title: "Find Fundis",
-    href: "/search",
+    href: "/search?mode=providers", 
   },
   {
-    title: "Post a Job",
-    href: "/jobs/post",
+    title: "Browse Jobs", 
+    href: "/jobs",
   },
   {
     title: "Smart Match",
@@ -20,8 +20,15 @@ const mainNavLinksBase = [
   },
 ];
 
-// Links that appear ONLY for logged-in users, in addition to base links
 const mainNavLinksLoggedInExclusive = [
+  {
+    title: "Post a Job", 
+    href: "/jobs/post",
+  },
+  {
+    title: "My Jobs", 
+    href: "/jobs/my-jobs",
+  },
   {
     title: "Dashboard",
     href: "/dashboard",
@@ -32,13 +39,11 @@ const mainNavLinksLoggedInExclusive = [
   },
   {
     title: "My Profile", 
-    href: "/profile", // Changed from /profile/edit to /profile
+    href: "/profile",
   },
 ];
 
-// Links that appear ONLY for logged-out users (or all users if no auth distinction needed for these)
 const mainNavLinksLoggedOutExclusive = [
-  // Example: A "Why Join?" page could go here, not relevant if already joined.
 ];
 
 
@@ -54,3 +59,4 @@ export const siteConfig = {
     github: "https://github.com/shadcn/ui", 
   },
 };
+

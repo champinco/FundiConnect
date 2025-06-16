@@ -43,25 +43,32 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
     }
 
     if (values.accountType === 'provider') {
-      const providerProfileData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount' | 'isVerified' | 'certifications' | 'portfolio' | 'operatingHours' | 'serviceAreas'> & Partial<Pick<ProviderProfile, 'operatingHours' | 'serviceAreas'>> = {
+      const providerProfileData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount'> = {
         id: firebaseUserId,
         userId: firebaseUserId,
         businessName: values.businessName || values.fullName,
         mainService: values.mainService || 'Other', 
         specialties: [],
         bio: values.bio || `Fundi specializing in ${values.mainService || 'various services'}. Profile for ${values.businessName || values.fullName}.`,
-        location: values.providerLocation || 'Nairobi', 
+        location: values.providerLocation || 'Nairobi',
+        fullAddress: null, // Default as per report
         yearsOfExperience: values.yearsOfExperience !== undefined ? Number(values.yearsOfExperience) : 0,
         contactPhoneNumber: values.contactPhoneNumber || "", 
         profilePictureUrl: values.profilePictureUrl || undefined,
+        bannerImageUrl: null, // Default as per report
+        website: null, // Default as per report
+        socialMediaLinks: null, // Default as per report
         isVerified: false,
+        verificationAuthority: null, // Default as per report
         certifications: [],
         portfolio: [],
-        operatingHours: "Mon-Fri 9am-5pm", 
+        // rating and reviewsCount will be initialized by createProviderProfileInFirestore
+        operatingHours: "Mon-Fri 9am-5pm", // Default as per report
         serviceAreas: values.providerLocation ? [values.providerLocation] : ["Nairobi"], 
       };
       console.log("[SignupAction] Attempting to create provider profile in Firestore with data:", JSON.stringify(providerProfileData));
       try {
+        // createProviderProfileInFirestore already sets rating: 0 and reviewsCount: 0
         await createProviderProfileInFirestore(providerProfileData);
         console.log("[SignupAction] Successfully created provider profile in Firestore for UID:", firebaseUserId);
       } catch (providerProfileError: any) {
@@ -77,3 +84,4 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
     return { success: false, message: error.message || "An unexpected error occurred while creating your profile details. Check server logs." };
   }
 }
+
