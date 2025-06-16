@@ -1,7 +1,7 @@
 
 "use client"; // This page needs to be a client component to use hooks like useState, useEffect, and onAuthStateChanged
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, use as useReact } from 'react'; // Added useReact (aliased from use)
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -322,9 +322,16 @@ function JobDetails({ jobId }: JobDetailsProps) {
 
 
 export default function JobDetailPageWrapper({ params }: { params: { jobId: string } }) {
+    // The error message implies `params` is a promise that resolves to `{ jobId: string }`.
+    // `useReact` will unwrap this promise.
+    // We cast to `unknown` then to the expected Promise type to satisfy `useReact`'s type checking if TS
+    // infers `params` as just `{ jobId: string }` from the prop type annotation.
+    const resolvedParams = useReact(params as unknown as Promise<{ jobId: string }>);
+
     return (
         <Suspense fallback={<JobDetailLoader />}>
-            <JobDetails jobId={params.jobId} />
+            <JobDetails jobId={resolvedParams.jobId} />
         </Suspense>
     );
 }
+
