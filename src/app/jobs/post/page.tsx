@@ -10,22 +10,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, Briefcase, Send, Loader2, Paperclip, DollarSign, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, Upload, Briefcase, Send, Loader2, Paperclip, DollarSign, AlertTriangle, Clock } from 'lucide-react'; // Added Clock
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { useToast } from "@/hooks/use-toast";
-import { postJobAction } from '../actions'; // Updated import path
+import { postJobAction } from '../actions';
 import { postJobFormSchema, type PostJobFormValues, jobUrgenciesForValidation, serviceCategoriesForValidation } from './schemas';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth, analytics } from '@/lib/firebase'; // Added analytics
-import { logEvent } from 'firebase/analytics'; // Added logEvent
+import { auth, analytics } from '@/lib/firebase';
+import { logEvent } from 'firebase/analytics';
 import { uploadFileToStorage } from '@/services/storageService';
 import type { JobUrgency } from '@/models/job';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'; // Added Popover
+import { Calendar } from '@/components/ui/calendar'; // Added Calendar
+import { format } from 'date-fns'; // Added date-fns format
 
 
-// All service categories for the dropdown if needed, or keep it focused on Tier 1
 const allServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
+const jobUrgencies: JobUrgency[] = [...jobUrgenciesForValidation];
 
 
 export default function PostJobPage() {
@@ -39,42 +41,37 @@ export default function PostJobPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (!user) {
-        // User is not logged in, redirect them or show a message
-        // For now, the onSubmit will handle this, but you might want an earlier check
+        router.push('/auth/login?redirect=/jobs/post');
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
-  const { control, register, handleSubmit, formState: { errors }, reset } = useForm<PostJobFormValues>({
+  const { control, register, handleSubmit, formState: { errors }, reset, watch } = useForm<PostJobFormValues>({
     resolver: zodResolver(postJobFormSchema),
     defaultValues: {
       jobTitle: "",
       serviceCategory: "Other",
+      otherCategoryDescription: "",
       jobDescription: "",
       location: "",
       budget: undefined,
       urgency: "medium",
+      deadline: null,
       postingOption: "public",
     },
   });
 
+  const serviceCategoryValue = watch("serviceCategory");
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const filesArray = Array.from(event.target.files).slice(0, 5); // Limit to 5 files
-      // You might want to add file size validation here per file
+      const filesArray = Array.from(event.target.files).slice(0, 5); 
       setSelectedFiles(filesArray);
     }
   };
 
   const onSubmit = async (data: PostJobFormValues) => {
-    // Debugging logs as requested
-    console.log('Auth state before job post attempt:', {
-      user: !!currentUser,
-      uid: currentUser?.uid,
-      email: currentUser?.email
-    });
-
     if (!currentUser) {
       toast({
         title: "Authentication Required",
@@ -106,7 +103,6 @@ export default function PostJobPage() {
     }
 
     try {
-      // Ensure budget and urgency are correctly passed (they are already part of 'data' due to form structure)
       const result = await postJobAction(data, currentUser.uid, uploadedPhotoUrls);
       if (result.success && result.jobId) {
         toast({
@@ -114,7 +110,7 @@ export default function PostJobPage() {
           description: "Your job has been successfully posted.",
         });
         if (analytics) {
-          logEvent(analytics, 'post_job', { // Custom event name
+          logEvent(analytics, 'post_job', { 
             job_id: result.jobId,
             category: data.serviceCategory,
             location: data.location,
@@ -194,6 +190,19 @@ export default function PostJobPage() {
               />
               {errors.serviceCategory && <p className="text-sm text-destructive mt-1">{errors.serviceCategory.message}</p>}
             </div>
+            
+            {serviceCategoryValue === 'Other' && (
+              <div>
+                <Label htmlFor="otherCategoryDescription" className="font-semibold">Specify 'Other' Category</Label>
+                <Input
+                  id="otherCategoryDescription"
+                  {...register("otherCategoryDescription")}
+                  placeholder="e.g., Custom Welding Work, Event Setup"
+                  className="mt-1"
+                />
+                {errors.otherCategoryDescription && <p className="text-sm text-destructive mt-1">{errors.otherCategoryDescription.message}</p>}
+              </div>
+            )}
 
             <div>
               <Label htmlFor="jobDescription" className="font-semibold">Detailed Description</Label>
@@ -233,20 +242,26 @@ export default function PostJobPage() {
               </div>
               <div>
                 <Label htmlFor="urgency" className="font-semibold flex items-center">
-                    <AlertTriangle className="mr-2 h-4 w-4 text-primary"/> Urgency (Optional)
+                    <AlertTriangle className="mr-2 h-4 w-4 text-primary"/> Urgency
                 </Label>
                 <Controller
                     name="urgency"
                     control={control}
+                    defaultValue="medium"
                     render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || undefined} >
+                    <Select onValueChange={field.onChange} value={field.value || 'medium'} >
                         <SelectTrigger id="urgency" className="mt-1">
                         <SelectValue placeholder="Select urgency" />
                         </SelectTrigger>
                         <SelectContent>
-                        <SelectItem value="low">Low - Within a few days/weeks</SelectItem>
-                        <SelectItem value="medium">Medium - Within a day or two</SelectItem>
-                        <SelectItem value="high">High - Urgent / ASAP</SelectItem>
+                          {jobUrgencies.map(urgency => (
+                            <SelectItem key={urgency} value={urgency} className="capitalize">
+                              {urgency.charAt(0).toUpperCase() + urgency.slice(1)}
+                              {urgency === 'low' && " - Within a few days/weeks"}
+                              {urgency === 'medium' && " - Within a day or two"}
+                              {urgency === 'high' && " - Urgent / ASAP"}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                     </Select>
                     )}
@@ -254,6 +269,38 @@ export default function PostJobPage() {
                 {errors.urgency && <p className="text-sm text-destructive mt-1">{errors.urgency.message}</p>}
               </div>
             </div>
+            
+            <div>
+                <Label htmlFor="deadline" className="font-semibold flex items-center"><Clock className="mr-2 h-4 w-4 text-primary"/> Preferred Completion Date (Optional)</Label>
+                <Controller
+                    name="deadline"
+                    control={control}
+                    render={({ field }) => (
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button
+                            variant={"outline"}
+                            className={`w-full justify-start text-left font-normal mt-1 ${!field.value && "text-muted-foreground"}`}
+                        >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                        <Calendar
+                            mode="single"
+                            selected={field.value || undefined}
+                            onSelect={field.onChange}
+                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) } // Disable past dates
+                            initialFocus
+                        />
+                        </PopoverContent>
+                    </Popover>
+                    )}
+                />
+                {errors.deadline && <p className="text-sm text-destructive mt-1">{errors.deadline.message}</p>}
+            </div>
+
 
             <div>
               <Label htmlFor="jobUpload" className="font-semibold">Upload Photos/Videos (Optional)</Label>
@@ -313,3 +360,4 @@ export default function PostJobPage() {
     </div>
   );
 }
+

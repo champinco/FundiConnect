@@ -2,9 +2,9 @@
 /**
  * @fileOverview Service functions for interacting with job data in Firestore.
  */
-import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
+import { adminDb } from '@/lib/firebaseAdmin'; 
 import { Timestamp, FieldValue, type UpdateData, type Query } from 'firebase-admin/firestore';
-import type { Job, JobStatus } from '@/models/job';
+import type { Job, JobStatus, JobUrgency } from '@/models/job';
 
 /**
  * Creates a new job document in Firestore using Admin SDK.
@@ -34,6 +34,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       quotesReceived: 0,
       assignedProviderId: jobData.assignedProviderId || null,
       deadline: jobData.deadline ? Timestamp.fromDate(new Date(jobData.deadline)) : null,
+      urgency: jobData.urgency || 'medium', // Ensure urgency is saved, default to medium if not provided
       acceptedQuoteId: jobData.acceptedQuoteId || null,
     };
 
@@ -42,12 +43,6 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       if (isNaN(dataToSave.budget)) dataToSave.budget = null;
     } else {
       dataToSave.budget = null;
-    }
-
-    if (jobData.urgency !== undefined && jobData.urgency !== null) {
-      dataToSave.urgency = jobData.urgency;
-    } else {
-      dataToSave.urgency = null;
     }
 
     if (jobData.otherCategoryDescription) {
@@ -104,6 +99,7 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
         deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
+        urgency: jobData.urgency || 'medium', // Ensure urgency is part of the returned object
       } as Job;
     } else {
       return null;
@@ -138,6 +134,7 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
         deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
+        urgency: jobData.urgency || 'medium',
       } as Job);
     });
     return jobs;
@@ -167,8 +164,8 @@ export async function updateJobStatus(jobId: string, newStatus: JobStatus, assig
 
   if (newStatus === 'assigned' && assignedProviderId) {
     updateData.assignedProviderId = assignedProviderId;
-  } else if (newStatus === 'open' || newStatus === 'cancelled') { // Clear assignedProviderId if job reopens or is cancelled
-    updateData.assignedProviderId = FieldValue.delete() as unknown as string | null; // Use FieldValue.delete() to remove the field
+  } else if (newStatus === 'open' || newStatus === 'cancelled') { 
+    updateData.assignedProviderId = FieldValue.delete() as unknown as string | null; 
   }
 
 
@@ -255,6 +252,7 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
         deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
+        urgency: jobData.urgency || 'medium',
       } as Job);
     });
     return jobs;
@@ -279,7 +277,7 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
   try {
     const jobsRef = adminDb.collection('jobs');
     const q: Query = jobsRef
-      .where('status', 'in', ['open', 'pending_quotes']) // Ensure only open/pending jobs are browsable
+      .where('status', 'in', ['open', 'pending_quotes']) 
       .orderBy('postedAt', 'desc')
       .limit(limitCount);
 
@@ -297,6 +295,7 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
         postedAt,
         updatedAt,
         deadline,
+        urgency: jobData.urgency || 'medium',
       } as Job);
     });
     console.log(`[getAllJobsFromFirestore] Fetched ${jobs.length} jobs for browsing.`);
@@ -310,3 +309,4 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
     throw new Error('Could not fetch all jobs from Firestore.');
   }
 }
+

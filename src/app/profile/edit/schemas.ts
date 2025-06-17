@@ -1,6 +1,6 @@
 
 import { z } from 'zod';
-import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas'; // Re-use for mainService
+import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas';
 import type { ServiceCategory } from '@/components/service-category-icon';
 
 const MAX_FILE_SIZE_MB = 5;
@@ -9,13 +9,13 @@ const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/web
 
 
 export const certificationSchema = z.object({
-  id: z.string().uuid().or(z.string().min(1)), // Existing ID or new UUID
+  id: z.string().uuid().or(z.string().min(1)), 
   name: z.string().min(2, "Certification name is required."),
   number: z.string().min(1, "Certification number is required."),
   issuingBody: z.string().min(2, "Issuing body is required."),
   issueDate: z.date().optional().nullable(),
   expiryDate: z.date().optional().nullable(),
-  documentUrl: z.string().url().optional().nullable(), // Existing URL
+  documentUrl: z.string().url().optional().nullable(), 
   newDocumentFile: z
     .custom<File | null | undefined>()
     .refine(
@@ -33,20 +33,20 @@ export const certificationSchema = z.object({
 export const providerProfileEditFormSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters."),
   mainService: z.enum(serviceCategoriesForValidation, { errorMap: () => ({ message: "Please select your main service."})}),
-  specialties: z.string().optional() // Comma-separated string from form
+  specialties: z.string().optional() 
     .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
-  skills: z.string().optional() // Comma-separated string from form for skills
+  skills: z.string().optional() 
     .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
   bio: z.string().min(20, "Bio must be at least 20 characters.").max(1500, "Bio cannot exceed 1500 characters."),
   location: z.string().min(3, "Primary location is required."),
-  fullAddress: z.string().optional(),
+  fullAddress: z.string().optional().nullable(),
   yearsOfExperience: z.preprocess(
     (val) => (val === '' || val === undefined || val === null ? 0 : Number(val)),
     z.number().min(0, "Years of experience cannot be negative.")
   ),
   contactPhoneNumber: z.string().regex(/^\+?[0-9\s-()]{7,20}$/, "Please enter a valid phone number."),
-  operatingHours: z.string().optional(),
-  serviceAreas: z.string().optional() // Comma-separated string from form
+  operatingHours: z.string().optional().nullable(),
+  serviceAreas: z.string().optional() 
     .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
   website: z.string().url("Please enter a valid URL for your website.").optional().or(z.literal('')),
   
@@ -76,10 +76,12 @@ export const providerProfileEditFormSchema = z.object({
     ).optional().nullable(),
   
   certifications: z.array(certificationSchema).optional(),
-  unavailableDates: z.array(z.date()).optional().default([]), // For react-day-picker multiple mode
+  unavailableDates: z.array(z.date()).optional().default([]),
+  receivesEmergencyJobAlerts: z.boolean().optional().default(false), // Added field
 });
 
 export type ProviderProfileEditFormValues = z.infer<typeof providerProfileEditFormSchema>;
 export type CertificationFormValues = z.infer<typeof certificationSchema>;
 
 export const allServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
+

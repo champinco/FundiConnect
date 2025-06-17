@@ -15,7 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen } from 'lucide-react';
+import { Switch } from "@/components/ui/switch"; // Added Switch
+import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen, BellRing } from 'lucide-react'; // Added BellRing
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 
@@ -67,6 +68,7 @@ export default function EditProviderProfilePage() {
       profilePictureUrl: null,
       bannerImageUrl: null,
       unavailableDates: [],
+      receivesEmergencyJobAlerts: false, // Default for new field
     },
   });
 
@@ -92,8 +94,8 @@ export default function EditProviderProfilePage() {
           } else if (result.providerProfile) {
             reset({
               ...result.providerProfile,
-              specialties: (result.providerProfile.specialties ?? []).join(', '), // Convert array to comma-separated string for form
-              skills: (result.providerProfile.skills ?? []).join(', '), // Convert array to comma-separated string
+              specialties: (result.providerProfile.specialties ?? []).join(', '), 
+              skills: (result.providerProfile.skills ?? []).join(', '), 
               yearsOfExperience: result.providerProfile.yearsOfExperience ?? 0,
               serviceAreas: (result.providerProfile.serviceAreas ?? []).join(', '),
               certifications: (result.providerProfile.certifications ?? []).map(cert => ({
@@ -103,6 +105,7 @@ export default function EditProviderProfilePage() {
                 newDocumentFile: undefined,
               })),
               unavailableDates: (result.providerProfile.unavailableDates ?? []).map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())),
+              receivesEmergencyJobAlerts: result.providerProfile.receivesEmergencyJobAlerts ?? false, // Load existing value
             });
             if (result.providerProfile.profilePictureUrl) setProfilePicturePreview(result.providerProfile.profilePictureUrl);
             if (result.providerProfile.bannerImageUrl) setBannerImagePreview(result.providerProfile.bannerImageUrl);
@@ -258,7 +261,7 @@ export default function EditProviderProfilePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
-            {/* Basic Information Section */}
+            
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Basic Information</h3>
               <div className="space-y-4">
@@ -290,7 +293,6 @@ export default function EditProviderProfilePage() {
               </div>
             </section>
 
-            {/* Service Details Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Service Details</h3>
               <div className="space-y-4">
@@ -351,7 +353,6 @@ export default function EditProviderProfilePage() {
               </div>
             </section>
 
-            {/* Profile Visuals Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Profile Visuals</h3>
                <div className="space-y-4">
@@ -372,34 +373,51 @@ export default function EditProviderProfilePage() {
               </div>
             </section>
             
-            {/* Availability Section */}
             <section>
-                <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Your Availability</h3>
-                <div>
-                    <Label htmlFor="unavailableDates" className="font-semibold">Mark Unavailable Dates</Label>
-                    <p className="text-sm text-muted-foreground mb-2">Select dates when you are NOT available. Clients will not be able to request bookings on these dates (feature in progress).</p>
-                    <Controller
-                        name="unavailableDates"
+                <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Availability & Preferences</h3>
+                <div className="space-y-4">
+                    <div>
+                        <Label htmlFor="unavailableDates" className="font-semibold">Mark Unavailable Dates</Label>
+                        <p className="text-sm text-muted-foreground mb-2">Select dates when you are NOT available.</p>
+                        <Controller
+                            name="unavailableDates"
+                            control={control}
+                            render={({ field }) => (
+                                <Calendar
+                                    mode="multiple"
+                                    selected={field.value}
+                                    onSelect={field.onChange}
+                                    className="rounded-md border bg-background"
+                                    footer={
+                                    <p className="text-xs p-2 text-muted-foreground">
+                                        You have marked {field.value?.length || 0} date(s) as unavailable.
+                                    </p>
+                                    }
+                                />
+                            )}
+                        />
+                        {errors.unavailableDates && <p className="text-sm text-destructive mt-1">{errors.unavailableDates.message}</p>}
+                    </div>
+                    <div className="flex items-center space-x-2 pt-2">
+                        <Controller
+                        name="receivesEmergencyJobAlerts"
                         control={control}
                         render={({ field }) => (
-                            <Calendar
-                                mode="multiple"
-                                selected={field.value}
-                                onSelect={field.onChange}
-                                className="rounded-md border bg-background"
-                                footer={
-                                  <p className="text-xs p-2 text-muted-foreground">
-                                    You have marked {field.value?.length || 0} date(s) as unavailable.
-                                  </p>
-                                }
+                            <Switch
+                            id="receivesEmergencyJobAlerts"
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
                             />
                         )}
-                    />
-                    {errors.unavailableDates && <p className="text-sm text-destructive mt-1">{errors.unavailableDates.message}</p>}
-                </div>
+                        />
+                        <Label htmlFor="receivesEmergencyJobAlerts" className="flex items-center">
+                        <BellRing className="mr-2 h-4 w-4 text-orange-500" /> Receive Emergency Job Alerts
+                        </Label>
+                    </div>
+                    {errors.receivesEmergencyJobAlerts && <p className="text-sm text-destructive mt-1">{errors.receivesEmergencyJobAlerts.message}</p>}
+                 </div>
             </section>
 
-            {/* Certifications Section */}
             <section>
               <div className="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 className="text-xl font-semibold text-primary">Certifications</h3>
@@ -547,3 +565,4 @@ export default function EditProviderProfilePage() {
     </div>
   );
 }
+

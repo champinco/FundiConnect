@@ -50,7 +50,7 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         businessName: appUser.fullName || `Provider ${userId.substring(0, 6)}`,
         mainService: 'Other' as ServiceCategory,
         specialties: [],
-        skills: [], // Initialize skills
+        skills: [], 
         bio: 'Welcome to FundiConnect! Please complete your profile to attract clients.',
         location: 'Please update your location',
         fullAddress: null,
@@ -66,7 +66,8 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         bannerImageUrl: null,
         website: null,
         socialMediaLinks: null,
-        unavailableDates: [], // Initialize unavailableDates
+        unavailableDates: [], 
+        receivesEmergencyJobAlerts: false, // Default for new field
       };
 
       try {
@@ -137,7 +138,6 @@ export async function updateProviderProfileAction(
       };
     });
     
-    // Transform comma-separated strings to arrays if they are strings (they should be arrays from schema transform)
     const specialtiesArray = Array.isArray(data.specialties) ? data.specialties : (typeof data.specialties === 'string' ? data.specialties.split(',').map(s => s.trim()).filter(s => s) : []);
     const skillsArray = Array.isArray(data.skills) ? data.skills : (typeof data.skills === 'string' ? data.skills.split(',').map(s => s.trim()).filter(s => s) : []);
     const serviceAreasArray = Array.isArray(data.serviceAreas) ? data.serviceAreas : (typeof data.serviceAreas === 'string' ? data.serviceAreas.split(',').map(s => s.trim()).filter(s => s) : []);
@@ -147,7 +147,7 @@ export async function updateProviderProfileAction(
       businessName: data.businessName,
       mainService: data.mainService,
       specialties: specialtiesArray,
-      skills: skillsArray, // Save skills
+      skills: skillsArray, 
       bio: data.bio,
       location: data.location,
       fullAddress: data.fullAddress || null,
@@ -157,7 +157,8 @@ export async function updateProviderProfileAction(
       serviceAreas: serviceAreasArray,
       website: data.website || null,
       certifications: certificationsToSave,
-      unavailableDates: (data.unavailableDates || []).map(date => format(date, 'yyyy-MM-dd')), // Format dates to strings
+      unavailableDates: (data.unavailableDates || []).map(date => format(date, 'yyyy-MM-dd')), 
+      receivesEmergencyJobAlerts: data.receivesEmergencyJobAlerts || false, // Save the new preference
       updatedAt: currentTimestamp,
     };
 
@@ -190,7 +191,8 @@ export async function updateProviderProfileAction(
         website: updatePayload.website,
         profilePictureUrl: updatePayload.profilePictureUrl,
         bannerImageUrl: updatePayload.bannerImageUrl,
-        unavailableDates: updatePayload.unavailableDates, // Return formatted dates
+        unavailableDates: updatePayload.unavailableDates, 
+        receivesEmergencyJobAlerts: updatePayload.receivesEmergencyJobAlerts,
       }
     };
 
@@ -199,3 +201,4 @@ export async function updateProviderProfileAction(
     return { success: false, message: `Failed to update profile: ${error.message}.` };
   }
 }
+

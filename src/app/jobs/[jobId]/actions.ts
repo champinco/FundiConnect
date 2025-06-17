@@ -9,7 +9,8 @@ import type { Job, JobStatus } from '@/models/job';
 import { submitReview as submitReviewService, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
 import type { User as AppUser } from '@/models/user';
 import { getUserProfileFromFirestore } from '@/services/userService';
-import { createNotification } from '@/services/notificationService'; // Import notification service
+import { createNotification } from '@/services/notificationService'; 
+import { getOrCreateChatAction } from '@/app/messages/actions'; // For chat activation
 
 
 interface SubmitQuoteResult {
@@ -38,16 +39,15 @@ export async function submitQuoteAction(
 
     const quoteId = await submitQuoteForJobService(quoteDataForService);
 
-    // Create notification for the client who posted the job
     const job = await getJobByIdFromFirestore(data.jobId);
-    const providerProfile = await getUserProfileFromFirestore(data.providerId); // Or get provider business name
+    const providerProfile = await getUserProfileFromFirestore(data.providerId); 
     if (job && providerProfile) {
       await createNotification({
         userId: job.clientId,
         type: 'new_quote_received',
         message: `You received a new quote from ${providerProfile.fullName || providerProfile.email || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
-        relatedEntityId: data.jobId, // Could also be quoteId
-        link: `/jobs/${data.jobId}`
+        relatedEntityId: data.jobId, 
+        link: `/jobs/${data.jobId}?tab=quotes` // Link to quotes tab on job page
       });
     }
     
@@ -62,9 +62,10 @@ export async function submitQuoteAction(
 interface UpdateQuoteStatusResult {
   success: boolean;
   message: string;
+  chatId?: string | null;
 }
 
-export async function acceptQuoteAction(jobId: string, quoteId: string, providerIdToAssign: string): Promise<UpdateQuoteStatusResult> {
+export async function acceptQuoteAction(jobId: string, quoteId: string, providerIdToAssign: string, clientId: string): Promise<UpdateQuoteStatusResult> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
     const errorMsg = "[acceptQuoteAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
     console.error(errorMsg);
@@ -81,12 +82,16 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
     if (quoteToAccept.jobId !== jobId) {
         return { success: false, message: "Quote does not belong to this job." };
     }
+    if (quoteToAccept.clientId !== clientId) {
+        return { success: false, message: "Unauthorized to accept this quote." };
+    }
 
     await updateQuoteStatus(quoteId, 'accepted');
     await updateJobStatus(jobId, 'assigned', providerIdToAssign);
     
-    // Notify provider their quote was accepted
     const job = await getJobByIdFromFirestore(jobId);
+    let newChatId: string | null = null;
+
     if (job) {
       await createNotification({
         userId: providerIdToAssign,
@@ -95,16 +100,39 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
         relatedEntityId: jobId,
         link: `/jobs/${jobId}`
       });
+      
+      // Activate/create chat session
+      const chatResult = await getOrCreateChatAction(clientId, providerIdToAssign);
+      newChatId = chatResult.chatId;
+      if (newChatId) {
+          const clientProfile = await getUserProfileFromFirestore(clientId);
+          const providerProfile = await getUserProfileFromFirestore(providerIdToAssign);
+          
+          await createNotification({
+            userId: providerIdToAssign,
+            type: 'new_message', // Or a more specific type like 'chat_activated'
+            message: `Chat session started with ${clientProfile?.fullName || 'the client'} for job: "${job.title.substring(0,30)}..."`,
+            relatedEntityId: newChatId,
+            link: `/messages/${newChatId}`
+          });
+          await createNotification({
+            userId: clientId,
+            type: 'new_message',
+            message: `Chat session started with ${providerProfile?.fullName || 'the provider'} for job: "${job.title.substring(0,30)}..."`,
+            relatedEntityId: newChatId,
+            link: `/messages/${newChatId}`
+          });
+      }
     }
 
-    return { success: true, message: "Quote accepted and job assigned!" };
+    return { success: true, message: "Quote accepted, job assigned, and chat activated!", chatId: newChatId };
   } catch (error: any) {
     console.error(`[acceptQuoteAction] Error. JobId: ${jobId}, QuoteId: ${quoteId}. Error:`, error.message, error.stack, error.code);
     return { success: false, message: `Failed to accept quote: ${error.message}.` };
   }
 }
 
-export async function rejectQuoteAction(quoteId: string): Promise<UpdateQuoteStatusResult> {
+export async function rejectQuoteAction(quoteId: string, clientId: string): Promise<UpdateQuoteStatusResult> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
     const errorMsg = "[rejectQuoteAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
     console.error(errorMsg);
@@ -118,10 +146,12 @@ export async function rejectQuoteAction(quoteId: string): Promise<UpdateQuoteSta
     if (quoteToReject.status !== 'pending') {
         return { success: false, message: "Quote is no longer pending and cannot be rejected." };
     }
+     if (quoteToReject.clientId !== clientId) {
+        return { success: false, message: "Unauthorized to reject this quote." };
+    }
     
     await updateQuoteStatus(quoteId, 'rejected');
 
-    // Notify provider their quote was rejected
     const job = await getJobByIdFromFirestore(quoteToReject.jobId);
     if (job) {
       await createNotification({
@@ -154,16 +184,15 @@ export async function submitReviewAction(data: ReviewData): Promise<SubmitReview
   try {
     const reviewId = await submitReviewService(data);
 
-    // Notify provider they received a review
     const clientProfile = await getUserProfileFromFirestore(data.clientId);
     const job = await getJobByIdFromFirestore(data.jobId);
-    if (job && clientProfile) { // Ensure job and client profile are fetched
+    if (job && clientProfile) { 
        await createNotification({
         userId: data.providerId,
         type: 'new_review',
         message: `You received a new ${data.rating}-star review from ${clientProfile.fullName || clientProfile.email || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
-        relatedEntityId: data.jobId, // Or reviewId
-        link: `/providers/${data.providerId}?tab=reviews` // Link to provider's review tab
+        relatedEntityId: data.jobId, 
+        link: `/providers/${data.providerId}?tab=reviews` 
       });
     }
     return { success: true, message: "Review submitted successfully!", reviewId };
@@ -198,7 +227,6 @@ export async function markJobAsCompletedAction(jobId: string, expectedClientId: 
 
     await updateJobStatus(jobId, 'completed');
 
-    // Notify provider the job was marked complete
     if (job.assignedProviderId) {
        await createNotification({
         userId: job.assignedProviderId,
@@ -279,6 +307,4 @@ export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobD
     return { job: null, quotes: [], error: `Failed to fetch job details: ${error.message}.` };
   }
 }
-
-
     

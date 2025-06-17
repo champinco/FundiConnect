@@ -4,8 +4,10 @@
 import { adminDb } from '@/lib/firebaseAdmin';
 import { getAllJobsFromFirestore as getAllJobsFromFirestoreService, createJobInFirestore as createJobInFirestoreService } from '@/services/jobService';
 import { searchJobsAction as searchClientJobsAction } from '@/app/search/actions'; 
-import type { Job } from '@/models/job';
+import type { Job, JobUrgency } from '@/models/job';
 import type { PostJobFormValues } from './post/schemas';
+import { createNotification } from '@/services/notificationService'; // For urgent job notifications
+import { getEmergencyOptedInProvidersByCategory } from '@/services/providerService'; // For urgent job notifications
 
 
 interface PostJobResult {
@@ -41,15 +43,36 @@ export async function postJobAction(
       serviceCategory: values.serviceCategory,
       otherCategoryDescription: values.serviceCategory === 'Other' ? values.otherCategoryDescription : undefined,
       location: values.location,
-      status: 'open', // Default status for new jobs
+      status: 'open', 
       photosOrVideos: photoUrls || [],
       budget: values.budget,
-      urgency: values.urgency,
-      deadline: values.deadline ? new Date(values.deadline) : null // Ensure deadline is Date or null
+      urgency: values.urgency as JobUrgency, // Ensure urgency is passed
+      deadline: values.deadline ? new Date(values.deadline) : null
     };
 
     console.log('[postJobAction] Data prepared for job creation:', JSON.stringify(jobDataForService));
     const jobId = await createJobInFirestoreService(jobDataForService);
+
+    // If job is urgent, notify opted-in providers
+    if (values.urgency === 'high') {
+      console.log(`[postJobAction] Urgent job ${jobId} posted. Fetching opted-in providers for category ${values.serviceCategory}.`);
+      const optedInProviders = await getEmergencyOptedInProvidersByCategory(values.serviceCategory);
+      console.log(`[postJobAction] Found ${optedInProviders.length} providers opted-in for emergency alerts in category ${values.serviceCategory}.`);
+      for (const provider of optedInProviders) {
+        // Avoid notifying the client themselves if they happen to be a provider who opted in for their own category (edge case)
+        if (provider.id !== actualClientId) { 
+          await createNotification({
+            userId: provider.id,
+            type: 'job_status_changed', // Could be a more specific type like 'urgent_job_alert'
+            message: `URGENT job posted in ${values.serviceCategory}: "${values.jobTitle.substring(0, 30)}..." in ${values.location}.`,
+            relatedEntityId: jobId,
+            link: `/jobs/${jobId}`
+          });
+        }
+      }
+      console.log(`[postJobAction] Sent notifications for urgent job ${jobId} to ${optedInProviders.filter(p => p.id !== actualClientId).length} providers.`);
+    }
+
     return { success: true, message: "Job posted successfully!", jobId };
   } catch (error: any) {
     console.error(`[postJobAction] Error posting job. ClientID: ${actualClientId}, Values: ${JSON.stringify(values)}. Error:`, error.message, error.stack, error.code);
@@ -66,7 +89,6 @@ export async function fetchAllJobsAction(limit?: number): Promise<Job[]> {
   }
   try {
     console.log("[fetchAllJobsAction] Fetching all open/pending_quotes jobs from service.");
-    // The service function already filters for open/pending_quotes
     const jobs = await getAllJobsFromFirestoreService(limit); 
     return jobs;
   } catch (error: any) {
@@ -87,11 +109,10 @@ export async function fetchMyClientJobsAction(userId: string): Promise<Job[]> {
   }
   try {
     console.log(`[fetchMyClientJobsAction] Fetching jobs for client ${userId} using searchJobsAction.`);
-    // Use existing searchJobsAction which has robust filtering including by clientId
     const jobs = await searchClientJobsAction({
       isMyJobsSearch: true,
       currentUserId: userId,
-      filterByStatus: 'all_my' // This tells searchJobsAction to get all statuses for this client
+      filterByStatus: 'all_my' 
     });
     return jobs;
   } catch (error: any) {
@@ -99,3 +120,4 @@ export async function fetchMyClientJobsAction(userId: string): Promise<Job[]> {
     throw new Error(`Failed to fetch client jobs: ${error.message}.`);
   }
 }
+

@@ -3,23 +3,25 @@
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, CheckCircle, XCircle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, MessageSquare } from "lucide-react"; // Added MessageSquare
 import { useState, useEffect } from "react";
 import { acceptQuoteAction, rejectQuoteAction } from "../actions";
 import type { Quote } from "@/models/quote";
 import { auth } from '@/lib/firebase';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
-
+import { useRouter } from 'next/navigation'; // Added useRouter
 
 interface AcceptRejectQuoteButtonsProps {
   jobId: string;
   quote: Quote;
-  currentUserId: string | null; // Pass the current user's ID
+  jobClientId: string; // Pass the job's client ID
+  onQuoteActionComplete: () => void; // Callback to refresh parent data
 }
 
-export default function AcceptRejectQuoteButtons({ jobId, quote, currentUserId }: AcceptRejectQuoteButtonsProps) {
+export default function AcceptRejectQuoteButtons({ jobId, quote, jobClientId, onQuoteActionComplete }: AcceptRejectQuoteButtonsProps) {
   const { toast } = useToast();
+  const router = useRouter(); // Initialize router
   const [isLoadingAccept, setIsLoadingAccept] = useState(false);
   const [isLoadingReject, setIsLoadingReject] = useState(false);
   const [activeUser, setActiveUser] = useState<FirebaseUser | null>(null);
@@ -33,7 +35,7 @@ export default function AcceptRejectQuoteButtons({ jobId, quote, currentUserId }
 
 
   const handleAccept = async () => {
-    if (!activeUser || activeUser.uid !== quote.clientId) {
+    if (!activeUser || activeUser.uid !== jobClientId) { // Use jobClientId for authorization
         toast({ title: "Unauthorized", description: "You are not authorized to accept this quote.", variant: "destructive" });
         return;
     }
@@ -44,13 +46,27 @@ export default function AcceptRejectQuoteButtons({ jobId, quote, currentUserId }
 
     setIsLoadingAccept(true);
     try {
-      // In a real scenario, you'd also update other quotes for this job to 'archived' or similar.
-      // This is a simplified flow for now.
-      // The server action should handle setting quote status to 'accepted' and job to 'assigned'.
-      const result = await acceptQuoteAction(jobId, quote.id, quote.providerId);
+      const result = await acceptQuoteAction(jobId, quote.id, quote.providerId, jobClientId); // Pass clientId
       if (result.success) {
-        toast({ title: "Quote Accepted!", description: result.message });
-        // TODO: Potentially re-fetch job/quote data or update UI state
+        toast({ 
+          title: "Quote Accepted!", 
+          description: (
+            <div>
+              {result.message}
+              {result.chatId && (
+                <Button 
+                  variant="link" 
+                  className="p-0 h-auto text-primary hover:underline ml-1" 
+                  onClick={() => router.push(`/messages/${result.chatId}`)}
+                >
+                  Go to Chat <MessageSquare className="ml-1 h-4 w-4"/>
+                </Button>
+              )}
+            </div>
+          ),
+          duration: 7000, 
+        });
+        onQuoteActionComplete(); 
       } else {
         toast({ title: "Failed to Accept Quote", description: result.message, variant: "destructive" });
       }
@@ -62,7 +78,7 @@ export default function AcceptRejectQuoteButtons({ jobId, quote, currentUserId }
   };
 
   const handleReject = async () => {
-     if (!activeUser || activeUser.uid !== quote.clientId) {
+     if (!activeUser || activeUser.uid !== jobClientId) { // Use jobClientId for authorization
         toast({ title: "Unauthorized", description: "You are not authorized to reject this quote.", variant: "destructive" });
         return;
     }
@@ -72,11 +88,10 @@ export default function AcceptRejectQuoteButtons({ jobId, quote, currentUserId }
     }
     setIsLoadingReject(true);
     try {
-      // The server action should handle setting quote status to 'rejected'.
-      const result = await rejectQuoteAction(quote.id);
+      const result = await rejectQuoteAction(quote.id, jobClientId); // Pass clientId
       if (result.success) {
         toast({ title: "Quote Rejected", description: result.message });
-        // TODO: Potentially re-fetch job/quote data or update UI state
+        onQuoteActionComplete();
       } else {
         toast({ title: "Failed to Reject Quote", description: result.message, variant: "destructive" });
       }
@@ -87,8 +102,7 @@ export default function AcceptRejectQuoteButtons({ jobId, quote, currentUserId }
     }
   };
 
-  // Only show buttons if the current user is the client for this quote and quote is pending
-  if (!activeUser || activeUser.uid !== quote.clientId || quote.status !== 'pending') {
+  if (!activeUser || activeUser.uid !== jobClientId || quote.status !== 'pending') {
     return null;
   }
 
@@ -115,3 +129,4 @@ export default function AcceptRejectQuoteButtons({ jobId, quote, currentUserId }
     </div>
   );
 }
+

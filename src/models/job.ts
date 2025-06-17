@@ -17,14 +17,15 @@ export interface Job {
   updatedAt: Date;
   assignedProviderId?: string | null; // User UID of the Fundi assigned to the job
   photosOrVideos?: string[]; // URLs of uploaded images/videos
-  budget?: number | null; // Optional, numeric budget based on report
-  budgetRange?: { // Optional - keeping this for potential future use, but focusing on numeric budget for now
+  budget?: number | null; 
+  budgetRange?: { 
     min?: number;
     max?: number;
-    currency?: string; // e.g., "KES"
+    currency?: string; 
   };
-  urgency?: JobUrgency | null; // Optional urgency level
-  deadline?: Date | null; // Optional preferred completion date
-  quotesReceived?: number; // Count of quotes received
-  acceptedQuoteId?: string | null; // ID of the accepted quote
+  urgency: JobUrgency | null; // Made non-optional, defaults to 'medium' or a chosen default in form/service
+  deadline?: Date | null; 
+  quotesReceived?: number; 
+  acceptedQuoteId?: string | null;
 }
+

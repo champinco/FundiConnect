@@ -21,30 +21,32 @@ export interface PortfolioItem {
 }
 
 export interface ProviderProfile {
-  id: string; // Should be the same as User UID
-  userId: string; // Foreign key to User model, same as id
+  id: string; 
+  userId: string; 
   businessName: string;
   mainService: ServiceCategory;
-  specialties: string[]; // Specific services or sub-categories
-  skills: string[]; // Granular skills, keywords for search
+  specialties: string[]; 
+  skills: string[]; 
   bio: string;
-  location: string; // General location (e.g., "Kilimani, Nairobi")
-  fullAddress?: string | null; // Specific address, optional
+  location: string; 
+  fullAddress?: string | null; 
   yearsOfExperience: number;
   isVerified: boolean;
-  verificationAuthority?: string | null; // e.g., "NCA", "EPRA"
+  verificationAuthority?: string | null; 
   certifications: Certification[];
   portfolio: PortfolioItem[];
-  rating: number; // Average rating, calculated
-  reviewsCount: number; // Total number of reviews, calculated
+  rating: number; 
+  reviewsCount: number; 
   contactPhoneNumber: string;
-  operatingHours?: string | null; // e.g., "Mon-Fri 9am-5pm, Sat 10am-2pm"
-  serviceAreas: string[]; // Specific areas/neighborhoods served, e.g., ["Kilimani", "Lavington"]
+  operatingHours?: string | null; 
+  serviceAreas: string[]; 
   profilePictureUrl?: string | null;
   bannerImageUrl?: string | null;
   website?: string | null;
-  socialMediaLinks?: Record<string, string> | null; // e.g., { facebook: "url", twitter: "url" }
+  socialMediaLinks?: Record<string, string> | null; 
   unavailableDates?: string[]; // Array of "YYYY-MM-DD" strings
+  receivesEmergencyJobAlerts?: boolean; // New field for emergency job opt-in
   createdAt: Date;
   updatedAt: Date;
 }
+

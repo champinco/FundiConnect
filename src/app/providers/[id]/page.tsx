@@ -26,9 +26,9 @@ import { auth } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider'; 
 import type { Review } from '@/models/review';
 import Link from 'next/link'; 
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns'; // Added parseISO
 import { formatDynamicDate } from '@/lib/dateUtils';
-import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions'; // Updated to include requestBookingAction
+import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions';
 import { getOrCreateChatAction } from '@/app/messages/actions';
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
@@ -154,7 +154,9 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   }
 
   const today = new Date();
-  today.setHours(0,0,0,0); // Ensure comparison is date-only
+  today.setHours(0,0,0,0); 
+
+  const providerUnavailableDates = (provider.unavailableDates || []).map(dateStr => parseISO(dateStr));
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -412,7 +414,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                                 selected={selectedBookingDate}
                                 onSelect={setSelectedBookingDate}
                                 className="rounded-md border"
-                                disabled={(date) => date < today || (provider.unavailableDates || []).includes(format(date, 'yyyy-MM-dd'))}
+                                disabled={(date) => date < today || providerUnavailableDates.some(unavailableDate => unavailableDate.getTime() === date.getTime())}
                             />
                             </div>
                             <div className="grid gap-2">
@@ -462,8 +464,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   );
 }
 
-// Added Skeleton for review loading state
 const Skeleton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div className={cn("animate-pulse rounded-md bg-muted", className)} {...props} />
 );
-const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' '); // Basic cn helper
+const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' '); 

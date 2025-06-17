@@ -4,10 +4,11 @@
 import { adminDb } from '@/lib/firebaseAdmin';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { getReviewsForProvider } from '@/services/reviewService';
-import { createBookingRequest } from '@/services/bookingService';
+import { createBookingRequest as createBookingRequestService } from '@/services/bookingService'; // Renamed for clarity
 import { createNotification } from '@/services/notificationService';
 import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
+import { format } from 'date-fns'; // For formatting date for notification message
 
 
 interface PublicProviderProfilePageData {
@@ -40,8 +41,11 @@ export async function fetchPublicProviderProfileDataAction(providerId: string): 
       console.warn(`[fetchPublicProviderProfileDataAction] Provider profile not found for ID: ${providerId}`);
       return { provider: null, reviews: [], error: "Provider profile not found." };
     }
-    console.log(`[fetchPublicProviderProfileDataAction] Profile found for ${providerId}. Reviews count: ${reviews.length}`);
-    return { provider: profile, reviews: reviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime()) };
+    console.log(`[fetchPublicProviderProfileDataAction] Profile found for ${providerId}. Reviews count: ${reviews.length}. Unavailable dates:`, profile.unavailableDates);
+    return { 
+        provider: profile, 
+        reviews: reviews.sort((a,b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime()) 
+    };
   } catch (error: any) {
     console.error(`[fetchPublicProviderProfileDataAction] Error fetching public profile data for Provider ID: ${providerId}. Error:`, error.message, error.stack, error.code);
     return { provider: null, reviews: [], error: `Failed to load provider data: ${error.message}.` };
@@ -73,28 +77,24 @@ export async function requestBookingAction(
       return { success: false, message: "Provider not found." };
     }
 
-    // Optional: Check if requestedDate is in provider's unavailableDates
-    // For MVP, this check can be deferred or handled by provider communication
-    if (providerProfile.unavailableDates?.includes(new Date(requestedDate.getFullYear(), requestedDate.getMonth(), requestedDate.getDate()).toISOString().split('T')[0])) {
-      // Note: This is a basic check. For production, ensure consistent date formatting.
-      // return { success: false, message: "The provider is unavailable on the selected date." };
-      // For MVP, we allow request and let provider handle.
+    const requestedDateString = format(requestedDate, 'yyyy-MM-dd');
+    if (providerProfile.unavailableDates?.includes(requestedDateString)) {
+      return { success: false, message: "The provider has marked this date as unavailable. Please choose another date." };
     }
 
-    const bookingId = await createBookingRequest({
+    const bookingId = await createBookingRequestService({
       providerId,
       clientId,
       requestedDate,
       messageToProvider,
     });
 
-    // Create notification for the provider
     await createNotification({
       userId: providerId,
       type: 'new_booking_request',
-      message: `You have a new booking request from client ${clientId.substring(0,6)}... for ${requestedDate.toLocaleDateString()}.`,
+      message: `You have a new booking request from client ${clientId.substring(0,6)}... for ${format(requestedDate, 'PPP')}.`,
       relatedEntityId: bookingId,
-      link: `/dashboard/bookings/${bookingId}` // Example link
+      link: `/dashboard` // Link to provider's dashboard where they might manage bookings
     });
 
     return { success: true, message: "Booking request sent successfully!", bookingId };
