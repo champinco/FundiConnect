@@ -2,23 +2,15 @@
 "use server";
 
 import { adminDb } from '@/lib/firebaseAdmin';
-import { submitQuoteForJob, type SubmitQuoteData, updateQuoteStatus, getQuoteById, getQuotesForJob } from '@/services/quoteService';
+import { submitQuoteForJob as submitQuoteForJobService, type SubmitQuoteData, updateQuoteStatus, getQuoteById, getQuotesForJob } from '@/services/quoteService';
 import { updateJobStatus, getJobByIdFromFirestore } from '@/services/jobService';
 import type { Quote, QuoteStatus } from '@/models/quote';
 import type { Job, JobStatus } from '@/models/job';
-import { submitReview, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
+import { submitReview as submitReviewService, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
 import type { User as AppUser } from '@/models/user';
 import { getUserProfileFromFirestore } from '@/services/userService';
+import { createNotification } from '@/services/notificationService'; // Import notification service
 
-
-// Helper to ensure adminDb is available - though individual actions will check again
-function ensureDbInitialized() {
-  if (!adminDb || typeof adminDb.collection !== 'function') {
-    const errorMsg = "[JobActionsFileLevel] CRITICAL: Firebase Admin DB not initialized or adminDb.collection is not a function. Aborting action.";
-    console.error(errorMsg);
-    throw new Error("Server error: Core database service is not available. Please try again later.");
-  }
-}
 
 interface SubmitQuoteResult {
   success: boolean;
@@ -44,7 +36,21 @@ export async function submitQuoteAction(
       messageToClient: data.messageToClient,
     };
 
-    const quoteId = await submitQuoteForJob(quoteDataForService);
+    const quoteId = await submitQuoteForJobService(quoteDataForService);
+
+    // Create notification for the client who posted the job
+    const job = await getJobByIdFromFirestore(data.jobId);
+    const providerProfile = await getUserProfileFromFirestore(data.providerId); // Or get provider business name
+    if (job && providerProfile) {
+      await createNotification({
+        userId: job.clientId,
+        type: 'new_quote_received',
+        message: `You received a new quote from ${providerProfile.fullName || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
+        relatedEntityId: data.jobId, // Could also be quoteId
+        link: `/jobs/${data.jobId}`
+      });
+    }
+    
     return { success: true, message: "Quote submitted successfully!", quoteId };
   } catch (error: any) {
     console.error(`[submitQuoteAction] Error. Data: ${JSON.stringify(data)}. Error:`, error.message, error.stack, error.code);
@@ -79,6 +85,18 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
     await updateQuoteStatus(quoteId, 'accepted');
     await updateJobStatus(jobId, 'assigned', providerIdToAssign);
     
+    // Notify provider their quote was accepted
+    const job = await getJobByIdFromFirestore(jobId);
+    if (job) {
+      await createNotification({
+        userId: providerIdToAssign,
+        type: 'quote_status_changed',
+        message: `Your quote for the job "${job.title.substring(0,30)}..." has been accepted!`,
+        relatedEntityId: jobId,
+        link: `/jobs/${jobId}`
+      });
+    }
+
     return { success: true, message: "Quote accepted and job assigned!" };
   } catch (error: any) {
     console.error(`[acceptQuoteAction] Error. JobId: ${jobId}, QuoteId: ${quoteId}. Error:`, error.message, error.stack, error.code);
@@ -102,6 +120,18 @@ export async function rejectQuoteAction(quoteId: string): Promise<UpdateQuoteSta
     }
     
     await updateQuoteStatus(quoteId, 'rejected');
+
+    // Notify provider their quote was rejected
+    const job = await getJobByIdFromFirestore(quoteToReject.jobId);
+    if (job) {
+      await createNotification({
+        userId: quoteToReject.providerId,
+        type: 'quote_status_changed',
+        message: `Your quote for the job "${job.title.substring(0,30)}..." was not accepted this time.`,
+        relatedEntityId: job.id,
+        link: `/jobs/${job.id}`
+      });
+    }
     return { success: true, message: "Quote rejected." };
   } catch (error: any) {
     console.error(`[rejectQuoteAction] Error. QuoteId: ${quoteId}. Error:`, error.message, error.stack, error.code);
@@ -122,7 +152,20 @@ export async function submitReviewAction(data: ReviewData): Promise<SubmitReview
     return { success: false, message: "Server error: Core database service unavailable." };
   }
   try {
-    const reviewId = await submitReview(data);
+    const reviewId = await submitReviewService(data);
+
+    // Notify provider they received a review
+    const clientProfile = await getUserProfileFromFirestore(data.clientId);
+    const job = await getJobByIdFromFirestore(data.jobId);
+    if (job) {
+       await createNotification({
+        userId: data.providerId,
+        type: 'new_review',
+        message: `You received a new ${data.rating}-star review from ${clientProfile?.fullName || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
+        relatedEntityId: data.jobId, // Or reviewId
+        link: `/providers/${data.providerId}?tab=reviews` // Link to provider's review tab
+      });
+    }
     return { success: true, message: "Review submitted successfully!", reviewId };
   } catch (error: any) {
     console.error(`[submitReviewAction] Error. Data: ${JSON.stringify(data)}. Error:`, error.message, error.stack, error.code);
@@ -154,6 +197,17 @@ export async function markJobAsCompletedAction(jobId: string, expectedClientId: 
     }
 
     await updateJobStatus(jobId, 'completed');
+
+    // Notify provider the job was marked complete
+    if (job.assignedProviderId) {
+       await createNotification({
+        userId: job.assignedProviderId,
+        type: 'job_status_changed',
+        message: `The job "${job.title.substring(0,30)}..." has been marked as completed by the client.`,
+        relatedEntityId: jobId,
+        link: `/jobs/${jobId}`
+      });
+    }
     return { success: true, message: "Job marked as completed!" };
   } catch (error: any) {
     console.error(`[markJobAsCompletedAction] Error. JobId: ${jobId}. Error:`, error.message, error.stack, error.code);

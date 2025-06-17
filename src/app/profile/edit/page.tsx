@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin } from 'lucide-react';
+import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 
@@ -23,26 +23,22 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-// Removed direct service imports: getProviderProfileFromFirestore, getUserProfileFromFirestore
 import type { ProviderProfile, Certification } from '@/models/provider';
 import type { User as AppUser } from '@/models/user';
 import { uploadFileToStorage } from '@/services/storageService';
 
 import { providerProfileEditFormSchema, type ProviderProfileEditFormValues, allServiceCategories } from './schemas';
-import { updateProviderProfileAction, fetchProviderEditPageDataAction } from './actions'; // Added fetch action
+import { updateProviderProfileAction, fetchProviderEditPageDataAction } from './actions';
 import Image from 'next/image';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import Link from 'next/link';
 
 export default function EditProviderProfilePage() {
   const { toast } = useToast();
   const router = useRouter();
-  const [isLoadingPage, setIsLoadingPage] = useState(true); // Changed from isLoading
+  const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  // AppUser and ProviderProfile will be set by fetchProviderEditPageDataAction
-  // const [appUser, setAppUser] = useState<AppUser | null>(null); 
-  // const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isClientAccount, setIsClientAccount] = useState(false);
 
@@ -58,6 +54,7 @@ export default function EditProviderProfilePage() {
       businessName: "",
       mainService: undefined,
       specialties: [],
+      skills: [],
       bio: "",
       location: "",
       fullAddress: "",
@@ -69,6 +66,7 @@ export default function EditProviderProfilePage() {
       certifications: [],
       profilePictureUrl: null,
       bannerImageUrl: null,
+      unavailableDates: [],
     },
   });
 
@@ -76,6 +74,8 @@ export default function EditProviderProfilePage() {
     control,
     name: "certifications",
   });
+  
+  const unavailableDatesValue = watch("unavailableDates") || [];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -92,8 +92,9 @@ export default function EditProviderProfilePage() {
           } else if (result.providerProfile) {
             reset({
               ...result.providerProfile,
+              specialties: (result.providerProfile.specialties ?? []).join(', '), // Convert array to comma-separated string for form
+              skills: (result.providerProfile.skills ?? []).join(', '), // Convert array to comma-separated string
               yearsOfExperience: result.providerProfile.yearsOfExperience ?? 0,
-              specialties: result.providerProfile.specialties ?? [],
               serviceAreas: (result.providerProfile.serviceAreas ?? []).join(', '),
               certifications: (result.providerProfile.certifications ?? []).map(cert => ({
                 ...cert,
@@ -101,6 +102,7 @@ export default function EditProviderProfilePage() {
                 expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : undefined,
                 newDocumentFile: undefined,
               })),
+              unavailableDates: (result.providerProfile.unavailableDates ?? []).map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())),
             });
             if (result.providerProfile.profilePictureUrl) setProfilePicturePreview(result.providerProfile.profilePictureUrl);
             if (result.providerProfile.bannerImageUrl) setBannerImagePreview(result.providerProfile.bannerImageUrl);
@@ -194,6 +196,9 @@ export default function EditProviderProfilePage() {
                 newDocumentFile: undefined,
             })));
         }
+        if(result.updatedProfile?.unavailableDates) {
+            setValue('unavailableDates', result.updatedProfile.unavailableDates.map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())));
+        }
         if (uploadedProfilePicUrl) setProfilePicturePreview(uploadedProfilePicUrl);
         if (uploadedBannerImgUrl) setBannerImagePreview(uploadedBannerImgUrl);
 
@@ -238,8 +243,6 @@ export default function EditProviderProfilePage() {
   }
   
   if (fetchError) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error Loading Profile</AlertTitle><AlertDescription>{fetchError}</AlertDescription></Alert>;
-  // if (!providerProfile && !isLoadingPage) return <Alert variant="destructive" className="container max-w-lg mx-auto my-10"><AlertTitle>Error</AlertTitle><AlertDescription>Provider profile not found or could not be loaded. Please ensure your provider account setup was completed correctly.</AlertDescription></Alert>;
-
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -255,6 +258,7 @@ export default function EditProviderProfilePage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
+            {/* Basic Information Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Basic Information</h3>
               <div className="space-y-4">
@@ -286,6 +290,7 @@ export default function EditProviderProfilePage() {
               </div>
             </section>
 
+            {/* Service Details Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Service Details</h3>
               <div className="space-y-4">
@@ -312,6 +317,17 @@ export default function EditProviderProfilePage() {
                   {errors.mainService && <p className="text-sm text-destructive mt-1">{errors.mainService.message}</p>}
                 </div>
                 <div>
+                  <Label htmlFor="specialties" className="font-semibold flex items-center"><Sparkles className="mr-2 h-4 w-4" /> Specialties (Comma-separated)</Label>
+                  <Input id="specialties" {...register("specialties")} placeholder="e.g., Drain unclogging, Geyser installation" className="mt-1" />
+                  {errors.specialties && <p className="text-sm text-destructive mt-1">{errors.specialties.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="skills" className="font-semibold flex items-center"><Tag className="mr-2 h-4 w-4" /> Skills & Keywords (Comma-separated)</Label>
+                  <Input id="skills" {...register("skills")} placeholder="e.g., Emergency plumbing, Solar panel repair, Kitchen renovation" className="mt-1" />
+                  {errors.skills && <p className="text-sm text-destructive mt-1">{errors.skills.message}</p>}
+                   <p className="text-xs text-muted-foreground mt-1">Help clients find you by listing specific skills or keywords related to your services.</p>
+                </div>
+                <div>
                   <Label htmlFor="yearsOfExperience" className="font-semibold flex items-center"><Award className="mr-2 h-4 w-4" /> Years of Experience</Label>
                   <Input id="yearsOfExperience" type="number" {...register("yearsOfExperience")} className="mt-1" />
                   {errors.yearsOfExperience && <p className="text-sm text-destructive mt-1">{errors.yearsOfExperience.message}</p>}
@@ -335,27 +351,55 @@ export default function EditProviderProfilePage() {
               </div>
             </section>
 
+            {/* Profile Visuals Section */}
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Profile Visuals</h3>
                <div className="space-y-4">
                 <div>
                     <Label htmlFor="newProfilePictureFile" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Profile Picture</Label>
-                    {profilePicturePreview && <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="mt-2 h-24 w-24 rounded-full object-cover border" data-ai-hint="profile image preview"/>}
+                    {profilePicturePreview && <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="mt-2 h-24 w-24 rounded-full object-cover border" data-ai-hint="profile preview image" />}
                     <Input id="newProfilePictureFile" type="file" onChange={handleProfilePictureChange} accept="image/png, image/jpeg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
                     <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Square image.</p>
                     {errors.newProfilePictureFile && <p className="text-sm text-destructive mt-1">{errors.newProfilePictureFile.message}</p>}
                 </div>
                  <div>
                     <Label htmlFor="newBannerImageFile" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Banner Image (Optional)</Label>
-                    {bannerImagePreview && <Image src={bannerImagePreview} alt="Banner preview" width={300} height={100} className="mt-2 aspect-[3/1] w-full max-w-md rounded-md object-cover border" data-ai-hint="company banner image"/>}
+                    {bannerImagePreview && <Image src={bannerImagePreview} alt="Banner preview" width={300} height={100} className="mt-2 aspect-[3/1] w-full max-w-md rounded-md object-cover border" data-ai-hint="profile banner image"/>}
                     <Input id="newBannerImageFile" type="file" onChange={handleBannerImageChange} accept="image/png, image/jpeg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
                     <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: 1200x400px.</p>
                     {errors.newBannerImageFile && <p className="text-sm text-destructive mt-1">{errors.newBannerImageFile.message}</p>}
                 </div>
               </div>
             </section>
+            
+            {/* Availability Section */}
+            <section>
+                <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Your Availability</h3>
+                <div>
+                    <Label htmlFor="unavailableDates" className="font-semibold">Mark Unavailable Dates</Label>
+                    <p className="text-sm text-muted-foreground mb-2">Select dates when you are NOT available. Clients will not be able to request bookings on these dates (feature in progress).</p>
+                    <Controller
+                        name="unavailableDates"
+                        control={control}
+                        render={({ field }) => (
+                            <Calendar
+                                mode="multiple"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                className="rounded-md border bg-background"
+                                footer={
+                                  <p className="text-xs p-2 text-muted-foreground">
+                                    You have marked {field.value?.length || 0} date(s) as unavailable.
+                                  </p>
+                                }
+                            />
+                        )}
+                    />
+                    {errors.unavailableDates && <p className="text-sm text-destructive mt-1">{errors.unavailableDates.message}</p>}
+                </div>
+            </section>
 
-
+            {/* Certifications Section */}
             <section>
               <div className="flex justify-between items-center mb-4 border-b pb-2">
                 <h3 className="text-xl font-semibold text-primary">Certifications</h3>

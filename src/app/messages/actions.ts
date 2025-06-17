@@ -4,7 +4,8 @@
 import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
-import { getUserProfileFromFirestore } from '@/services/userService'; 
+import { getUserProfileFromFirestore } from '@/services/userService';
+import { createNotification } from '@/services/notificationService'; // Import notification service
 
 // Helper function (can be co-located or imported)
 function generateChatId(uid1: string, uid2: string): string {
@@ -160,6 +161,16 @@ export async function sendMessageAction(
 
     batch.update(chatRef, updatePayload);
     await batch.commit();
+
+    // Create notification for the receiver
+    const senderName = senderDisplayName || chatData.participants[senderUid]?.displayName || "Someone";
+    await createNotification({
+      userId: receiverUid,
+      type: 'new_message',
+      message: `You have a new message from ${senderName}.`,
+      relatedEntityId: chatId,
+      link: `/messages/${chatId}`
+    });
 
     return { success: true, messageId: newMessageDocRef.id };
 

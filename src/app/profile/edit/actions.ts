@@ -2,15 +2,16 @@
 "use server";
 
 import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { adminDb } from '@/lib/firebaseAdmin'; 
+import { adminDb } from '@/lib/firebaseAdmin';
 import { uploadFileToStorage } from '@/services/storageService';
 import type { ProviderProfile, Certification } from '@/models/provider';
 import type { ProviderProfileEditFormValues } from './schemas';
 import { revalidatePath } from 'next/cache';
 import { getUserProfileFromFirestore } from '@/services/userService';
-import { getProviderProfileFromFirestore, createProviderProfileInFirestore } from '@/services/providerService'; 
+import { getProviderProfileFromFirestore, createProviderProfileInFirestore } from '@/services/providerService';
 import type { User as AppUser } from '@/models/user';
 import type { ServiceCategory } from '@/components/service-category-icon';
+import { format } from 'date-fns';
 
 
 interface ProviderEditPageData {
@@ -49,6 +50,7 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         businessName: appUser.fullName || `Provider ${userId.substring(0, 6)}`,
         mainService: 'Other' as ServiceCategory,
         specialties: [],
+        skills: [], // Initialize skills
         bio: 'Welcome to FundiConnect! Please complete your profile to attract clients.',
         location: 'Please update your location',
         fullAddress: null,
@@ -58,18 +60,19 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         certifications: [],
         portfolio: [],
         contactPhoneNumber: appUser.phoneNumber || '',
-        operatingHours: "Mon-Fri 9am-5pm", 
+        operatingHours: "Mon-Fri 9am-5pm",
         serviceAreas: [],
         profilePictureUrl: appUser.photoURL || null,
         bannerImageUrl: null,
         website: null,
         socialMediaLinks: null,
+        unavailableDates: [], // Initialize unavailableDates
       };
 
       try {
         await createProviderProfileInFirestore(defaultProviderData);
         console.log(`[fetchProviderEditPageDataAction] Default provider profile created for UID: ${userId}`);
-        providerProfile = await getProviderProfileFromFirestore(userId); 
+        providerProfile = await getProviderProfileFromFirestore(userId);
         if (!providerProfile) {
            console.error(`[fetchProviderEditPageDataAction] CRITICAL: Failed to re-fetch provider profile after default creation for UID: ${userId}.`);
            return { appUser, providerProfile: null, error: "Failed to load profile after attempting to create a default. Please try again." };
@@ -92,7 +95,7 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
 interface UpdateProviderProfileResult {
   success: boolean;
   message: string;
-  updatedProfile?: Partial<ProviderProfile>; 
+  updatedProfile?: Partial<ProviderProfile>;
 }
 
 export async function updateProviderProfileAction(
@@ -114,11 +117,11 @@ export async function updateProviderProfileAction(
 
   try {
     const providerRef = doc(adminDb, 'providerProfiles', providerId);
-    const currentTimestamp = serverTimestamp(); 
+    const currentTimestamp = serverTimestamp();
 
     const certificationsToSave: Certification[] = (data.certifications || []).map((certFormValue, index) => {
       const uploadedDocInfo = uploadedCertificationDocuments?.find(doc => doc.index === index);
-      const newDocumentUrl = uploadedDocInfo?.url; 
+      const newDocumentUrl = uploadedDocInfo?.url;
       const existingDocumentUrl = certFormValue.documentUrl;
 
       return {
@@ -134,20 +137,28 @@ export async function updateProviderProfileAction(
       };
     });
     
-    const updatePayload: any = { 
+    // Transform comma-separated strings to arrays if they are strings (they should be arrays from schema transform)
+    const specialtiesArray = Array.isArray(data.specialties) ? data.specialties : (typeof data.specialties === 'string' ? data.specialties.split(',').map(s => s.trim()).filter(s => s) : []);
+    const skillsArray = Array.isArray(data.skills) ? data.skills : (typeof data.skills === 'string' ? data.skills.split(',').map(s => s.trim()).filter(s => s) : []);
+    const serviceAreasArray = Array.isArray(data.serviceAreas) ? data.serviceAreas : (typeof data.serviceAreas === 'string' ? data.serviceAreas.split(',').map(s => s.trim()).filter(s => s) : []);
+
+
+    const updatePayload: any = {
       businessName: data.businessName,
       mainService: data.mainService,
-      specialties: data.specialties || [],
+      specialties: specialtiesArray,
+      skills: skillsArray, // Save skills
       bio: data.bio,
       location: data.location,
       fullAddress: data.fullAddress || null,
       yearsOfExperience: data.yearsOfExperience,
       contactPhoneNumber: data.contactPhoneNumber,
       operatingHours: data.operatingHours || null,
-      serviceAreas: data.serviceAreas || [], 
+      serviceAreas: serviceAreasArray,
       website: data.website || null,
       certifications: certificationsToSave,
-      updatedAt: currentTimestamp, 
+      unavailableDates: (data.unavailableDates || []).map(date => format(date, 'yyyy-MM-dd')), // Format dates to strings
+      updatedAt: currentTimestamp,
     };
 
     if (uploadedProfilePictureUrl !== undefined) {
@@ -168,10 +179,10 @@ export async function updateProviderProfileAction(
       expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : null,
     }));
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       message: "Profile updated successfully!",
-      updatedProfile: { 
+      updatedProfile: {
         ...updatePayload,
         certifications: clientSafeCertifications,
         fullAddress: updatePayload.fullAddress,
@@ -179,7 +190,8 @@ export async function updateProviderProfileAction(
         website: updatePayload.website,
         profilePictureUrl: updatePayload.profilePictureUrl,
         bannerImageUrl: updatePayload.bannerImageUrl,
-      } 
+        unavailableDates: updatePayload.unavailableDates, // Return formatted dates
+      }
     };
 
   } catch (error: any) {

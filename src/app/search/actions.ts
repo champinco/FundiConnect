@@ -42,6 +42,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
       console.log(`[searchProvidersAction] Applying location filter: >= ${locationSearchTerm}, <= ${locationSearchTerm}\\uf8ff`);
+      // This basic location search might need refinement for better accuracy (e.g., city/neighborhood fields)
       providerQuery = providerQuery.where('location', '>=', locationSearchTerm)
                                    .where('location', '<=', locationSearchTerm + '\uf8ff');
     }
@@ -78,20 +79,38 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
         isVerified: data.isVerified || false,
         verificationAuthority: data.verificationAuthority,
         bioSummary: data.bio ? (data.bio.substring(0, 100) + (data.bio.length > 150 ? '...' : '')) : 'No bio available.',
+        // For client-side filtering, we pass skills and specialties here if needed
+        // skills: data.skills || [], 
+        // specialties: data.specialties || [],
       });
     });
 
+    // Client-side text filtering for query term (keywords)
     if (params.query && params.query.trim() !== '') {
       const searchTerm = params.query.trim().toLowerCase();
       console.log(`[searchProvidersAction] Applying client-side text filter: ${searchTerm}`);
-      providersData = providersData.filter(p =>
-        p.name.toLowerCase().includes(searchTerm) ||
-        p.mainService.toLowerCase().includes(searchTerm) ||
-        (p.bioSummary && p.bioSummary.toLowerCase().includes(searchTerm)) ||
-        (p.location && p.location.toLowerCase().includes(searchTerm))
-      );
+      
+      // Fetch full profiles for more accurate text search on skills/specialties
+      const fullProfilesPromises = providersData.map(p => getProviderProfileFromFirestore(p.id));
+      const fullProfiles = (await Promise.all(fullProfilesPromises)).filter(p => p !== null) as ProviderProfile[];
+      
+      const profileMap = new Map(fullProfiles.map(p => [p.id, p]));
+
+      providersData = providersData.filter(p_summary => {
+        const p = profileMap.get(p_summary.id);
+        if (!p) return false;
+
+        return (
+          p.businessName.toLowerCase().includes(searchTerm) ||
+          p.mainService.toLowerCase().includes(searchTerm) ||
+          (p.bio && p.bio.toLowerCase().includes(searchTerm)) ||
+          (p.location && p.location.toLowerCase().includes(searchTerm)) ||
+          (p.skills && p.skills.some(skill => skill.toLowerCase().includes(searchTerm))) ||
+          (p.specialties && p.specialties.some(spec => spec.toLowerCase().includes(searchTerm)))
+        );
+      });
     }
-    console.log(`[searchProvidersAction] Found ${providersData.length} providers.`);
+    console.log(`[searchProvidersAction] Found ${providersData.length} providers after client-side filtering.`);
     return providersData;
   } catch (error: any) {
     console.error(`[searchProvidersAction] Error during provider search. Params: ${JSON.stringify(params)}. Error:`, error.message, error.stack, error.code);

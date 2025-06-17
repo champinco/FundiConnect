@@ -13,7 +13,7 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings, Briefcase, ListChecks, Edit3 } from "lucide-react";
+import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings, Briefcase, ListChecks, Edit3, Bell } from "lucide-react"; // Added Bell
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,9 +55,9 @@ export function SiteHeader() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setAccountType(null); // Clear account type on logout
+      setAccountType(null); 
       setMobileNavOpen(false); 
-      router.push('/'); // Redirect to home on logout
+      router.push('/'); 
     } catch (error) {
       console.error("Error logging out:", error);
     }
@@ -71,16 +71,12 @@ export function SiteHeader() {
       if (item.title === "Post a Job" || item.title === "My Jobs") {
         return accountType === 'client';
       }
-      // Example for provider-specific link if added in siteConfig
-      // if (item.title === "My Provider Dashboard") {
-      //   return accountType === 'provider';
-      // }
-      return true; // For links common to all logged-in users
+      return true; 
     });
   }
 
 
-  if (loadingAuth && !currentUser) { // Show skeleton only during initial auth check
+  if (loadingAuth && !currentUser) { 
     return (
        <header className="sticky top-0 z-40 w-full border-b bg-background">
          <div className="container flex h-16 items-center space-x-4 sm:justify-between sm:space-x-0">
@@ -104,6 +100,14 @@ export function SiteHeader() {
         
         <div className="flex flex-1 items-center justify-end space-x-1 md:space-x-2">
           <nav className="hidden items-center space-x-1 md:flex">
+            {currentUser && ( // Bell icon for notifications - static for now
+                <Button variant="ghost" size="icon" className="relative" onClick={() => {/* TODO: Open notification popover/page */}}>
+                    <Bell className="h-5 w-5" />
+                    {/* Placeholder for unread count badge */}
+                    {/* <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" /> */}
+                    <span className="sr-only">Notifications</span>
+                </Button>
+            )}
             {currentUser ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -170,7 +174,13 @@ export function SiteHeader() {
 
           {/* Mobile Menu Button & Sheet */}
           <div className="md:hidden flex items-center">
-             {!loadingAuth && <ThemeToggle />} {/* Show theme toggle once auth state is resolved */}
+             {!loadingAuth && <ThemeToggle />} 
+             {currentUser && !loadingAuth && ( // Bell icon for mobile
+                <Button variant="ghost" size="icon" className="relative" onClick={() => {/* TODO: Open notification popover/page */}}>
+                    <Bell className="h-5 w-5" />
+                    <span className="sr-only">Notifications</span>
+                </Button>
+             )}
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="ml-1">
@@ -248,7 +258,7 @@ export function SiteHeader() {
                       <Button
                         variant="outline"
                         className="w-full justify-start"
-                        onClick={() => {handleLogout();}} // No need to close mobileNavOpen here as it's part of handleLogout
+                        onClick={() => {handleLogout();}}
                       >
                         <LogOut className="mr-2 h-4 w-4" /> Logout
                       </Button>

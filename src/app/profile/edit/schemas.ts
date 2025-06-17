@@ -33,7 +33,10 @@ export const certificationSchema = z.object({
 export const providerProfileEditFormSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters."),
   mainService: z.enum(serviceCategoriesForValidation, { errorMap: () => ({ message: "Please select your main service."})}),
-  specialties: z.array(z.string().min(2, "Specialty must be at least 2 characters.")).optional(),
+  specialties: z.string().optional() // Comma-separated string from form
+    .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
+  skills: z.string().optional() // Comma-separated string from form for skills
+    .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
   bio: z.string().min(20, "Bio must be at least 20 characters.").max(1500, "Bio cannot exceed 1500 characters."),
   location: z.string().min(3, "Primary location is required."),
   fullAddress: z.string().optional(),
@@ -43,7 +46,7 @@ export const providerProfileEditFormSchema = z.object({
   ),
   contactPhoneNumber: z.string().regex(/^\+?[0-9\s-()]{7,20}$/, "Please enter a valid phone number."),
   operatingHours: z.string().optional(),
-  serviceAreas: z.string().optional() // Comma-separated string from form, will be transformed
+  serviceAreas: z.string().optional() // Comma-separated string from form
     .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
   website: z.string().url("Please enter a valid URL for your website.").optional().or(z.literal('')),
   
@@ -73,6 +76,7 @@ export const providerProfileEditFormSchema = z.object({
     ).optional().nullable(),
   
   certifications: z.array(certificationSchema).optional(),
+  unavailableDates: z.array(z.date()).optional().default([]), // For react-day-picker multiple mode
 });
 
 export type ProviderProfileEditFormValues = z.infer<typeof providerProfileEditFormSchema>;

@@ -4,17 +4,22 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation'; 
 import { useEffect, useState } from 'react'; 
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink } from 'lucide-react';
+import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from '@/components/ui/separator';
 import { useToast } from "@/hooks/use-toast"; 
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Calendar } from '@/components/ui/calendar';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+
 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'; 
 import { auth } from '@/lib/firebase'; 
@@ -22,8 +27,8 @@ import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
 import Link from 'next/link'; 
 import { format } from 'date-fns';
-import { formatDynamicDate } from '@/lib/dateUtils'; // Updated import
-import { fetchPublicProviderProfileDataAction } from './actions';
+import { formatDynamicDate } from '@/lib/dateUtils';
+import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions'; // Updated to include requestBookingAction
 import { getOrCreateChatAction } from '@/app/messages/actions';
 
 export default function ProviderProfilePage({ params }: { params: { id: string } }) {
@@ -37,6 +42,12 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
+  const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
+  const [bookingMessage, setBookingMessage] = useState("");
+  const [isRequestingBooking, setIsRequestingBooking] = useState(false);
+
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -57,7 +68,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
             setReviews([]);
           } else {
             setProvider(data.provider);
-            setReviews(data.reviews || []); // Ensure reviews is an array
+            setReviews(data.reviews || []); 
           }
         })
         .catch(err => {
@@ -70,9 +81,9 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     }
   }, [providerId]);
 
-  const handleRequestQuoteOrMessage = async () => {
+  const handleInitiateChat = async () => {
     if (!currentUser) {
-      toast({ title: "Login Required", description: "Please login to contact providers.", variant: "destructive" });
+      toast({ title: "Login Required", description: "Please login to message providers.", variant: "destructive" });
       router.push(`/auth/login?redirect=/providers/${providerId}`);
       return;
     }
@@ -93,6 +104,36 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     }
   };
   
+  const handleRequestBookingSubmit = async () => {
+    if (!currentUser) {
+      toast({ title: "Login Required", description: "Please login to request a booking.", variant: "destructive" });
+      setIsBookingDialogOpen(false);
+      router.push(`/auth/login?redirect=/providers/${providerId}`);
+      return;
+    }
+    if (!provider || !selectedBookingDate) {
+      toast({ title: "Missing Information", description: "Please select a date for your booking.", variant: "destructive" });
+      return;
+    }
+
+    setIsRequestingBooking(true);
+    try {
+      const result = await requestBookingAction(provider.id, currentUser.uid, selectedBookingDate, bookingMessage);
+      if (result.success) {
+        toast({ title: "Booking Request Sent!", description: "The provider has been notified. You can track the status in your dashboard." });
+        setIsBookingDialogOpen(false);
+        setSelectedBookingDate(undefined);
+        setBookingMessage("");
+      } else {
+        toast({ title: "Booking Failed", description: result.message, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not send booking request.", variant: "destructive" });
+    } finally {
+      setIsRequestingBooking(false);
+    }
+  };
+
   if (isLoading) { 
     return <ProviderProfileSkeleton />;
   }
@@ -111,6 +152,9 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
       </div>
     );
   }
+
+  const today = new Date();
+  today.setHours(0,0,0,0); // Ensure comparison is date-only
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -165,21 +209,29 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       <p className="whitespace-pre-line">{provider.bio || "No biography provided."}</p>
                       {provider.specialties && provider.specialties.length > 0 && (
                         <div>
-                          <h4 className="font-semibold mb-1 text-md">Specialties:</h4>
-                          <ul className="list-disc list-inside space-y-1">
-                            {provider.specialties.map(spec => <li key={spec}>{spec}</li>)}
-                          </ul>
+                          <h4 className="font-semibold mb-1 text-md flex items-center"><Sparkles className="h-4 w-4 mr-2 text-primary" />Specialties:</h4>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {provider.specialties.map(spec => <Badge key={spec} variant="secondary">{spec}</Badge>)}
+                          </div>
+                        </div>
+                      )}
+                      {provider.skills && provider.skills.length > 0 && (
+                        <div className="mt-3">
+                          <h4 className="font-semibold mb-1 text-md flex items-center"><Tag className="h-4 w-4 mr-2 text-primary" />Skills & Keywords:</h4>
+                           <div className="flex flex-wrap gap-2 mt-1">
+                            {provider.skills.map(skill => <Badge key={skill} variant="outline">{skill}</Badge>)}
+                          </div>
                         </div>
                       )}
                        {provider.yearsOfExperience > 0 && (
                         <div>
-                          <h4 className="font-semibold mb-1 text-md">Years of Experience:</h4>
+                          <h4 className="font-semibold mb-1 text-md flex items-center"><Award className="h-4 w-4 mr-2 text-primary" />Years of Experience:</h4>
                           <p>{provider.yearsOfExperience} years</p>
                         </div>
                        )}
                        {provider.certifications && provider.certifications.length > 0 && (
                          <div className="pt-4 mt-4 border-t">
-                          <h4 className="font-semibold mb-3 text-lg">Certifications & Licenses</h4>
+                          <h4 className="font-semibold mb-3 text-lg flex items-center"><BookOpen className="h-5 w-5 mr-2 text-primary" />Certifications & Licenses</h4>
                           <ul className="space-y-3">
                             {provider.certifications.map(cert => (
                               <li key={cert.id || cert.name} className="p-3 border rounded-md bg-card shadow-sm">
@@ -337,15 +389,69 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                     </div>
                   )}
                   <Separator />
-                   <Button onClick={handleRequestQuoteOrMessage} className="w-full bg-primary hover:bg-primary/90" disabled={isChatLoading || currentUser?.uid === provider.userId}>
-                    {isChatLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
-                     {currentUser?.uid === provider.userId ? "This is Your Profile" : `Message ${provider.businessName?.split(' ')[0] || 'Provider'}`}
-                  </Button>
+                  { currentUser?.uid !== provider.userId && (
+                    <>
+                    <Dialog open={isBookingDialogOpen} onOpenChange={setIsBookingDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
+                                <CalendarDays className="mr-2 h-4 w-4" /> Request Booking
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Request Booking with {provider.businessName}</DialogTitle>
+                            <DialogDescription>
+                            Select your preferred date and add a message for the provider.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid gap-2">
+                            <Label htmlFor="booking-date">Preferred Date</Label>
+                            <Calendar
+                                mode="single"
+                                selected={selectedBookingDate}
+                                onSelect={setSelectedBookingDate}
+                                className="rounded-md border"
+                                disabled={(date) => date < today || (provider.unavailableDates || []).includes(format(date, 'yyyy-MM-dd'))}
+                            />
+                            </div>
+                            <div className="grid gap-2">
+                            <Label htmlFor="booking-message">Message (Optional)</Label>
+                            <Textarea
+                                id="booking-message"
+                                placeholder="Briefly describe your needs or any specific requests."
+                                value={bookingMessage}
+                                onChange={(e) => setBookingMessage(e.target.value)}
+                                className="min-h-[100px]"
+                            />
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsBookingDialogOpen(false)}>Cancel</Button>
+                            <Button type="submit" onClick={handleRequestBookingSubmit} disabled={isRequestingBooking || !selectedBookingDate}>
+                            {isRequestingBooking && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Send Request
+                            </Button>
+                        </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+
+                    <Button onClick={handleInitiateChat} variant="outline" className="w-full" disabled={isChatLoading}>
+                        {isChatLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
+                        Message {provider.businessName?.split(' ')[0] || 'Provider'}
+                    </Button>
+                    </>
+                  )}
                   {provider.contactPhoneNumber && (
-                    <Button variant="outline" className="w-full" onClick={() => toast({title: "Contact Information", description: `Phone: ${provider.contactPhoneNumber}. Please use in-app messaging for initial contact or quotes.`})}>
+                    <Button variant="outline" className="w-full" onClick={() => toast({title: "Contact Information", description: `Phone: ${provider.contactPhoneNumber}. Please use in-app messaging or booking requests for initial contact.`})}>
                         <Phone className="mr-2 h-4 w-4" /> Show Contact Info
                     </Button>
                   )}
+                   {currentUser?.uid === provider.userId && (
+                     <Button asChild className="w-full">
+                       <Link href="/profile/edit"><Edit3 className="mr-2 h-4 w-4" /> Edit Your Profile</Link>
+                     </Button>
+                   )}
                 </CardContent>
               </Card>
             </div>
@@ -360,4 +466,4 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
 const Skeleton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div className={cn("animate-pulse rounded-md bg-muted", className)} {...props} />
 );
-
+const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' '); // Basic cn helper
