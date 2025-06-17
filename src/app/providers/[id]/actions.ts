@@ -4,11 +4,11 @@
 import { adminDb } from '@/lib/firebaseAdmin';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { getReviewsForProvider } from '@/services/reviewService';
-import { createBookingRequest as createBookingRequestService } from '@/services/bookingService'; // Renamed for clarity
+import { createBookingRequest as createBookingRequestService } from '@/services/bookingService'; 
 import { createNotification } from '@/services/notificationService';
 import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
-import { format } from 'date-fns'; // For formatting date for notification message
+import { format, parseISO, isSameDay } from 'date-fns'; 
 
 
 interface PublicProviderProfilePageData {
@@ -78,9 +78,10 @@ export async function requestBookingAction(
     }
 
     const requestedDateString = format(requestedDate, 'yyyy-MM-dd');
-    if (providerProfile.unavailableDates?.includes(requestedDateString)) {
+    if (providerProfile.unavailableDates?.some(unavailableDateStr => isSameDay(parseISO(unavailableDateStr), requestedDate))) {
       return { success: false, message: "The provider has marked this date as unavailable. Please choose another date." };
     }
+
 
     const bookingId = await createBookingRequestService({
       providerId,
@@ -94,7 +95,7 @@ export async function requestBookingAction(
       type: 'new_booking_request',
       message: `You have a new booking request from client ${clientId.substring(0,6)}... for ${format(requestedDate, 'PPP')}.`,
       relatedEntityId: bookingId,
-      link: `/dashboard` // Link to provider's dashboard where they might manage bookings
+      link: `/dashboard` 
     });
 
     return { success: true, message: "Booking request sent successfully!", bookingId };
@@ -103,4 +104,3 @@ export async function requestBookingAction(
     return { success: false, message: `Failed to send booking request: ${error.message}.` };
   }
 }
-

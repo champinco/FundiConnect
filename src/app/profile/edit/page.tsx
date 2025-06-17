@@ -15,8 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Switch } from "@/components/ui/switch"; // Added Switch
-import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen, BellRing } from 'lucide-react'; // Added BellRing
+import { Switch } from "@/components/ui/switch";
+import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen, BellRing, Images } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 
@@ -24,11 +24,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import type { ProviderProfile, Certification } from '@/models/provider';
+import type { ProviderProfile, Certification, PortfolioItem } from '@/models/provider';
 import type { User as AppUser } from '@/models/user';
 import { uploadFileToStorage } from '@/services/storageService';
 
-import { providerProfileEditFormSchema, type ProviderProfileEditFormValues, allServiceCategories } from './schemas';
+import { providerProfileEditFormSchema, type ProviderProfileEditFormValues, allServiceCategories, type PortfolioItemFormValues } from './schemas';
 import { updateProviderProfileAction, fetchProviderEditPageDataAction } from './actions';
 import Image from 'next/image';
 import { format, parse } from 'date-fns';
@@ -62,13 +62,14 @@ export default function EditProviderProfilePage() {
       yearsOfExperience: 0,
       contactPhoneNumber: "",
       operatingHours: "",
-      serviceAreas: "", 
+      serviceAreas: "",
       website: "",
       certifications: [],
+      portfolio: [],
       profilePictureUrl: null,
       bannerImageUrl: null,
       unavailableDates: [],
-      receivesEmergencyJobAlerts: false, // Default for new field
+      receivesEmergencyJobAlerts: false,
     },
   });
 
@@ -76,8 +77,30 @@ export default function EditProviderProfilePage() {
     control,
     name: "certifications",
   });
+
+  const { fields: portfolioFields, append: appendPortfolioItem, remove: removePortfolioItem } = useFieldArray({
+    control,
+    name: "portfolio",
+  });
   
-  const unavailableDatesValue = watch("unavailableDates") || [];
+  const [portfolioItemPreviews, setPortfolioItemPreviews] = useState<Record<string, string | null>>({});
+
+
+  const handlePortfolioItemImageChange = (event: ChangeEvent<HTMLInputElement>, index: number) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: "File too large", description: "Portfolio image should be less than 5MB.", variant: "destructive" });
+        return;
+      }
+      setValue(`portfolio.${index}.newImageFile`, file, { shouldValidate: true });
+      const fieldId = watch(`portfolio.${index}.id`); // Use the actual ID of the portfolio item
+      if (fieldId) { // Ensure fieldId is defined
+        setPortfolioItemPreviews(prev => ({ ...prev, [fieldId]: URL.createObjectURL(file) }));
+      }
+    }
+  };
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -92,10 +115,16 @@ export default function EditProviderProfilePage() {
           if (result.appUser?.accountType === 'client') {
             setIsClientAccount(true);
           } else if (result.providerProfile) {
+            const currentPortfolioPreviews: Record<string, string | null> = {};
+            (result.providerProfile.portfolio || []).forEach(item => {
+                if (item.imageUrl) currentPortfolioPreviews[item.id] = item.imageUrl;
+            });
+            setPortfolioItemPreviews(currentPortfolioPreviews);
+
             reset({
               ...result.providerProfile,
-              specialties: (result.providerProfile.specialties ?? []).join(', '), 
-              skills: (result.providerProfile.skills ?? []).join(', '), 
+              specialties: (result.providerProfile.specialties ?? []).join(', '),
+              skills: (result.providerProfile.skills ?? []).join(', '),
               yearsOfExperience: result.providerProfile.yearsOfExperience ?? 0,
               serviceAreas: (result.providerProfile.serviceAreas ?? []).join(', '),
               certifications: (result.providerProfile.certifications ?? []).map(cert => ({
@@ -104,8 +133,13 @@ export default function EditProviderProfilePage() {
                 expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : undefined,
                 newDocumentFile: undefined,
               })),
+              portfolio: (result.providerProfile.portfolio ?? []).map(item => ({
+                  ...item,
+                  id: item.id || uuidv4(), // Ensure ID exists
+                  newImageFile: undefined, 
+              })),
               unavailableDates: (result.providerProfile.unavailableDates ?? []).map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())),
-              receivesEmergencyJobAlerts: result.providerProfile.receivesEmergencyJobAlerts ?? false, // Load existing value
+              receivesEmergencyJobAlerts: result.providerProfile.receivesEmergencyJobAlerts ?? false,
             });
             if (result.providerProfile.profilePictureUrl) setProfilePicturePreview(result.providerProfile.profilePictureUrl);
             if (result.providerProfile.bannerImageUrl) setBannerImagePreview(result.providerProfile.bannerImageUrl);
@@ -120,12 +154,12 @@ export default function EditProviderProfilePage() {
       }
     });
     return () => unsubscribe();
-  }, [router, reset, toast]);
+  }, [router, reset, toast, watch, setValue]);
 
   const handleProfilePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.size > 5 * 1024 * 1024) { 
+      if (file.size > 5 * 1024 * 1024) {
         toast({ title: "File too large", description: "Profile picture should be less than 5MB.", variant: "destructive" });
         return;
       }
@@ -155,10 +189,11 @@ export default function EditProviderProfilePage() {
       return;
     }
     setIsSubmitting(true);
-    let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl; 
-    let uploadedBannerImgUrl: string | null | undefined = data.bannerImageUrl; 
+    let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl;
+    let uploadedBannerImgUrl: string | null | undefined = data.bannerImageUrl;
     
     const uploadedCertificationDocuments: Array<{ index: number; url: string | null }> = [];
+    const portfolioItemsToSubmit: PortfolioItem[] = [];
 
     try {
       if (profilePictureFile) {
@@ -176,14 +211,30 @@ export default function EditProviderProfilePage() {
             const docUrl = await uploadFileToStorage(cert.newDocumentFile, `providerProfiles/${currentUser.uid}/certifications/${cert.id || uuidv4()}`);
             uploadedCertificationDocuments.push({ index: i, url: docUrl });
           } else {
-            uploadedCertificationDocuments.push({ index: i, url: cert.documentUrl || null }); 
+            uploadedCertificationDocuments.push({ index: i, url: cert.documentUrl || null });
           }
+        }
+      }
+
+      if (data.portfolio) {
+        for (let i = 0; i < data.portfolio.length; i++) {
+            const item = data.portfolio[i];
+            let imageUrl = item.imageUrl; 
+            if (item.newImageFile) {
+                imageUrl = await uploadFileToStorage(item.newImageFile, `providerProfiles/${currentUser.uid}/portfolio/${item.id || uuidv4()}`);
+            }
+            portfolioItemsToSubmit.push({
+                id: item.id || uuidv4(),
+                description: item.description,
+                imageUrl: imageUrl || null,
+                dataAiHint: item.dataAiHint || item.description.split(" ").slice(0,2).join(" ") || "project image",
+            });
         }
       }
       
       const result = await updateProviderProfileAction(
-        currentUser.uid, 
-        data, 
+        currentUser.uid,
+        {...data, portfolio: portfolioItemsToSubmit}, 
         uploadedProfilePicUrl,
         uploadedBannerImgUrl,
         uploadedCertificationDocuments
@@ -191,12 +242,25 @@ export default function EditProviderProfilePage() {
 
       if (result.success) {
         toast({ title: "Profile Updated", description: result.message });
+        const updatedPreviews: Record<string, string | null> = {};
+        (result.updatedProfile?.portfolio || []).forEach(item => {
+            if(item.imageUrl) updatedPreviews[item.id] = item.imageUrl;
+        });
+        setPortfolioItemPreviews(updatedPreviews);
+
         if(result.updatedProfile?.certifications) {
              setValue('certifications', result.updatedProfile.certifications.map(cert => ({
                 ...cert,
                 issueDate: cert.issueDate ? new Date(cert.issueDate) : undefined,
                 expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : undefined,
                 newDocumentFile: undefined,
+            })));
+        }
+         if(result.updatedProfile?.portfolio) {
+             setValue('portfolio', result.updatedProfile.portfolio.map(item => ({
+                ...item,
+                id: item.id || uuidv4(),
+                newImageFile: undefined,
             })));
         }
         if(result.updatedProfile?.unavailableDates) {
@@ -420,7 +484,7 @@ export default function EditProviderProfilePage() {
 
             <section>
               <div className="flex justify-between items-center mb-4 border-b pb-2">
-                <h3 className="text-xl font-semibold text-primary">Certifications</h3>
+                <h3 className="text-xl font-semibold text-primary flex items-center"><BookOpen className="mr-2 h-5 w-5" /> Certifications</h3>
                 <Button
                   type="button"
                   variant="outline"
@@ -554,6 +618,97 @@ export default function EditProviderProfilePage() {
                 ))}
               </div>
             </section>
+
+            <section>
+                <div className="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 className="text-xl font-semibold text-primary flex items-center"><Images className="mr-2 h-5 w-5" /> Portfolio Management</h3>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => appendPortfolioItem({
+                            id: uuidv4(),
+                            description: '',
+                            imageUrl: null,
+                            newImageFile: undefined,
+                            dataAiHint: '',
+                        })}
+                    >
+                        <PlusCircle className="mr-2 h-4 w-4" /> Add Portfolio Item
+                    </Button>
+                </div>
+                {portfolioFields.length === 0 && <p className="text-sm text-muted-foreground">No portfolio items added yet.</p>}
+                <div className="space-y-6">
+                    {portfolioFields.map((field, index) => (
+                        <Card key={field.id} className="p-4 bg-muted/30">
+                            <div className="space-y-4">
+                                <div>
+                                    <Label htmlFor={`portfolioDesc-${index}`} className="font-semibold">Description</Label>
+                                    <Textarea
+                                        id={`portfolioDesc-${index}`}
+                                        {...register(`portfolio.${index}.description`)}
+                                        placeholder="Briefly describe this project or work sample."
+                                        className="mt-1 bg-background min-h-[80px]"
+                                    />
+                                    {errors.portfolio?.[index]?.description && <p className="text-sm text-destructive mt-1">{errors.portfolio[index]?.description?.message}</p>}
+                                </div>
+                                <div>
+                                    <Label htmlFor={`portfolioImage-${index}`} className="font-semibold">Image (Max 5MB)</Label>
+                                    {(portfolioItemPreviews[field.id] || watch(`portfolio.${index}.imageUrl`)) && (
+                                        <Image
+                                            src={portfolioItemPreviews[field.id] || watch(`portfolio.${index}.imageUrl`)!}
+                                            alt={`Portfolio item ${index + 1} preview`}
+                                            width={200}
+                                            height={150}
+                                            className="mt-2 mb-2 rounded-md object-cover border aspect-video max-w-[200px]"
+                                            data-ai-hint={watch(`portfolio.${index}.dataAiHint`) || 'project image'}
+                                        />
+                                    )}
+                                    <Input
+                                        id={`portfolioImage-${index}`}
+                                        type="file"
+                                        accept="image/png, image/jpeg, image/webp"
+                                        className="mt-1 bg-background file:text-primary file:bg-primary/10 hover:file:bg-primary/20"
+                                        onChange={(e) => handlePortfolioItemImageChange(e, index)}
+                                    />
+                                    {errors.portfolio?.[index]?.newImageFile && <p className="text-sm text-destructive mt-1">{errors.portfolio[index]?.newImageFile?.message}</p>}
+                                    {watch(`portfolio.${index}.newImageFile`) && <p className="text-xs text-muted-foreground mt-1">New file selected: {(watch(`portfolio.${index}.newImageFile`) as File)?.name}</p>}
+                                </div>
+                                 <div>
+                                    <Label htmlFor={`portfolioAiHint-${index}`} className="font-semibold">AI Hint (Optional)</Label>
+                                    <Input
+                                        id={`portfolioAiHint-${index}`}
+                                        {...register(`portfolio.${index}.dataAiHint`)}
+                                        placeholder="e.g., kitchen renovation, bathroom tiling"
+                                        className="mt-1 bg-background"
+                                    />
+                                    <p className="text-xs text-muted-foreground mt-1">Keywords for future AI image suggestions (max 2 words, space-separated).</p>
+                                </div>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  const fieldIdToRemove = watch(`portfolio.${index}.id`);
+                                  removePortfolioItem(index);
+                                  if (fieldIdToRemove) {
+                                    setPortfolioItemPreviews(prev => {
+                                        const newState = {...prev};
+                                        delete newState[fieldIdToRemove];
+                                        return newState;
+                                    });
+                                  }
+                                }}
+                                className="mt-4"
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" /> Remove Item
+                            </Button>
+                        </Card>
+                    ))}
+                </div>
+            </section>
+
           </CardContent>
           <CardFooter className="border-t pt-6">
             <Button type="submit" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" disabled={isSubmitting}>
@@ -565,4 +720,3 @@ export default function EditProviderProfilePage() {
     </div>
   );
 }
-

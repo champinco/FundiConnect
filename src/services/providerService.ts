@@ -49,15 +49,20 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
     const dataToSave = {
       ...profileData,
       certifications: certificationsWithAdminTimestamps,
+      portfolio: (Array.isArray(profileData.portfolio) ? profileData.portfolio : []).map(item => ({
+          id: item.id || '',
+          imageUrl: item.imageUrl || null,
+          description: item.description || '',
+          dataAiHint: item.dataAiHint || undefined,
+      })),
       rating: 0, 
       reviewsCount: 0, 
       specialties: Array.isArray(profileData.specialties) ? profileData.specialties : [],
       skills: Array.isArray(profileData.skills) ? profileData.skills : [],
-      portfolio: Array.isArray(profileData.portfolio) ? profileData.portfolio : [],
       serviceAreas: Array.isArray(profileData.serviceAreas) ? profileData.serviceAreas : [],
       isVerified: profileData.isVerified || false,
       yearsOfExperience: typeof profileData.yearsOfExperience === 'number' ? profileData.yearsOfExperience : 0,
-      receivesEmergencyJobAlerts: profileData.receivesEmergencyJobAlerts || false, // Ensure default
+      receivesEmergencyJobAlerts: profileData.receivesEmergencyJobAlerts || false, 
       unavailableDates: Array.isArray(profileData.unavailableDates) ? profileData.unavailableDates : [],
       createdAt: now,
       updatedAt: now,
@@ -115,9 +120,9 @@ export async function getProviderProfileFromFirestore(providerId: string): Promi
       
       const portfolio = (Array.isArray(data.portfolio) ? data.portfolio : []).map(item => ({
           id: item.id || '',
-          imageUrl: item.imageUrl || '',
+          imageUrl: item.imageUrl || null,
           description: item.description || '',
-          dataAiHint: item.dataAiHint,
+          dataAiHint: item.dataAiHint || undefined,
       } as PortfolioItem));
 
 
@@ -192,9 +197,9 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
       
       const portfolio = (Array.isArray(data.portfolio) ? data.portfolio : []).map(item => ({
           id: item.id || '',
-          imageUrl: item.imageUrl || '',
+          imageUrl: item.imageUrl || null,
           description: item.description || '',
-          dataAiHint: item.dataAiHint,
+          dataAiHint: item.dataAiHint || undefined,
       } as PortfolioItem));
 
       providers.push({
@@ -273,14 +278,13 @@ export async function getEmergencyOptedInProvidersByCategory(serviceCategory: Se
     const q: Query = profilesRef
       .where('receivesEmergencyJobAlerts', '==', true)
       .where('mainService', '==', serviceCategory)
-      .orderBy('rating', 'desc') // Optionally order by rating or other criteria
+      .orderBy('rating', 'desc') 
       .limit(limit);
     
     const querySnapshot = await q.get();
     const providers: ProviderProfile[] = [];
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data()!;
-      // Reusing the full hydration logic from getProviderProfileFromFirestore for consistency
       providers.push({
         id: docSnap.id,
         userId: data.userId || '',
@@ -294,7 +298,7 @@ export async function getEmergencyOptedInProvidersByCategory(serviceCategory: Se
         yearsOfExperience: typeof data.yearsOfExperience === 'number' ? data.yearsOfExperience : 0,
         isVerified: !!data.isVerified,
         verificationAuthority: data.verificationAuthority,
-        portfolio: (Array.isArray(data.portfolio) ? data.portfolio : []).map(item => ({ ...item } as PortfolioItem)),
+        portfolio: (Array.isArray(data.portfolio) ? data.portfolio : []).map(item => ({ ...item, id: item.id || '', imageUrl: item.imageUrl || null, description: item.description || '' } as PortfolioItem)),
         rating: typeof data.rating === 'number' ? data.rating : 0,
         reviewsCount: typeof data.reviewsCount === 'number' ? data.reviewsCount : 0,
         contactPhoneNumber: data.contactPhoneNumber || '',
@@ -322,7 +326,6 @@ export async function getEmergencyOptedInProvidersByCategory(serviceCategory: Se
     if (error.code === 'FAILED_PRECONDITION' && error.message.includes('index')) {
         console.error(`[providerService] Firestore query for emergency providers requires a composite index. Link: ${error.message.split(' ').find((s:string) => s.startsWith('https://'))}`);
     }
-    return []; // Return empty on error to avoid breaking the flow
+    return []; 
   }
 }
-

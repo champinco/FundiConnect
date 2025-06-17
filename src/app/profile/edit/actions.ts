@@ -4,7 +4,7 @@
 import { doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { adminDb } from '@/lib/firebaseAdmin';
 import { uploadFileToStorage } from '@/services/storageService';
-import type { ProviderProfile, Certification } from '@/models/provider';
+import type { ProviderProfile, Certification, PortfolioItem } from '@/models/provider';
 import type { ProviderProfileEditFormValues } from './schemas';
 import { revalidatePath } from 'next/cache';
 import { getUserProfileFromFirestore } from '@/services/userService';
@@ -64,10 +64,8 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         serviceAreas: [],
         profilePictureUrl: appUser.photoURL || null,
         bannerImageUrl: null,
-        website: null,
-        socialMediaLinks: null,
         unavailableDates: [], 
-        receivesEmergencyJobAlerts: false, // Default for new field
+        receivesEmergencyJobAlerts: false,
       };
 
       try {
@@ -138,6 +136,14 @@ export async function updateProviderProfileAction(
       };
     });
     
+    const portfolioToSave: PortfolioItem[] = (data.portfolio || []).map(item => ({
+        id: item.id || '', // Ensure ID exists, or handle generation
+        description: item.description,
+        imageUrl: item.imageUrl || null,
+        dataAiHint: item.dataAiHint || item.description.split(" ").slice(0,2).join(" ") || "project image",
+    }));
+
+
     const specialtiesArray = Array.isArray(data.specialties) ? data.specialties : (typeof data.specialties === 'string' ? data.specialties.split(',').map(s => s.trim()).filter(s => s) : []);
     const skillsArray = Array.isArray(data.skills) ? data.skills : (typeof data.skills === 'string' ? data.skills.split(',').map(s => s.trim()).filter(s => s) : []);
     const serviceAreasArray = Array.isArray(data.serviceAreas) ? data.serviceAreas : (typeof data.serviceAreas === 'string' ? data.serviceAreas.split(',').map(s => s.trim()).filter(s => s) : []);
@@ -147,7 +153,7 @@ export async function updateProviderProfileAction(
       businessName: data.businessName,
       mainService: data.mainService,
       specialties: specialtiesArray,
-      skills: skillsArray, 
+      skills: skillsArray,
       bio: data.bio,
       location: data.location,
       fullAddress: data.fullAddress || null,
@@ -157,8 +163,9 @@ export async function updateProviderProfileAction(
       serviceAreas: serviceAreasArray,
       website: data.website || null,
       certifications: certificationsToSave,
-      unavailableDates: (data.unavailableDates || []).map(date => format(date, 'yyyy-MM-dd')), 
-      receivesEmergencyJobAlerts: data.receivesEmergencyJobAlerts || false, // Save the new preference
+      portfolio: portfolioToSave,
+      unavailableDates: (data.unavailableDates || []).map(date => format(date, 'yyyy-MM-dd')),
+      receivesEmergencyJobAlerts: data.receivesEmergencyJobAlerts || false,
       updatedAt: currentTimestamp,
     };
 
@@ -179,6 +186,10 @@ export async function updateProviderProfileAction(
       issueDate: cert.issueDate ? new Date(cert.issueDate) : null,
       expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : null,
     }));
+    
+    const clientSafePortfolio = portfolioToSave.map(item => ({
+        ...item,
+    }));
 
     return {
       success: true,
@@ -186,12 +197,13 @@ export async function updateProviderProfileAction(
       updatedProfile: {
         ...updatePayload,
         certifications: clientSafeCertifications,
+        portfolio: clientSafePortfolio,
         fullAddress: updatePayload.fullAddress,
         operatingHours: updatePayload.operatingHours,
         website: updatePayload.website,
         profilePictureUrl: updatePayload.profilePictureUrl,
         bannerImageUrl: updatePayload.bannerImageUrl,
-        unavailableDates: updatePayload.unavailableDates, 
+        unavailableDates: updatePayload.unavailableDates,
         receivesEmergencyJobAlerts: updatePayload.receivesEmergencyJobAlerts,
       }
     };
@@ -201,4 +213,3 @@ export async function updateProviderProfileAction(
     return { success: false, message: `Failed to update profile: ${error.message}.` };
   }
 }
-

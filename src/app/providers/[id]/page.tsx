@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation'; 
 import { useEffect, useState } from 'react'; 
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles } from 'lucide-react'; // Added Sparkles
+import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ import { auth } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider'; 
 import type { Review } from '@/models/review';
 import Link from 'next/link'; 
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isSameDay } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions';
 import { getOrCreateChatAction } from '@/app/messages/actions';
@@ -156,7 +156,11 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
   const today = new Date();
   today.setHours(0,0,0,0); 
 
-  const providerUnavailableDates = (provider.unavailableDates || []).map(dateStr => parseISO(dateStr));
+  const providerUnavailableDatesParsed = (provider.unavailableDates || []).map(dateStr => parseISO(dateStr));
+  const isDateDisabled = (date: Date): boolean => {
+    if (date < today) return true;
+    return providerUnavailableDatesParsed.some(unavailableDate => isSameDay(unavailableDate, date));
+  };
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -169,7 +173,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
               fill
               style={{ objectFit: 'cover' }}
               priority
-              data-ai-hint="workshop tools"
+              data-ai-hint={provider.bannerImageUrl ? "business cover" : "workshop tools"}
             />
             <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-6 md:p-8">
                 <div className="flex items-start md:items-center space-x-4">
@@ -285,10 +289,19 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {provider.portfolio.map(item => (
                             <div key={item.id || item.imageUrl} className="rounded-lg overflow-hidden shadow group aspect-video relative border">
-                              <Image src={item.imageUrl || 'https://placehold.co/600x400.png'} alt={item.description || 'Portfolio item'} fill style={{objectFit: 'cover'}} className="transition-transform duration-300 group-hover:scale-105" data-ai-hint={item.dataAiHint || 'project image'}/>
-                              <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                <p className="text-sm text-white truncate">{item.description || 'Project Image'}</p>
-                              </div>
+                              <Image 
+                                src={item.imageUrl || 'https://placehold.co/600x400.png'} 
+                                alt={item.description || 'Portfolio item'} 
+                                fill 
+                                style={{objectFit: 'cover'}} 
+                                className="transition-transform duration-300 group-hover:scale-105" 
+                                data-ai-hint={item.dataAiHint || item.description?.split(' ').slice(0,2).join(' ') || 'project image'}
+                              />
+                              {item.imageUrl && item.description && (
+                                <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                  <p className="text-sm text-white truncate">{item.description}</p>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -393,6 +406,14 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                         </div>
                     </div>
                   )}
+                   {provider.receivesEmergencyJobAlerts && (
+                    <div className="flex items-start text-orange-600 dark:text-orange-400">
+                      <BellRing className="h-5 w-5 mr-3 mt-1 shrink-0" />
+                      <div>
+                        <p className="font-medium">Accepts Emergency Jobs</p>
+                      </div>
+                    </div>
+                  )}
                   <Separator />
                   { currentUser?.uid !== provider.userId && (
                     <>
@@ -417,7 +438,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                                 selected={selectedBookingDate}
                                 onSelect={setSelectedBookingDate}
                                 className="rounded-md border"
-                                disabled={(date) => date < today || providerUnavailableDates.some(unavailableDate => unavailableDate.getTime() === date.getTime())}
+                                disabled={isDateDisabled}
                             />
                             </div>
                             <div className="grid gap-2">
