@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation'; 
 import { useEffect, useState } from 'react'; 
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays } from 'lucide-react';
+import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles } from 'lucide-react'; // Added Sparkles
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,7 @@ import { auth } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider'; 
 import type { Review } from '@/models/review';
 import Link from 'next/link'; 
-import { format, parseISO } from 'date-fns'; // Added parseISO
+import { format, parseISO } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions';
 import { getOrCreateChatAction } from '@/app/messages/actions';
@@ -209,25 +209,28 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                     </CardHeader>
                     <CardContent className="space-y-4 text-foreground/90">
                       <p className="whitespace-pre-line">{provider.bio || "No biography provided."}</p>
+                      
                       {provider.specialties && provider.specialties.length > 0 && (
-                        <div>
-                          <h4 className="font-semibold mb-1 text-md flex items-center"><Sparkles className="h-4 w-4 mr-2 text-primary" />Specialties:</h4>
-                          <div className="flex flex-wrap gap-2 mt-1">
-                            {provider.specialties.map(spec => <Badge key={spec} variant="secondary">{spec}</Badge>)}
+                        <div className="pt-3">
+                          <h4 className="font-semibold mb-2 text-md flex items-center"><Sparkles className="h-5 w-5 mr-2 text-primary" />Specialties:</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {provider.specialties.map(spec => <Badge key={spec} variant="secondary" className="text-sm">{spec}</Badge>)}
                           </div>
                         </div>
                       )}
+
                       {provider.skills && provider.skills.length > 0 && (
-                        <div className="mt-3">
-                          <h4 className="font-semibold mb-1 text-md flex items-center"><Tag className="h-4 w-4 mr-2 text-primary" />Skills & Keywords:</h4>
-                           <div className="flex flex-wrap gap-2 mt-1">
-                            {provider.skills.map(skill => <Badge key={skill} variant="outline">{skill}</Badge>)}
+                        <div className="pt-3">
+                          <h4 className="font-semibold mb-2 text-md flex items-center"><Tag className="h-5 w-5 mr-2 text-primary" />Skills:</h4>
+                           <div className="flex flex-wrap gap-2">
+                            {provider.skills.map(skill => <Badge key={skill} variant="outline" className="text-sm">{skill}</Badge>)}
                           </div>
                         </div>
                       )}
+
                        {provider.yearsOfExperience > 0 && (
-                        <div>
-                          <h4 className="font-semibold mb-1 text-md flex items-center"><Award className="h-4 w-4 mr-2 text-primary" />Years of Experience:</h4>
+                        <div className="pt-3">
+                          <h4 className="font-semibold mb-2 text-md flex items-center"><Award className="h-5 w-5 mr-2 text-primary" />Years of Experience:</h4>
                           <p>{provider.yearsOfExperience} years</p>
                         </div>
                        )}

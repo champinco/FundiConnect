@@ -4,23 +4,19 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, MapPin } from 'lucide-react';
+import { Search, MapPin, Star, CheckCircle2 } from 'lucide-react'; // Added Star, CheckCircle2
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
-// Removed client-side Firestore imports: collection, query, where, orderBy, limit, getDocs, Timestamp, db
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchFeaturedProvidersAction } from '@/app/actions/home_page_actions'; // Import the new server action
+import { fetchFeaturedProvidersAction } from '@/app/actions/home_page_actions';
 
-// Tier 1 services for homepage browsing
 const serviceCategories: ServiceCategory[] = [
   'Plumbing',
   'Electrical',
   'Appliance Repair',
   'Garbage Collection',
 ];
-
-// Client-side getFeaturedProviders function is now removed. Logic moved to fetchFeaturedProvidersAction.
 
 export default function HomePage() {
   const router = useRouter();
@@ -40,7 +36,7 @@ export default function HomePage() {
       } catch (error: any) {
         console.error("Error fetching featured providers from action:", error);
         setFetchError(error.message || "Could not load featured providers.");
-        setFeaturedProviders([]); // Ensure it's an empty array on error
+        setFeaturedProviders([]);
       } finally {
         setIsLoadingProviders(false);
       }
@@ -57,7 +53,7 @@ export default function HomePage() {
     if (locationQuery.trim()) {
       params.set('location', locationQuery.trim());
     }
-    router.push(`/search?mode=providers&${params.toString()}`); // Added mode=providers for clarity
+    router.push(`/search?mode=providers&${params.toString()}`);
   };
 
   return (
@@ -66,7 +62,7 @@ export default function HomePage() {
       <section className="py-16 md:py-24 bg-gradient-to-br from-primary/10 via-background to-background">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl md:text-6xl font-bold font-headline mb-6 text-primary">
-            Find Trusted Fundis, Fast.
+            Your Trusted Local Fundi, On-Demand.
           </h1>
           <p className="text-lg md:text-xl text-foreground mb-8 max-w-2xl mx-auto">
             Connect with verified electricians, plumbers, and more across Kenya.
@@ -77,7 +73,7 @@ export default function HomePage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="What service do you need? (e.g., Plumber)"
+                placeholder="What service do you need today? (e.g., Plumber, Electrician)"
                 className="pl-10 h-12 text-base"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -97,7 +93,14 @@ export default function HomePage() {
               <Search className="mr-2 h-5 w-5" /> Search
             </Button>
           </form>
-           <div className="mt-8">
+          <div className="mt-8 text-sm text-muted-foreground flex items-center justify-center space-x-4 md:space-x-6">
+            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-500" /> 10,000+ Jobs Completed</span>
+            <span className="hidden sm:inline">|</span>
+            <span className="flex items-center"><Star className="h-5 w-5 mr-1.5 text-yellow-400 fill-yellow-400" /> 4.8/5 Average Rating</span>
+            <span className="hidden sm:inline">|</span>
+            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-500" /> All Providers Verified</span>
+          </div>
+           <div className="mt-6">
             <Button asChild variant="link" className="text-primary hover:text-primary/80">
               <Link href="/smart-match">
                 <span>Try our AI Smart Match tool &rarr;</span>
@@ -115,7 +118,7 @@ export default function HomePage() {
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
             {serviceCategories.map((category) => (
-              <Link href={`/search?mode=providers&category=${encodeURIComponent(category)}`} key={category}> {/* Added mode=providers */}
+              <Link href={`/search?mode=providers&category=${encodeURIComponent(category)}`} key={category}>
                 <ServiceCategoryIcon category={category} />
               </Link>
             ))}
