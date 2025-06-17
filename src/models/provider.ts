@@ -43,9 +43,10 @@ export interface ProviderProfile {
   profilePictureUrl?: string | null;
   bannerImageUrl?: string | null;
   website?: string | null;
-  socialMediaLinks?: Record<string, string> | null;
+  socialMediaLinks?: Record<string, string> | null; // Added social media links
   unavailableDates?: string[]; // Array of "YYYY-MM-DD" strings
   receivesEmergencyJobAlerts?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+

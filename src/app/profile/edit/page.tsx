@@ -16,7 +16,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen, BellRing, Images } from 'lucide-react';
+import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen, BellRing, Images, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 
@@ -64,6 +64,10 @@ export default function EditProviderProfilePage() {
       operatingHours: "",
       serviceAreas: "",
       website: "",
+      twitterUrl: "",
+      instagramUrl: "",
+      facebookUrl: "",
+      linkedinUrl: "",
       certifications: [],
       portfolio: [],
       profilePictureUrl: null,
@@ -127,6 +131,10 @@ export default function EditProviderProfilePage() {
               skills: (result.providerProfile.skills ?? []).join(', '),
               yearsOfExperience: result.providerProfile.yearsOfExperience ?? 0,
               serviceAreas: (result.providerProfile.serviceAreas ?? []).join(', '),
+              twitterUrl: result.providerProfile.socialMediaLinks?.twitter || "",
+              instagramUrl: result.providerProfile.socialMediaLinks?.instagram || "",
+              facebookUrl: result.providerProfile.socialMediaLinks?.facebook || "",
+              linkedinUrl: result.providerProfile.socialMediaLinks?.linkedin || "",
               certifications: (result.providerProfile.certifications ?? []).map(cert => ({
                 ...cert,
                 issueDate: cert.issueDate ? new Date(cert.issueDate) : undefined,
@@ -268,6 +276,12 @@ export default function EditProviderProfilePage() {
         }
         if (uploadedProfilePicUrl) setProfilePicturePreview(uploadedProfilePicUrl);
         if (uploadedBannerImgUrl) setBannerImagePreview(uploadedBannerImgUrl);
+        // Set social media URLs after successful update
+        setValue('twitterUrl', result.updatedProfile?.socialMediaLinks?.twitter || "");
+        setValue('instagramUrl', result.updatedProfile?.socialMediaLinks?.instagram || "");
+        setValue('facebookUrl', result.updatedProfile?.socialMediaLinks?.facebook || "");
+        setValue('linkedinUrl', result.updatedProfile?.socialMediaLinks?.linkedin || "");
+
 
       } else {
         toast({ title: "Update Failed", description: result.message, variant: "destructive" });
@@ -433,6 +447,32 @@ export default function EditProviderProfilePage() {
                     <Input id="newBannerImageFile" type="file" onChange={handleBannerImageChange} accept="image/png, image/jpeg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
                     <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: 1200x400px.</p>
                     {errors.newBannerImageFile && <p className="text-sm text-destructive mt-1">{errors.newBannerImageFile.message}</p>}
+                </div>
+              </div>
+            </section>
+
+             <section>
+              <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Social Media Links (Optional)</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="twitterUrl" className="font-semibold flex items-center"><Twitter className="mr-2 h-4 w-4 text-blue-500" /> Twitter URL</Label>
+                  <Input id="twitterUrl" {...register("twitterUrl")} placeholder="https://twitter.com/yourprofile" className="mt-1" />
+                  {errors.twitterUrl && <p className="text-sm text-destructive mt-1">{errors.twitterUrl.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="instagramUrl" className="font-semibold flex items-center"><Instagram className="mr-2 h-4 w-4 text-pink-600" /> Instagram URL</Label>
+                  <Input id="instagramUrl" {...register("instagramUrl")} placeholder="https://instagram.com/yourprofile" className="mt-1" />
+                  {errors.instagramUrl && <p className="text-sm text-destructive mt-1">{errors.instagramUrl.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="facebookUrl" className="font-semibold flex items-center"><Facebook className="mr-2 h-4 w-4 text-blue-700" /> Facebook URL</Label>
+                  <Input id="facebookUrl" {...register("facebookUrl")} placeholder="https://facebook.com/yourprofile" className="mt-1" />
+                  {errors.facebookUrl && <p className="text-sm text-destructive mt-1">{errors.facebookUrl.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="linkedinUrl" className="font-semibold flex items-center"><Linkedin className="mr-2 h-4 w-4 text-sky-600" /> LinkedIn URL</Label>
+                  <Input id="linkedinUrl" {...register("linkedinUrl")} placeholder="https://linkedin.com/in/yourprofile" className="mt-1" />
+                  {errors.linkedinUrl && <p className="text-sm text-destructive mt-1">{errors.linkedinUrl.message}</p>}
                 </div>
               </div>
             </section>

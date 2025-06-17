@@ -64,6 +64,7 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         serviceAreas: [],
         profilePictureUrl: appUser.photoURL || null,
         bannerImageUrl: null,
+        socialMediaLinks: null,
         unavailableDates: [], 
         receivesEmergencyJobAlerts: false,
       };
@@ -148,6 +149,11 @@ export async function updateProviderProfileAction(
     const skillsArray = Array.isArray(data.skills) ? data.skills : (typeof data.skills === 'string' ? data.skills.split(',').map(s => s.trim()).filter(s => s) : []);
     const serviceAreasArray = Array.isArray(data.serviceAreas) ? data.serviceAreas : (typeof data.serviceAreas === 'string' ? data.serviceAreas.split(',').map(s => s.trim()).filter(s => s) : []);
 
+    const socialMediaLinks: Record<string, string> = {};
+    if (data.twitterUrl) socialMediaLinks.twitter = data.twitterUrl;
+    if (data.instagramUrl) socialMediaLinks.instagram = data.instagramUrl;
+    if (data.facebookUrl) socialMediaLinks.facebook = data.facebookUrl;
+    if (data.linkedinUrl) socialMediaLinks.linkedin = data.linkedinUrl;
 
     const updatePayload: any = {
       businessName: data.businessName,
@@ -162,6 +168,7 @@ export async function updateProviderProfileAction(
       operatingHours: data.operatingHours || null,
       serviceAreas: serviceAreasArray,
       website: data.website || null,
+      socialMediaLinks: Object.keys(socialMediaLinks).length > 0 ? socialMediaLinks : null,
       certifications: certificationsToSave,
       portfolio: portfolioToSave,
       unavailableDates: (data.unavailableDates || []).map(date => format(date, 'yyyy-MM-dd')),
@@ -201,6 +208,7 @@ export async function updateProviderProfileAction(
         fullAddress: updatePayload.fullAddress,
         operatingHours: updatePayload.operatingHours,
         website: updatePayload.website,
+        socialMediaLinks: updatePayload.socialMediaLinks,
         profilePictureUrl: updatePayload.profilePictureUrl,
         bannerImageUrl: updatePayload.bannerImageUrl,
         unavailableDates: updatePayload.unavailableDates,

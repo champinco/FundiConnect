@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation'; 
 import { useEffect, useState } from 'react'; 
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing } from 'lucide-react';
+import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -161,6 +161,13 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     if (date < today) return true;
     return providerUnavailableDatesParsed.some(unavailableDate => isSameDay(unavailableDate, date));
   };
+  
+  const socialMediaPlatforms = [
+    { key: 'twitter', Icon: Twitter, color: 'text-sky-500', name: 'Twitter' },
+    { key: 'instagram', Icon: Instagram, color: 'text-pink-600', name: 'Instagram' },
+    { key: 'facebook', Icon: Facebook, color: 'text-blue-700', name: 'Facebook' },
+    { key: 'linkedin', Icon: Linkedin, color: 'text-sky-700', name: 'LinkedIn' },
+  ];
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -414,6 +421,41 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                       </div>
                     </div>
                   )}
+                  
+                  {provider.website && (
+                    <div className="flex items-start">
+                      <ExternalLink className="h-5 w-5 mr-3 mt-1 text-primary shrink-0" />
+                      <div>
+                        <p className="font-medium">Website</p>
+                        <a href={provider.website.startsWith('http') ? provider.website : `https://${provider.website}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                          {provider.website}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {provider.socialMediaLinks && Object.keys(provider.socialMediaLinks).length > 0 && (
+                    <div className="pt-2">
+                      <p className="font-medium mb-2">Social Media</p>
+                      <div className="flex items-center space-x-3">
+                        {socialMediaPlatforms.map(({ key, Icon, color, name }) => (
+                          provider.socialMediaLinks![key] && (
+                            <a
+                              key={key}
+                              href={provider.socialMediaLinks![key].startsWith('http') ? provider.socialMediaLinks![key] : `https://${provider.socialMediaLinks![key]}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={name}
+                              className={`hover:opacity-75 transition-opacity ${color}`}
+                            >
+                              <Icon className="h-6 w-6" />
+                            </a>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <Separator />
                   { currentUser?.uid !== provider.userId && (
                     <>

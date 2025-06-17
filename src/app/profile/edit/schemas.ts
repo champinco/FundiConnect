@@ -69,6 +69,12 @@ export const providerProfileEditFormSchema = z.object({
     .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
   website: z.string().url("Please enter a valid URL for your website.").optional().or(z.literal('')),
 
+  // Social Media Links
+  twitterUrl: z.string().url("Please enter a valid Twitter URL.").optional().or(z.literal('')),
+  instagramUrl: z.string().url("Please enter a valid Instagram URL.").optional().or(z.literal('')),
+  facebookUrl: z.string().url("Please enter a valid Facebook URL.").optional().or(z.literal('')),
+  linkedinUrl: z.string().url("Please enter a valid LinkedIn URL.").optional().or(z.literal('')),
+
   profilePictureUrl: z.string().url().optional().nullable(),
   bannerImageUrl: z.string().url().optional().nullable(),
 
