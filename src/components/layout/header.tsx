@@ -7,13 +7,13 @@ import { buttonVariants } from "@/components/ui/button";
 import { MainNav } from "@/components/main-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase'; 
 import { useRouter } from 'next/navigation';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings, Briefcase, ListChecks, Edit3, Bell } from "lucide-react"; // Added Bell
+import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings, Briefcase, ListChecks, Edit3, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -28,6 +28,8 @@ import {
 import type { NavItem } from "@/types";
 import type { AccountType } from "@/models/user";
 import { fetchCurrentAppUserTypeAction } from "@/app/profile/actions";
+import NotificationDropdown from '@/components/notification-dropdown';
+import { getUnreadNotificationCountAction } from '@/app/actions/notification_actions';
 
 
 export function SiteHeader() {
@@ -36,6 +38,17 @@ export function SiteHeader() {
   const [loadingAuth, setLoadingAuth] = useState(true); 
   const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
+
+  const fetchUnreadCount = useCallback(async (userId: string | null) => {
+    if (userId) {
+      const count = await getUnreadNotificationCountAction(userId);
+      setUnreadNotificationCount(count);
+    } else {
+      setUnreadNotificationCount(0);
+    }
+  }, []);
 
   useEffect(() => {
     setLoadingAuth(true);
@@ -44,22 +57,33 @@ export function SiteHeader() {
       if (user) {
         const type = await fetchCurrentAppUserTypeAction(user.uid);
         setAccountType(type);
+        fetchUnreadCount(user.uid);
       } else {
         setAccountType(null);
+        setUnreadNotificationCount(0);
       }
       setLoadingAuth(false); 
     });
     return () => unsubscribe();
-  }, []); 
+  }, [fetchUnreadCount]); 
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       setAccountType(null); 
-      setMobileNavOpen(false); 
+      setMobileNavOpen(false);
+      setUnreadNotificationCount(0); 
       router.push('/'); 
     } catch (error) {
       console.error("Error logging out:", error);
+    }
+  };
+  
+  const handleNotificationDropdownOpenChange = (open: boolean) => {
+    setIsNotificationDropdownOpen(open);
+    if (open && currentUser) {
+      // Optionally, re-fetch notifications or count when dropdown is opened
+      // For now, count updates via onUnreadCountChange from NotificationDropdown
     }
   };
 
@@ -100,13 +124,28 @@ export function SiteHeader() {
         
         <div className="flex flex-1 items-center justify-end space-x-1 md:space-x-2">
           <nav className="hidden items-center space-x-1 md:flex">
-            {currentUser && ( // Bell icon for notifications - static for now
-                <Button variant="ghost" size="icon" className="relative" onClick={() => {/* TODO: Open notification popover/page */}}>
+            {currentUser && (
+              <DropdownMenu onOpenChange={handleNotificationDropdownOpenChange}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="relative">
                     <Bell className="h-5 w-5" />
-                    {/* Placeholder for unread count badge */}
-                    {/* <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" /> */}
+                    {unreadNotificationCount > 0 && (
+                      <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-destructive ring-1 ring-background" />
+                    )}
                     <span className="sr-only">Notifications</span>
-                </Button>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="p-0">
+                  {isNotificationDropdownOpen && ( // Render only when open to fetch fresh data
+                    <NotificationDropdown 
+                      userId={currentUser.uid} 
+                      initialUnreadCount={unreadNotificationCount}
+                      onUnreadCountChange={setUnreadNotificationCount}
+                      onClose={() => setIsNotificationDropdownOpen(false)}
+                    />
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             {currentUser ? (
               <DropdownMenu>
@@ -175,11 +214,28 @@ export function SiteHeader() {
           {/* Mobile Menu Button & Sheet */}
           <div className="md:hidden flex items-center">
              {!loadingAuth && <ThemeToggle />} 
-             {currentUser && !loadingAuth && ( // Bell icon for mobile
-                <Button variant="ghost" size="icon" className="relative" onClick={() => {/* TODO: Open notification popover/page */}}>
-                    <Bell className="h-5 w-5" />
-                    <span className="sr-only">Notifications</span>
-                </Button>
+             {currentUser && !loadingAuth && (
+                <DropdownMenu onOpenChange={handleNotificationDropdownOpenChange}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="relative">
+                      <Bell className="h-5 w-5" />
+                      {unreadNotificationCount > 0 && (
+                        <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-destructive ring-1 ring-background" />
+                      )}
+                      <span className="sr-only">Notifications</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="p-0">
+                     {isNotificationDropdownOpen && (
+                        <NotificationDropdown 
+                          userId={currentUser.uid} 
+                          initialUnreadCount={unreadNotificationCount}
+                          onUnreadCountChange={setUnreadNotificationCount}
+                          onClose={() => setIsNotificationDropdownOpen(false)}
+                        />
+                      )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
              )}
             <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
               <SheetTrigger asChild>

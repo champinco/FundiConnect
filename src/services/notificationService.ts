@@ -3,7 +3,7 @@
  * @fileOverview Service functions for creating and managing notifications in Firestore.
  */
 import { adminDb } from '@/lib/firebaseAdmin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore'; // Ensure Timestamp is imported for type annotation
 import type { Notification, NotificationType } from '@/models/notification';
 
 export interface CreateNotificationData {
@@ -29,7 +29,7 @@ export async function createNotification(data: CreateNotificationData): Promise<
     const newNotificationRef = notificationsCollectionRef.doc(); // Auto-generate ID
     const now = FieldValue.serverTimestamp();
 
-    const notificationPayload: Omit<Notification, 'id' | 'createdAt' | 'isRead'> & { createdAt: FieldValue, isRead: boolean } = {
+    const notificationPayload: Omit<Notification, 'id' | 'createdAt' | 'isRead'> & { createdAt: FieldValue, isRead: boolean, updatedAt: FieldValue } = {
       userId: data.userId,
       type: data.type,
       message: data.message,
@@ -37,6 +37,7 @@ export async function createNotification(data: CreateNotificationData): Promise<
       link: data.link || null,
       isRead: false,
       createdAt: now,
+      updatedAt: now, // Add updatedAt on creation
     };
 
     await newNotificationRef.set(notificationPayload);
@@ -60,7 +61,7 @@ export async function markNotificationAsRead(notificationId: string): Promise<vo
   }
   const notificationRef = adminDb.collection('notifications').doc(notificationId);
   try {
-    await notificationRef.update({ isRead: true });
+    await notificationRef.update({ isRead: true, updatedAt: FieldValue.serverTimestamp() as Timestamp }); // Added updatedAt
     console.log(`[NotificationService] Notification ${notificationId} marked as read.`);
   } catch (error: any) {
     console.error(`[NotificationService] Error marking notification ${notificationId} as read. Error:`, error.message, error.stack);
@@ -88,7 +89,7 @@ export async function markAllNotificationsAsReadForUser(userId: string): Promise
     }
     const batch = adminDb.batch();
     snapshot.docs.forEach(doc => {
-      batch.update(doc.ref, { isRead: true });
+      batch.update(doc.ref, { isRead: true, updatedAt: FieldValue.serverTimestamp() as Timestamp }); // Added updatedAt
     });
     await batch.commit();
     console.log(`[NotificationService] Marked ${snapshot.size} notifications as read for user ${userId}.`);

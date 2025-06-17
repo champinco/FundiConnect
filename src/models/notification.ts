@@ -19,3 +19,8 @@ export interface Notification {
   // Optional: deep link path for navigation
   link?: string | null;
 }
+
+// Added for client-side fetching and state management
+export interface ClientNotification extends Notification {
+  // any client-specific properties if needed in the future
+}
