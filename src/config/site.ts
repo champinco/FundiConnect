@@ -65,7 +65,7 @@ export const siteConfig = {
   mainNavLoggedIn: mainNavLinksLoggedInExclusive, // Links visible only when logged in
   mainNavLoggedOut: mainNavLinksLoggedOutExclusive, // Links visible only when logged out (if any)
   links: {
-    twitter: "https://twitter.com/shadcn", 
-    github: "https://github.com/shadcn/ui", 
+    twitter: "https://twitter.com/FundiConnectApp", // Placeholder updated
+    github: "https://github.com/FundiConnect", // Placeholder updated
   },
 };
