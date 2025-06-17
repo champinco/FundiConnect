@@ -30,6 +30,7 @@ import type { AccountType } from "@/models/user";
 import { fetchCurrentAppUserTypeAction } from "@/app/profile/actions";
 import NotificationDropdown from '@/components/notification-dropdown';
 import { getUnreadNotificationCountAction } from '@/app/actions/notification_actions';
+import { getUnreadChatCountAction } from '@/app/messages/actions';
 
 
 export function SiteHeader() {
@@ -40,6 +41,7 @@ export function SiteHeader() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0); // New state for unread messages
 
   const fetchUnreadCount = useCallback(async (userId: string | null) => {
     if (userId) {
@@ -47,6 +49,15 @@ export function SiteHeader() {
       setUnreadNotificationCount(count);
     } else {
       setUnreadNotificationCount(0);
+    }
+  }, []);
+
+  const fetchUnreadMessageCount = useCallback(async (userId: string | null) => {
+    if (userId) {
+      const count = await getUnreadChatCountAction(userId);
+      setUnreadMessageCount(count);
+    } else {
+      setUnreadMessageCount(0);
     }
   }, []);
 
@@ -58,14 +69,16 @@ export function SiteHeader() {
         const type = await fetchCurrentAppUserTypeAction(user.uid);
         setAccountType(type);
         fetchUnreadCount(user.uid);
+        fetchUnreadMessageCount(user.uid); // Fetch unread message count
       } else {
         setAccountType(null);
         setUnreadNotificationCount(0);
+        setUnreadMessageCount(0); // Reset unread message count on logout
       }
       setLoadingAuth(false); 
     });
     return () => unsubscribe();
-  }, [fetchUnreadCount]); 
+  }, [fetchUnreadCount, fetchUnreadMessageCount]); 
 
   const handleLogout = async () => {
     try {
@@ -73,6 +86,7 @@ export function SiteHeader() {
       setAccountType(null); 
       setMobileNavOpen(false);
       setUnreadNotificationCount(0); 
+      setUnreadMessageCount(0); // Reset on logout
       router.push('/'); 
     } catch (error) {
       console.error("Error logging out:", error);
@@ -140,7 +154,11 @@ export function SiteHeader() {
                     <NotificationDropdown 
                       userId={currentUser.uid} 
                       initialUnreadCount={unreadNotificationCount}
-                      onUnreadCountChange={setUnreadNotificationCount}
+                      onUnreadCountChange={(newCount) => {
+                        setUnreadNotificationCount(newCount);
+                        // Potentially refresh message count if notification was a "new_message" type and was marked read
+                        if (currentUser) fetchUnreadMessageCount(currentUser.uid);
+                      }}
                       onClose={() => setIsNotificationDropdownOpen(false)}
                     />
                   )}
@@ -174,13 +192,18 @@ export function SiteHeader() {
                   {userSpecificNavItems.map((item) => (
                      item.href && (
                         <DropdownMenuItem key={`desktop-${item.href}`} asChild>
-                            <Link href={item.href}>
-                                {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-4 w-4" />}
-                                {item.title === "Messages" && <MessageSquare className="mr-2 h-4 w-4" />}
-                                {item.title === "My Profile" && <UserCircle className="mr-2 h-4 w-4" />}
-                                {item.title === "Post a Job" && <Edit3 className="mr-2 h-4 w-4" />}
-                                {item.title === "My Jobs" && <ListChecks className="mr-2 h-4 w-4" />}
-                                {item.title}
+                            <Link href={item.href} className="flex items-center justify-between w-full">
+                                <span className="flex items-center">
+                                    {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-4 w-4" />}
+                                    {item.title === "Messages" && <MessageSquare className="mr-2 h-4 w-4" />}
+                                    {item.title === "My Profile" && <UserCircle className="mr-2 h-4 w-4" />}
+                                    {item.title === "Post a Job" && <Edit3 className="mr-2 h-4 w-4" />}
+                                    {item.title === "My Jobs" && <ListChecks className="mr-2 h-4 w-4" />}
+                                    {item.title}
+                                </span>
+                                {item.title === "Messages" && unreadMessageCount > 0 && (
+                                <span className="ml-auto h-2 w-2 rounded-full bg-destructive" />
+                                )}
                             </Link>
                         </DropdownMenuItem>
                      )
@@ -230,7 +253,10 @@ export function SiteHeader() {
                         <NotificationDropdown 
                           userId={currentUser.uid} 
                           initialUnreadCount={unreadNotificationCount}
-                          onUnreadCountChange={setUnreadNotificationCount}
+                          onUnreadCountChange={(newCount) => {
+                            setUnreadNotificationCount(newCount);
+                            if (currentUser) fetchUnreadMessageCount(currentUser.uid);
+                          }}
                           onClose={() => setIsNotificationDropdownOpen(false)}
                         />
                       )}
@@ -293,15 +319,20 @@ export function SiteHeader() {
                         <Link
                             key={`mobile-user-${item.href}`}
                             href={item.href}
-                            className="flex items-center rounded-md px-3 py-2 text-base font-medium hover:bg-muted"
+                            className="flex items-center justify-between rounded-md px-3 py-2 text-base font-medium hover:bg-muted"
                             onClick={() => setMobileNavOpen(false)}
                         >
-                            {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-5 w-5" />}
-                            {item.title === "Messages" && <MessageSquare className="mr-2 h-5 w-5" />}
-                            {item.title === "My Profile" && <UserCircle className="mr-2 h-5 w-5" />}
-                            {item.title === "Post a Job" && <Edit3 className="mr-2 h-5 w-5" />}
-                            {item.title === "My Jobs" && <ListChecks className="mr-2 h-5 w-5" />}
-                            {item.title}
+                            <span className="flex items-center">
+                                {item.title === "Dashboard" && <LayoutDashboard className="mr-2 h-5 w-5" />}
+                                {item.title === "Messages" && <MessageSquare className="mr-2 h-5 w-5" />}
+                                {item.title === "My Profile" && <UserCircle className="mr-2 h-5 w-5" />}
+                                {item.title === "Post a Job" && <Edit3 className="mr-2 h-5 w-5" />}
+                                {item.title === "My Jobs" && <ListChecks className="mr-2 h-5 w-5" />}
+                                {item.title}
+                            </span>
+                             {item.title === "Messages" && unreadMessageCount > 0 && (
+                                <span className="ml-auto h-2.5 w-2.5 rounded-full bg-destructive" />
+                            )}
                         </Link>
                     )
                   ))}
@@ -345,3 +376,4 @@ export function SiteHeader() {
     </header>
   );
 }
+

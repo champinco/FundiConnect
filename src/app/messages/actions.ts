@@ -2,7 +2,7 @@
 'use server';
 
 import { adminDb } from '@/lib/firebaseAdmin';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type Query } from 'firebase-admin/firestore';
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import { createNotification } from '@/services/notificationService'; // Import notification service
@@ -146,7 +146,7 @@ export async function sendMessageAction(
         text: lastMessageText,
         senderUid,
         timestamp: FieldValue.serverTimestamp(),
-        isReadBy: { [senderUid]: true } // Mark as read by sender
+        isReadBy: { [senderUid]: true, [receiverUid]: false } // Mark as read by sender, unread by receiver
       },
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -180,5 +180,35 @@ export async function sendMessageAction(
   }
 }
 
+export async function getUnreadChatCountAction(userId: string): Promise<number> {
+  if (!adminDb || typeof adminDb.collection !== 'function' || !userId) {
+    console.warn("[getUnreadChatCountAction] Admin DB not initialized or userId missing.");
+    return 0;
+  }
+  try {
+    const chatsRef = adminDb.collection('chats');
+    const q: Query = chatsRef.where('participantUids', 'array-contains', userId);
+    const snapshot = await q.get();
+    
+    if (snapshot.empty) {
+      return 0;
+    }
 
+    let unreadCount = 0;
+    snapshot.forEach(doc => {
+      const chat = doc.data() as Chat;
+      if (
+        chat.lastMessage &&
+        chat.lastMessage.senderUid !== userId &&
+        (!chat.lastMessage.isReadBy || !chat.lastMessage.isReadBy[userId])
+      ) {
+        unreadCount++;
+      }
+    });
+    return unreadCount;
+  } catch (error: any) {
+    console.error(`[getUnreadChatCountAction] Error fetching unread chat count for user ${userId}:`, error.message, error.stack);
+    return 0; 
+  }
+}
     
