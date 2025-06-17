@@ -69,7 +69,6 @@ function SearchPageContent() {
     return () => unsubscribe();
   }, []);
 
-  // Ref to track isLoading state without causing re-renders in executeSearch's useCallback dependencies
   const isLoadingRef = useRef(isLoading);
   useEffect(() => {
     isLoadingRef.current = isLoading;
@@ -164,7 +163,9 @@ function SearchPageContent() {
     }
 
     let performSearchNow = false;
-    if (modeFromUrl === 'jobs') {
+    if (modeFromUrl === 'providers') {
+      performSearchNow = true; // Always try to perform search for providers mode to show all if no filters
+    } else if (modeFromUrl === 'jobs') {
       if (myJobsActive) {
         if (currentUser && !authLoading) { 
           performSearchNow = true;
@@ -174,58 +175,31 @@ function SearchPageContent() {
       } else { 
         performSearchNow = true; 
       }
-    } else if (modeFromUrl === 'providers') {
-      if (currentUrlParams.has('query') || currentUrlParams.has('location') ||
-          (currentUrlParams.get('category') && currentUrlParams.get('category') !== 'All') ||
-          currentUrlParams.has('minRating') || currentUrlParams.get('verifiedOnly') === 'true') {
-        performSearchNow = true;
-      } else {
-        // If no provider search params from URL, don't auto-search on initial load or simple mode switch.
-        // Reset hasSearched only if there are truly no parameters defining a search state.
-        // This prevents clearing "no results" message if user just switched tabs without params.
-        const hasProviderParams = currentUrlParams.has('query') ||
-                                 currentUrlParams.has('location') ||
-                                 (currentUrlParams.get('category') && currentUrlParams.get('category') !== 'All') ||
-                                 currentUrlParams.has('minRating') ||
-                                 currentUrlParams.get('verifiedOnly') === 'true';
-        if (!hasProviderParams && !isLoadingRef.current) {
-            // setHasSearched(false); // Let "Apply Filters" or form submit set hasSearched to true
-            // setProviderResults([]); // Don't clear here, rely on executeSearch to update
-        }
-      }
     }
+
 
     if (performSearchNow) {
       console.log(`[SearchPage useEffect] Conditions met, calling executeSearch for mode: ${modeFromUrl}`);
       executeSearch(modeFromUrl, currentUrlParams);
     } else if (!isLoadingRef.current) { 
       console.log(`[SearchPage useEffect] Conditions NOT met for auto-search. Mode: ${modeFromUrl}. HasSearched: ${hasSearched}`);
-      // If no search is to be performed, and not loading, ensure UI reflects this,
-      // e.g., by potentially setting hasSearched to false if no meaningful filters are active.
-      // This helps show the "Perform a search" message correctly.
+      // If no search is performed, ensure UI reflects "no search yet" state for providers if applicable
       if (modeFromUrl === 'providers' && !(currentUrlParams.has('query') || currentUrlParams.has('location') || (currentUrlParams.get('category') && currentUrlParams.get('category') !== 'All') || currentUrlParams.has('minRating') || currentUrlParams.get('verifiedOnly') === 'true')) {
-         // If there are truly no provider search parameters active, it's not a "search" yet.
-         // setHasSearched(false); // This might be too aggressive if user manually clears all filters after a search
+        setHasSearched(false); // Show initial prompt if no filters are active
+        setProviderResults([]); // Clear previous results if any
       }
-       if (modeFromUrl === 'jobs' && !myJobsActive && !(currentUrlParams.has('keywords') || currentUrlParams.has('jobLocation') || (currentUrlParams.get('jobCategory') && currentUrlParams.get('jobCategory') !== 'All'))) {
-         // setHasSearched(false);
-      }
-       // If it's "My Jobs" and auth is still loading, performSearchNow is false, but we keep isLoading true from above.
-       // If it's "My Jobs", user is not logged in, and auth is done, performSearchNow is false, isLoading is false (from executeSearch call).
-       // In this case (MyJobs, no user), hasSearched is set to true and results are empty.
     }
-  }, [memoizedNextSearchParams, authLoading, currentUser, executeSearch, searchMode]); // Removed isLoading, added searchMode for tab sync
+  }, [memoizedNextSearchParams, authLoading, currentUser, executeSearch, searchMode]); 
 
 
   const updateUrlAndSearch = (newParams: Record<string, string | null>) => {
     const query = new URLSearchParams(window.location.search);
 
-    // Always set the current mode
     query.set('mode', searchMode);
 
 
     Object.entries(newParams).forEach(([key, value]) => {
-      if (key === 'mode') return; // Mode is already handled
+      if (key === 'mode') return; 
       if (value === null || value === '' || (key === 'minRating' && value === "0") || (key === 'category' && value === 'All') || (key === 'jobCategory' && value === 'All') || (key === 'status' && value === 'all_my')) {
         query.delete(key);
       } else {
@@ -233,15 +207,11 @@ function SearchPageContent() {
       }
     });
     
-    // Preserve myJobs if it's active for job searches
     if (searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true') {
         query.set('myJobs', 'true');
-        // If status was cleared by newParams (e.g. value became null), it's correctly deleted.
-        // If it was not in newParams, it remains from original query.
-        // If it was in newParams and set to a value, it's updated.
     } else if (searchMode !== 'jobs' || memoizedNextSearchParams.get('myJobs') !== 'true') {
-        query.delete('myJobs'); // Clean up myJobs if not in job mode or not myJobs specific search
-        query.delete('status'); // And related status
+        query.delete('myJobs'); 
+        query.delete('status'); 
     }
 
 
@@ -252,11 +222,10 @@ function SearchPageContent() {
   const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     console.log('[handleFormSubmit] Triggered for mode:', searchMode);
-    const paramsToUpdate: Record<string, string | null> = {}; // Mode will be added by updateUrlAndSearch
+    const paramsToUpdate: Record<string, string | null> = {}; 
     if (searchMode === 'providers') {
       paramsToUpdate.query = providerSearchQuery || null; 
       paramsToUpdate.location = providerLocationQuery || null;
-      // Keep existing filters from sidebar if any
       paramsToUpdate.category = selectedProviderCategory === 'All' ? null : selectedProviderCategory;
       paramsToUpdate.minRating = minRating === null || minRating === 0 ? null : minRating.toString();
       paramsToUpdate.verifiedOnly = verifiedOnly ? 'true' : null;
@@ -264,10 +233,9 @@ function SearchPageContent() {
     } else { 
       paramsToUpdate.keywords = jobKeywordsQuery || null;
       paramsToUpdate.jobLocation = jobLocationQuery || null;
-      // Keep existing filters from sidebar if any
       paramsToUpdate.jobCategory = selectedJobCategory === 'All' ? null : selectedJobCategory;
       if (memoizedNextSearchParams.get('myJobs') === 'true') {
-        paramsToUpdate.status = jobStatusFilter || 'all_my'; // Default to 'all_my' if null for "My Jobs"
+        paramsToUpdate.status = jobStatusFilter || 'all_my'; 
       }
     }
     updateUrlAndSearch(paramsToUpdate);
@@ -295,7 +263,6 @@ function SearchPageContent() {
 
   const handleModeChange = (newModeValue: string) => {
     const newMode = newModeValue as SearchMode;
-    // setSearchMode(newMode); // Let useEffect handle this via URL
     const query = new URLSearchParams(); 
     query.set('mode', newMode);
     console.log('[handleModeChange] New mode:', newMode, 'Pushing to URL.');
