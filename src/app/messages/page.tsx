@@ -129,39 +129,38 @@ const MessagesPage: NextPage = () => {
 
                 return (
                   <li key={chat.id}>
-                    <Link href={`/messages/${chat.id}`} legacyBehavior passHref>
-                      <a 
-                        onClick={() => handleChatOpen(chat.id)} 
-                        className={`block p-4 rounded-lg hover:bg-muted transition-colors border ${isUnread ? 'border-primary bg-primary/5 dark:border-primary/70 dark:bg-primary/10' : 'bg-card'}`}
-                      >
-                        <div className="flex items-center space-x-4">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={otherParticipant?.photoURL || undefined} alt={otherParticipant?.displayName || 'User'} data-ai-hint="profile avatar"/>
-                            <AvatarFallback>
-                              {otherParticipant?.displayName ? otherParticipant.displayName.substring(0, 2).toUpperCase() : 'U'}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-center">
-                              <p className={`text-lg font-semibold font-headline truncate ${isUnread ? 'text-primary' : ''}`}>
-                                {otherParticipant?.displayName || 'User'}
-                              </p>
-                              {chat.lastMessage?.timestamp && (
-                                <p className={`text-xs text-muted-foreground whitespace-nowrap ${isUnread ? 'font-medium text-primary/80' : ''}`}>
-                                  {lastMessageTime}
-                                </p>
-                              )}
-                            </div>
-                            <p className={`text-sm text-muted-foreground truncate ${isUnread ? 'font-medium' : ''}`}>
-                              {chat.lastMessage?.senderUid === currentUser?.uid ? "You: " : ""}
-                              {lastMessageText}
+                    <Link
+                      href={`/messages/${chat.id}`}
+                      onClick={() => handleChatOpen(chat.id)}
+                      className={`block p-4 rounded-lg hover:bg-muted transition-colors border ${isUnread ? 'border-primary bg-primary/5 dark:border-primary/70 dark:bg-primary/10' : 'bg-card'}`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage src={otherParticipant?.photoURL || undefined} alt={otherParticipant?.displayName || 'User'} data-ai-hint="profile avatar"/>
+                          <AvatarFallback>
+                            {otherParticipant?.displayName ? otherParticipant.displayName.substring(0, 2).toUpperCase() : 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-center">
+                            <p className={`text-lg font-semibold font-headline truncate ${isUnread ? 'text-primary' : ''}`}>
+                              {otherParticipant?.displayName || 'User'}
                             </p>
+                            {chat.lastMessage?.timestamp && (
+                              <p className={`text-xs text-muted-foreground whitespace-nowrap ${isUnread ? 'font-medium text-primary/80' : ''}`}>
+                                {lastMessageTime}
+                              </p>
+                            )}
                           </div>
-                           {isUnread && (
-                            <span className="w-3 h-3 bg-accent rounded-full shrink-0" title="Unread messages"></span>
-                          )}
+                          <p className={`text-sm text-muted-foreground truncate ${isUnread ? 'font-medium' : ''}`}>
+                            {chat.lastMessage?.senderUid === currentUser?.uid ? "You: " : ""}
+                            {lastMessageText}
+                          </p>
                         </div>
-                      </a>
+                         {isUnread && (
+                          <span className="w-3 h-3 bg-accent rounded-full shrink-0" title="Unread messages"></span>
+                        )}
+                      </div>
                     </Link>
                   </li>
                 );
