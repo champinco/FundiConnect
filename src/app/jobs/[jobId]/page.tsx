@@ -7,7 +7,7 @@ import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign } from 'lucide-react';
+import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import Link from 'next/link';
@@ -21,6 +21,8 @@ import { fetchJobDetailsPageDataAction, type JobDetailsPageData } from './action
 import type { Job, JobStatus } from '@/models/job';
 import type { Quote } from '@/models/quote';
 import { Avatar as ShadCNAvatar, AvatarFallback as ShadCNAvatarFallback, AvatarImage as ShadCNAvatarImage } from '@/components/ui/avatar'; // Explicit import for clarity
+import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
+import { cn } from '@/lib/utils'; // Added cn
 
 
 // Loader for Suspense boundary if JobDetails itself is not async
@@ -66,38 +68,47 @@ function JobDetails({ jobId }: JobDetailsProps) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null); // Changed from currentUserId to currentUser
+
+  const fetchData = async () => {
+    if (jobId) {
+      setIsLoading(true);
+      try {
+        const data = await fetchJobDetailsPageDataAction(jobId);
+        if (data.error || !data.job) {
+          setError(data.error || "Job not found.");
+          setJob(null);
+          setQuotes([]);
+        } else {
+          setJob(data.job);
+          setQuotes(data.quotes || []);
+          setError(null);
+        }
+      } catch (err: any) {
+        setError("Failed to load job details: " + err.message);
+        setJob(null);
+        setQuotes([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUserId(user ? user.uid : null);
+      setCurrentUser(user);
     });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (jobId) {
-      setIsLoading(true);
-      fetchJobDetailsPageDataAction(jobId)
-        .then(data => {
-          if (data.error || !data.job) {
-            setError(data.error || "Job not found.");
-            setJob(null);
-            setQuotes([]);
-          } else {
-            setJob(data.job);
-            setQuotes(data.quotes || []);
-            setError(null);
-          }
-        })
-        .catch(err => {
-          setError("Failed to load job details: " + err.message);
-          setJob(null);
-          setQuotes([]);
-        })
-        .finally(() => setIsLoading(false));
-    }
-  }, [jobId]);
+    fetchData();
+  }, [jobId]); // Fetch data when jobId changes
+
+  const handleQuoteActionComplete = () => {
+    fetchData(); // Refetch data when a quote is accepted/rejected
+  };
+
 
   if (isLoading) {
     return <JobDetailLoader />;
@@ -114,7 +125,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
           <CardContent>
             <p className="text-muted-foreground">{error || "The job you are looking for does not exist or could not be loaded."}</p>
             <Button asChild className="mt-6">
-              <Link href="/search">Find Other Jobs</Link>
+              <Link href="/search?mode=jobs">Find Other Jobs</Link>
             </Button>
           </CardContent>
         </Card>
@@ -192,7 +203,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
               </div>
             )}
             
-            {currentUserId === job.clientId && (
+            {currentUser?.uid === job.clientId && (
               <MarkAsCompletedButton 
                   jobId={job.id} 
                   currentJobStatus={job.status} 
@@ -200,11 +211,11 @@ function JobDetails({ jobId }: JobDetailsProps) {
               />
             )}
 
-            { (job.status === 'open' || job.status === 'pending_quotes') && currentUserId !== job.clientId && ( // Only show if job is open and current user is NOT client
+            { (job.status === 'open' || job.status === 'pending_quotes') && currentUser?.uid !== job.clientId && ( 
               <SubmitQuoteForm jobId={jobId} clientId={job.clientId} />
             )}
             
-            {currentUserId === job.clientId && job.assignedProviderId && ( // Only client can review their assigned provider
+            {currentUser?.uid === job.clientId && job.assignedProviderId && ( 
               <SubmitReviewForm 
                   jobId={job.id} 
                   providerId={job.assignedProviderId} 
@@ -213,7 +224,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
               />
             )}
 
-             {quotes.length > 0 && (job.status !== 'completed' && job.status !== 'cancelled') && ( // Show quotes unless job is completed or cancelled
+             {quotes.length > 0 && (job.status !== 'completed' && job.status !== 'cancelled') && ( 
                 <div className="mt-8">
                   <h3 className="text-xl font-semibold mb-4">Received Quotes ({quotes.length})</h3>
                   <div className="space-y-4">
@@ -249,8 +260,13 @@ function JobDetails({ jobId }: JobDetailsProps) {
                         <CardContent>
                           <p className="text-2xl font-bold text-primary mb-2">{quote.currency} {quote.amount.toLocaleString()}</p>
                           <p className="text-sm text-foreground/80 whitespace-pre-line mb-3">{quote.messageToClient}</p>
-                           {(job.status === 'open' || job.status === 'pending_quotes') && currentUserId === job.clientId && ( // Only job client can accept/reject
-                             <AcceptRejectQuoteButtons jobId={job.id} quote={quote} currentUserId={currentUserId} /> 
+                           {(job.status === 'open' || job.status === 'pending_quotes') && ( 
+                             <AcceptRejectQuoteButtons 
+                                jobId={job.id} 
+                                quote={quote} 
+                                jobClientId={job.clientId} 
+                                onQuoteActionComplete={handleQuoteActionComplete} 
+                             /> 
                            )}
                            {quote.status === 'accepted' && (
                              <p className="text-sm text-green-600 font-medium mt-2">This quote has been accepted for the job.</p>
