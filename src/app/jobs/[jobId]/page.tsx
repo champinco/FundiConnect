@@ -1,13 +1,13 @@
 
 "use client"; // This page needs to be a client component to use hooks like useState, useEffect, and onAuthStateChanged
 
-import { useEffect, useState, Suspense, use as useReact } from 'react'; // Added useReact (aliased from use)
+import { useEffect, useState, Suspense, use as useReact } from 'react'; 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3 } from 'lucide-react';
+import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import Link from 'next/link';
@@ -20,9 +20,12 @@ import MarkAsCompletedButton from './components/mark-as-completed-button';
 import { fetchJobDetailsPageDataAction, type JobDetailsPageData } from './actions';
 import type { Job, JobStatus } from '@/models/job';
 import type { Quote } from '@/models/quote';
-import { Avatar as ShadCNAvatar, AvatarFallback as ShadCNAvatarFallback, AvatarImage as ShadCNAvatarImage } from '@/components/ui/avatar'; // Explicit import for clarity
-import { Skeleton } from '@/components/ui/skeleton'; // Added Skeleton
-import { cn } from '@/lib/utils'; // Added cn
+import { Avatar as ShadCNAvatar, AvatarFallback as ShadCNAvatarFallback, AvatarImage as ShadCNAvatarImage } from '@/components/ui/avatar'; 
+import { Skeleton } from '@/components/ui/skeleton'; 
+import { cn } from '@/lib/utils'; 
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { getOrCreateChatAction } from '@/app/messages/actions';
 
 
 // Loader for Suspense boundary if JobDetails itself is not async
@@ -68,7 +71,10 @@ function JobDetails({ jobId }: JobDetailsProps) {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null); // Changed from currentUserId to currentUser
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
 
   const fetchData = async () => {
     if (jobId) {
@@ -103,10 +109,33 @@ function JobDetails({ jobId }: JobDetailsProps) {
 
   useEffect(() => {
     fetchData();
-  }, [jobId]); // Fetch data when jobId changes
+  }, [jobId]); 
 
   const handleQuoteActionComplete = () => {
-    fetchData(); // Refetch data when a quote is accepted/rejected
+    fetchData(); 
+  };
+
+  const handleInitiateChatWithProvider = async (providerId: string) => {
+    if (!currentUser) {
+      toast({ title: "Login Required", description: "Please login to message providers.", variant: "destructive" });
+      router.push(`/auth/login?redirect=/jobs/${jobId}`);
+      return;
+    }
+    if (!job) return;
+
+    setIsChatLoading(true);
+    try {
+      const result = await getOrCreateChatAction(currentUser.uid, providerId);
+      if (result.error || !result.chatId) {
+        throw new Error(result.error || "Could not initiate chat.");
+      }
+      router.push(`/messages/${result.chatId}`);
+    } catch (error: any) {
+      console.error("Error creating or getting chat:", error);
+      toast({ title: "Error", description: error.message || "Could not start conversation.", variant: "destructive" });
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
 
@@ -147,7 +176,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Button variant="outline" asChild>
-          <Link href="/search?mode=jobs"> {/* Default to job search */}
+          <Link href="/search?mode=jobs"> 
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Search
           </Link>
         </Button>
@@ -268,6 +297,18 @@ function JobDetails({ jobId }: JobDetailsProps) {
                                 onQuoteActionComplete={handleQuoteActionComplete} 
                              /> 
                            )}
+                            {currentUser?.uid === job.clientId && (
+                                <Button
+                                variant="outline"
+                                size="sm"
+                                className="mt-2 ml-0 md:ml-2" 
+                                onClick={() => handleInitiateChatWithProvider(quote.providerId)}
+                                disabled={isChatLoading}
+                                >
+                                {isChatLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageSquare className="mr-2 h-4 w-4" />}
+                                Message {quote.providerDetails?.businessName || 'Provider'}
+                                </Button>
+                            )}
                            {quote.status === 'accepted' && (
                              <p className="text-sm text-green-600 font-medium mt-2">This quote has been accepted for the job.</p>
                            )}
@@ -338,10 +379,6 @@ function JobDetails({ jobId }: JobDetailsProps) {
 
 
 export default function JobDetailPageWrapper({ params }: { params: { jobId: string } }) {
-    // The error message implies `params` is a promise that resolves to `{ jobId: string }`.
-    // `useReact` will unwrap this promise.
-    // We cast to `unknown` then to the expected Promise type to satisfy `useReact`'s type checking if TS
-    // infers `params` as just `{ jobId: string }` from the prop type annotation.
     const resolvedParams = useReact(params as unknown as Promise<{ jobId: string }>);
 
     return (
@@ -350,4 +387,3 @@ export default function JobDetailPageWrapper({ params }: { params: { jobId: stri
         </Suspense>
     );
 }
-
