@@ -45,7 +45,7 @@ export async function submitQuoteAction(
       await createNotification({
         userId: job.clientId,
         type: 'new_quote_received',
-        message: `You received a new quote from ${providerProfile.fullName || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
+        message: `You received a new quote from ${providerProfile.fullName || providerProfile.email || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
         relatedEntityId: data.jobId, // Could also be quoteId
         link: `/jobs/${data.jobId}`
       });
@@ -157,11 +157,11 @@ export async function submitReviewAction(data: ReviewData): Promise<SubmitReview
     // Notify provider they received a review
     const clientProfile = await getUserProfileFromFirestore(data.clientId);
     const job = await getJobByIdFromFirestore(data.jobId);
-    if (job) {
+    if (job && clientProfile) { // Ensure job and client profile are fetched
        await createNotification({
         userId: data.providerId,
         type: 'new_review',
-        message: `You received a new ${data.rating}-star review from ${clientProfile?.fullName || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
+        message: `You received a new ${data.rating}-star review from ${clientProfile.fullName || clientProfile.email || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
         relatedEntityId: data.jobId, // Or reviewId
         link: `/providers/${data.providerId}?tab=reviews` // Link to provider's review tab
       });
@@ -279,3 +279,6 @@ export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobD
     return { job: null, quotes: [], error: `Failed to fetch job details: ${error.message}.` };
   }
 }
+
+
+    

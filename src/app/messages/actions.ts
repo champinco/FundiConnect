@@ -146,7 +146,7 @@ export async function sendMessageAction(
         text: lastMessageText,
         senderUid,
         timestamp: FieldValue.serverTimestamp(),
-        isReadBy: { [senderUid]: true } 
+        isReadBy: { [senderUid]: true } // Mark as read by sender
       },
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -163,11 +163,11 @@ export async function sendMessageAction(
     await batch.commit();
 
     // Create notification for the receiver
-    const senderName = senderDisplayName || chatData.participants[senderUid]?.displayName || "Someone";
+    const actualSenderName = senderDisplayName || chatData.participants[senderUid]?.displayName || "Someone";
     await createNotification({
       userId: receiverUid,
       type: 'new_message',
-      message: `You have a new message from ${senderName}.`,
+      message: `You have a new message from ${actualSenderName}.`,
       relatedEntityId: chatId,
       link: `/messages/${chatId}`
     });
@@ -179,3 +179,6 @@ export async function sendMessageAction(
     return { success: false, error: `Failed to send message: ${error.message}.` };
   }
 }
+
+
+    
