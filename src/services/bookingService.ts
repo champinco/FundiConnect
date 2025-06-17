@@ -3,8 +3,10 @@
  * @fileOverview Service functions for interacting with booking request data in Firestore.
  */
 import { adminDb } from '@/lib/firebaseAdmin';
-import { Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore';
 import type { BookingRequest, BookingStatus } from '@/models/booking';
+import { getUserProfileFromFirestore } from '@/services/userService';
+import { getProviderProfileFromFirestore } from '@/services/providerService';
 
 export interface CreateBookingRequestData {
   providerId: string;
@@ -30,14 +32,29 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
     const newBookingRef = bookingRequestsCollectionRef.doc(); // Auto-generate ID
     const now = FieldValue.serverTimestamp();
 
-    const bookingPayload: Omit<BookingRequest, 'id' | 'createdAt' | 'updatedAt'> & { createdAt: FieldValue, updatedAt: FieldValue, requestedDate: Timestamp } = {
+    const clientProfile = await getUserProfileFromFirestore(data.clientId);
+    const providerProfile = await getProviderProfileFromFirestore(data.providerId);
+
+    const bookingPayload: Omit<BookingRequest, 'id' | 'createdAt' | 'updatedAt' | 'providerResponseMessage' | 'clientResponseMessage'> & { createdAt: FieldValue, updatedAt: FieldValue, requestedDate: Timestamp, providerResponseMessage: null, clientResponseMessage: null } = {
       providerId: data.providerId,
       clientId: data.clientId,
-      requestedDate: Timestamp.fromDate(data.requestedDate), // Convert JS Date to Firestore Timestamp
+      requestedDate: Timestamp.fromDate(data.requestedDate),
       messageToProvider: data.messageToProvider || null,
       jobId: data.jobId || null,
       serviceDescription: data.serviceDescription || null,
       status: 'pending' as BookingStatus,
+      clientDetails: {
+        name: clientProfile?.fullName || "Client",
+        photoURL: clientProfile?.photoURL || null,
+        email: clientProfile?.email || null,
+      },
+      providerDetails: {
+        name: providerProfile?.businessName || providerProfile?.userId || "Provider",
+        photoURL: providerProfile?.profilePictureUrl || null,
+        businessName: providerProfile?.businessName || null,
+      },
+      providerResponseMessage: null,
+      clientResponseMessage: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -51,26 +68,102 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
   }
 }
 
+const robustTimestampToDate = (timestamp: any, defaultVal: Date = new Date()): Date => {
+    if (!timestamp) return defaultVal;
+    if (timestamp instanceof Date) return timestamp;
+    if (typeof (timestamp as any).toDate === 'function') {
+        return (timestamp as import('firebase-admin/firestore').Timestamp).toDate();
+    }
+    try {
+      const d = new Date(timestamp);
+      if (!isNaN(d.getTime())) return d;
+    } catch (e) {/* ignore */}
+    return defaultVal;
+};
+
+
 /**
- * Updates the status of a booking request.
+ * Retrieves all booking requests for a specific provider.
+ * @param providerId The UID of the provider.
+ * @returns A promise that resolves with an array of BookingRequest objects.
+ */
+export async function getBookingRequestsForProvider(providerId: string): Promise<BookingRequest[]> {
+  if (!adminDb) {
+    console.error("[BookingService] Admin DB not initialized. Cannot fetch provider bookings.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
+  const bookingsRef = adminDb.collection('bookingRequests');
+  const q = bookingsRef.where('providerId', '==', providerId).orderBy('createdAt', 'desc');
+  const snapshot = await q.get();
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      requestedDate: robustTimestampToDate(data.requestedDate),
+      createdAt: robustTimestampToDate(data.createdAt),
+      updatedAt: robustTimestampToDate(data.updatedAt),
+    } as BookingRequest;
+  });
+}
+
+/**
+ * Retrieves all booking requests made by a specific client.
+ * @param clientId The UID of the client.
+ * @returns A promise that resolves with an array of BookingRequest objects.
+ */
+export async function getBookingRequestsForClient(clientId: string): Promise<BookingRequest[]> {
+  if (!adminDb) {
+    console.error("[BookingService] Admin DB not initialized. Cannot fetch client bookings.");
+    throw new Error("Server error: Admin DB not initialized.");
+  }
+  const bookingsRef = adminDb.collection('bookingRequests');
+  const q = bookingsRef.where('clientId', '==', clientId).orderBy('createdAt', 'desc');
+  const snapshot = await q.get();
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      requestedDate: robustTimestampToDate(data.requestedDate),
+      createdAt: robustTimestampToDate(data.createdAt),
+      updatedAt: robustTimestampToDate(data.updatedAt),
+    } as BookingRequest;
+  });
+}
+
+/**
+ * Updates the status of a booking request and optionally a message.
  * @param bookingId The ID of the booking request to update.
  * @param newStatus The new status for the booking.
- * @param messageToClient Optional message for the client.
+ * @param byUserType Indicates if the update is by 'provider' or 'client'.
+ * @param message Optional message related to the status update.
  * @returns A promise that resolves when the operation is complete.
  */
-export async function updateBookingRequestStatus(bookingId: string, newStatus: BookingStatus, messageToClient?: string | null): Promise<void> {
+export async function updateBookingRequestStatus(
+  bookingId: string,
+  newStatus: BookingStatus,
+  byUserType: 'provider' | 'client',
+  message?: string | null
+): Promise<void> {
   if (!adminDb) {
     console.error("[BookingService] Admin DB not initialized. Booking status update failed.");
     throw new Error("Server error: Admin DB not initialized.");
   }
   const bookingRef = adminDb.collection('bookingRequests').doc(bookingId);
   try {
-    const updatePayload: Partial<BookingRequest> & { updatedAt: FieldValue } = {
+    const updatePayload: UpdateData<BookingRequest> = {
       status: newStatus,
       updatedAt: FieldValue.serverTimestamp() as Timestamp,
     };
-    if (messageToClient !== undefined) {
-      updatePayload.messageToClient = messageToClient;
+
+    if (message !== undefined) {
+      if (byUserType === 'provider') {
+        updatePayload.providerResponseMessage = message;
+      } else {
+        // For future use if clients can add messages when cancelling, etc.
+        // updatePayload.clientResponseMessage = message;
+      }
     }
     await bookingRef.update(updatePayload);
     console.log(`[BookingService] Successfully updated booking request ${bookingId} status to ${newStatus}.`);

@@ -6,19 +6,23 @@ import { getUserProfileFromFirestore } from '@/services/userService';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { getJobSummaryForClient, getAssignedJobsForProvider, type ClientJobSummary } from '@/services/jobService';
 import { getSubmittedQuotesSummaryForProvider, type ProviderQuoteSummary } from '@/services/quoteService';
+import { getBookingRequestsForClient, getBookingRequestsForProvider } from '@/services/bookingService'; // Added
 import type { User as AppUser } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
 import type { Job } from '@/models/job';
+import type { BookingRequest } from '@/models/booking'; // Added
 
 
 interface ClientDashboardData {
   jobSummary: ClientJobSummary;
+  clientBookings: BookingRequest[]; // Added
 }
 
 interface ProviderDashboardData {
   providerProfile: ProviderProfile | null;
   quoteSummary: ProviderQuoteSummary;
   assignedJobs: Job[];
+  providerBookings: BookingRequest[]; // Added
 }
 
 export interface DashboardPageData {
@@ -51,19 +55,23 @@ export async function fetchDashboardDataAction(userId: string): Promise<Dashboar
     console.log(`[fetchDashboardDataAction] User profile loaded. Account type: ${userProfile.accountType}`);
 
     if (userProfile.accountType === 'client') {
-      console.log(`[fetchDashboardDataAction] Fetching job summary for client: ${userId}`);
-      const jobSummary = await getJobSummaryForClient(userId);
-      console.log(`[fetchDashboardDataAction] Job summary fetched:`, jobSummary);
-      return { appUser: userProfile, dashboardData: { jobSummary } };
+      console.log(`[fetchDashboardDataAction] Fetching data for client: ${userId}`);
+      const [jobSummary, clientBookings] = await Promise.all([
+        getJobSummaryForClient(userId),
+        getBookingRequestsForClient(userId)
+      ]);
+      console.log(`[fetchDashboardDataAction] Client data fetched. JobSummary:`, jobSummary, `Bookings: ${clientBookings.length}`);
+      return { appUser: userProfile, dashboardData: { jobSummary, clientBookings } };
     } else if (userProfile.accountType === 'provider') {
       console.log(`[fetchDashboardDataAction] Fetching data for provider: ${userId}`);
-      const [providerProfileData, quoteSummary, assignedJobs] = await Promise.all([
+      const [providerProfileData, quoteSummary, assignedJobs, providerBookings] = await Promise.all([
         getProviderProfileFromFirestore(userId),
         getSubmittedQuotesSummaryForProvider(userId),
-        getAssignedJobsForProvider(userId, 3)
+        getAssignedJobsForProvider(userId, 3),
+        getBookingRequestsForProvider(userId)
       ]);
-      console.log(`[fetchDashboardDataAction] Provider data fetched. Profile: ${providerProfileData ? 'Loaded' : 'Not Found'}, Quotes:`, quoteSummary, "Assigned Jobs:", assignedJobs.length);
-      return { appUser: userProfile, dashboardData: { providerProfile: providerProfileData, quoteSummary, assignedJobs } };
+      console.log(`[fetchDashboardDataAction] Provider data fetched. Profile: ${providerProfileData ? 'Loaded' : 'Not Found'}, Quotes:`, quoteSummary, "Assigned Jobs:", assignedJobs.length, "Bookings:", providerBookings.length);
+      return { appUser: userProfile, dashboardData: { providerProfile: providerProfileData, quoteSummary, assignedJobs, providerBookings } };
     }
     
     console.warn(`[fetchDashboardDataAction] Unknown account type "${userProfile.accountType}" for user ID: ${userId}`);
@@ -73,3 +81,4 @@ export async function fetchDashboardDataAction(userId: string): Promise<Dashboar
     return { appUser: null, dashboardData: null, error: `Failed to load dashboard data: ${error.message}.` };
   }
 }
+
