@@ -8,6 +8,7 @@ import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
 import type { Job, JobStatus } from '@/models/job';
 import type { JobCardProps } from '@/components/job-card';
+import { getProviderProfileFromFirestore } from '@/services/providerService'; // Import to fetch full profiles
 
 
 export interface SearchParams {
@@ -42,7 +43,6 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
       console.log(`[searchProvidersAction] Applying location filter: >= ${locationSearchTerm}, <= ${locationSearchTerm}\\uf8ff`);
-      // This basic location search might need refinement for better accuracy (e.g., city/neighborhood fields)
       providerQuery = providerQuery.where('location', '>=', locationSearchTerm)
                                    .where('location', '<=', locationSearchTerm + '\uf8ff');
     }
@@ -79,38 +79,55 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
         isVerified: data.isVerified || false,
         verificationAuthority: data.verificationAuthority,
         bioSummary: data.bio ? (data.bio.substring(0, 100) + (data.bio.length > 150 ? '...' : '')) : 'No bio available.',
-        // For client-side filtering, we pass skills and specialties here if needed
-        // skills: data.skills || [], 
-        // specialties: data.specialties || [],
       });
     });
+    console.log(`[searchProvidersAction] Initial fetch found ${providersData.length} providers before text filtering.`);
 
-    // Client-side text filtering for query term (keywords)
     if (params.query && params.query.trim() !== '') {
       const searchTerm = params.query.trim().toLowerCase();
-      console.log(`[searchProvidersAction] Applying client-side text filter: ${searchTerm}`);
+      console.log(`[searchProvidersAction] Applying client-side text filter with searchTerm: '${searchTerm}'`);
       
-      // Fetch full profiles for more accurate text search on skills/specialties
-      const fullProfilesPromises = providersData.map(p => getProviderProfileFromFirestore(p.id));
-      const fullProfiles = (await Promise.all(fullProfilesPromises)).filter(p => p !== null) as ProviderProfile[];
+      if (providersData.length === 0) {
+        console.log("[searchProvidersAction] No providers from initial query to text filter. Returning empty.");
+        return [];
+      }
+
+      const providerIdsToFetchFull = providersData.map(p => p.id);
+      const fullProfilesPromises = providerIdsToFetchFull.map(id => getProviderProfileFromFirestore(id));
+      const fullProfilesResult = await Promise.all(fullProfilesPromises);
+      const fullProfiles = fullProfilesResult.filter(p => p !== null) as ProviderProfile[];
       
       const profileMap = new Map(fullProfiles.map(p => [p.id, p]));
+      console.log(`[searchProvidersAction] Fetched ${fullProfiles.length} full profiles for text filtering.`);
 
       providersData = providersData.filter(p_summary => {
         const p = profileMap.get(p_summary.id);
-        if (!p) return false;
+        if (!p) {
+          console.warn(`[searchProvidersAction] Text Filter: Provider summary ID ${p_summary.id} ('${p_summary.name}') not found in full profile map. Excluding.`);
+          return false;
+        }
 
-        return (
-          p.businessName.toLowerCase().includes(searchTerm) ||
-          p.mainService.toLowerCase().includes(searchTerm) ||
-          (p.bio && p.bio.toLowerCase().includes(searchTerm)) ||
-          (p.location && p.location.toLowerCase().includes(searchTerm)) ||
-          (p.skills && p.skills.some(skill => skill.toLowerCase().includes(searchTerm))) ||
-          (p.specialties && p.specialties.some(spec => spec.toLowerCase().includes(searchTerm)))
-        );
+        const nameMatch = p.businessName.toLowerCase().includes(searchTerm);
+        const serviceMatch = p.mainService.toLowerCase().includes(searchTerm);
+        const bioMatch = p.bio && p.bio.toLowerCase().includes(searchTerm);
+        const locationMatch = p.location && p.location.toLowerCase().includes(searchTerm);
+        const skillsMatch = p.skills && p.skills.some(skill => skill.toLowerCase().includes(searchTerm));
+        const specialtiesMatch = p.specialties && p.specialties.some(spec => spec.toLowerCase().includes(searchTerm));
+        
+        const match = nameMatch || serviceMatch || bioMatch || locationMatch || skillsMatch || specialtiesMatch;
+
+        console.log(`[searchProvidersAction] Text Filter Eval: Provider ID ${p.id} ('${p.businessName}') for searchTerm '${searchTerm}':
+          Name Match: ${nameMatch} (Value: '${p.businessName.toLowerCase()}')
+          Main Service Match: ${serviceMatch} (Value: '${p.mainService.toLowerCase()}')
+          Bio Match: ${bioMatch} (Bio length: ${p.bio?.length || 0})
+          Location Match: ${locationMatch} (Value: ${p.location?.toLowerCase() || 'N/A'})
+          Skills Match: ${skillsMatch} (Skills: ${(p.skills || []).join(', ')})
+          Specialties Match: ${specialtiesMatch} (Specialties: ${(p.specialties || []).join(', ')})
+          OVERALL MATCH: ${match ? "INCLUDED" : "EXCLUDED"}`);
+        return match;
       });
     }
-    console.log(`[searchProvidersAction] Found ${providersData.length} providers after client-side filtering.`);
+    console.log(`[searchProvidersAction] Found ${providersData.length} providers after all filtering.`);
     return providersData;
   } catch (error: any) {
     console.error(`[searchProvidersAction] Error during provider search. Params: ${JSON.stringify(params)}. Error:`, error.message, error.stack, error.code);
@@ -231,3 +248,4 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
     throw new Error(`An error occurred while searching for jobs: ${error.message}.`);
   }
 }
+
