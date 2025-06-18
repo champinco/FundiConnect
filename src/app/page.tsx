@@ -59,12 +59,17 @@ export default function HomePage() {
   return (
     <div className="flex flex-col ">
       {/* Hero Section */}
-      <section className="py-16 md:py-24 bg-gradient-to-br from-primary/10 via-background to-background">
-        <div className="container mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-6xl font-bold font-headline mb-6 text-primary">
+      <section 
+        className="relative py-16 md:py-24 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
+        data-ai-hint="black technician work"
+      >
+        <div className="absolute inset-0 bg-black/60 z-0"></div> {/* Overlay */}
+        <div className="container relative z-10 mx-auto px-4 text-center">
+          <h1 className="text-4xl md:text-6xl font-bold font-headline mb-6 text-white">
             Your Trusted Local Fundi, On-Demand.
           </h1>
-          <p className="text-lg md:text-xl text-foreground mb-8 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-neutral-200 mb-8 max-w-2xl mx-auto">
             Connect with verified electricians, plumbers, and more across Kenya.
             Get your job done right, the first time.
           </p>
@@ -74,7 +79,7 @@ export default function HomePage() {
               <Input
                 type="text"
                 placeholder="What service do you need today? (e.g., Plumber, Electrician)"
-                className="pl-10 h-12 text-base"
+                className="pl-10 h-12 text-base bg-white/90 dark:bg-neutral-800/90 text-foreground dark:text-neutral-200 placeholder:text-muted-foreground"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -84,7 +89,7 @@ export default function HomePage() {
               <Input
                 type="text"
                 placeholder="Location"
-                className="pl-10 h-12 text-base"
+                className="pl-10 h-12 text-base bg-white/90 dark:bg-neutral-800/90 text-foreground dark:text-neutral-200 placeholder:text-muted-foreground"
                 value={locationQuery}
                 onChange={(e) => setLocationQuery(e.target.value)}
               />
@@ -93,15 +98,15 @@ export default function HomePage() {
               <Search className="mr-2 h-5 w-5" /> Search
             </Button>
           </form>
-          <div className="mt-8 text-sm text-muted-foreground flex items-center justify-center space-x-4 md:space-x-6">
-            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-500" /> 10,000+ Jobs Completed</span>
+          <div className="mt-8 text-sm text-neutral-300 flex items-center justify-center space-x-4 md:space-x-6">
+            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-400" /> 10,000+ Jobs Completed</span>
             <span className="hidden sm:inline">|</span>
             <span className="flex items-center"><Star className="h-5 w-5 mr-1.5 text-yellow-400 fill-yellow-400" /> 4.8/5 Average Rating</span>
             <span className="hidden sm:inline">|</span>
-            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-500" /> All Providers Verified</span>
+            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-400" /> All Providers Verified</span>
           </div>
            <div className="mt-6">
-            <Button asChild variant="link" className="text-primary hover:text-primary/80">
+            <Button asChild variant="link" className="text-white hover:text-neutral-200">
               <Link href="/smart-match">
                 <span>Try our AI Smart Match tool &rarr;</span>
               </Link>
