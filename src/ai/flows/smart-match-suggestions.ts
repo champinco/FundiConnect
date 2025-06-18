@@ -38,14 +38,16 @@ const SmartMatchSuggestionsOutputSchema = z.array(z.object({
 export type SmartMatchSuggestionsOutput = z.infer<typeof SmartMatchSuggestionsOutputSchema>;
 
 export async function getSmartMatchSuggestions(input: SmartMatchSuggestionsInput): Promise<SmartMatchSuggestionsOutput> {
-  if (!adminDb || typeof adminDb.collection !== 'function') {
-    console.error("[getSmartMatchSuggestions] CRITICAL: Firebase Admin DB not initialized. Aborting.");
-    throw new Error("Server error: Core database service unavailable.");
-  }
+  // Removed the problematic adminDb check from here as this wrapper's primary role
+  // is to call the Genkit flow, not to perform direct DB operations.
+  // The actual fetching of availableProviders is handled by actions in smart-match/actions.ts,
+  // which have their own adminDb checks.
   try {
     return await smartMatchSuggestionsFlow(input);
   } catch (error) {
     console.error("[SmartMatchSuggestions] Error in getSmartMatchSuggestions wrapper:", error);
+    // It's important to re-throw the error so the calling action can handle it appropriately,
+    // or for Next.js to catch it if it's an unhandled server-side exception.
     throw error;
   }
 }
@@ -90,13 +92,16 @@ const smartMatchSuggestionsFlow = ai.defineFlow(
       return output;
     } catch (error) {
       console.error("[SmartMatchSuggestionsFlow] Error during AI prompt execution. Input:", input, "Error:", error);
+      // Return empty array or rethrow, depending on how critical this is.
+      // For now, returning empty to prevent complete page crash if AI fails.
+      // Consider if rethrowing and handling in the action is better.
       return [];
     }
   }
 );
 
-// Helper to ensure adminDb is available
-const adminDb = ai.getPlugin("firebase")?.admin?.firestore();
-if (!adminDb || typeof adminDb.collection !== 'function') {
-  console.warn("[SmartMatchSuggestionsFlow] Could not get adminDb instance from Genkit Firebase plugin. Ensure Firebase Admin plugin is configured for Genkit if DB operations are needed directly in this flow file (they are not currently, but good to check).");
+// Helper to check Genkit Firebase plugin status (this is a health check, not used by the flow logic itself)
+const genkitAdminDbInstance = ai.getPlugin("firebase")?.admin?.firestore();
+if (!genkitAdminDbInstance || typeof genkitAdminDbInstance.collection !== 'function') {
+  console.warn("[SmartMatchSuggestionsFlow File] Could not get adminDb instance from Genkit Firebase plugin. Ensure Firebase Admin plugin is configured for Genkit if DB operations were intended to be used directly *within this flow file* by Genkit (they are not currently for smartMatchSuggestionsFlow, but this is a general health check).");
 }
