@@ -62,7 +62,7 @@ export default function HomePage() {
       <section 
         className="relative py-16 md:py-24 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
-        data-ai-hint="black technician work"
+        data-ai-hint="black technician electronics"
       >
         <div className="absolute inset-0 bg-black/60 z-0"></div> {/* Overlay */}
         <div className="container relative z-10 mx-auto px-4 text-center">
