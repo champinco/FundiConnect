@@ -7,6 +7,7 @@ import { Timestamp, FieldValue, type UpdateData } from 'firebase-admin/firestore
 import type { BookingRequest, BookingStatus } from '@/models/booking';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
+import { sendBookingRequestProviderEmail } from '@/services/emailService'; // Import email service
 
 export interface CreateBookingRequestData {
   providerId: string;
@@ -61,6 +62,20 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
 
     await newBookingRef.set(bookingPayload);
     console.log(`[BookingService] Successfully created booking request ${newBookingRef.id} for provider ${data.providerId} from client ${data.clientId}.`);
+    
+    // Send email notification to provider
+    if (providerProfile?.contactPhoneNumber) { // Using contactPhoneNumber as a proxy for having contact info. Ideally, use provider's user email.
+        const providerUserEmail = (await getUserProfileFromFirestore(data.providerId))?.email;
+        if (providerUserEmail) {
+            await sendBookingRequestProviderEmail(
+                providerUserEmail,
+                clientProfile?.fullName || "A Client",
+                data.requestedDate,
+                data.messageToProvider
+            );
+        }
+    }
+    
     return newBookingRef.id;
   } catch (error: any) {
     console.error(`[BookingService] Error creating booking request. Data: ${JSON.stringify(data)}. Error:`, error.message, error.stack);

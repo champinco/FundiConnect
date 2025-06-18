@@ -32,7 +32,7 @@ export interface ProviderProfile {
   fullAddress?: string | null;
   yearsOfExperience: number;
   isVerified: boolean;
-  verificationAuthority?: string | null;
+  verificationAuthority?: string | null; // Made explicitly nullable
   certifications: Certification[];
   portfolio: PortfolioItem[];
   rating: number;
@@ -43,7 +43,7 @@ export interface ProviderProfile {
   profilePictureUrl?: string | null;
   bannerImageUrl?: string | null;
   website?: string | null;
-  socialMediaLinks?: Record<string, string> | null; // Added social media links
+  socialMediaLinks?: Record<string, string> | null; 
   unavailableDates?: string[]; // Array of "YYYY-MM-DD" strings
   receivesEmergencyJobAlerts?: boolean;
   createdAt: Date;

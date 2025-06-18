@@ -8,7 +8,8 @@ import { createNotification } from '@/services/notificationService';
 import { getJobByIdFromFirestore } from '@/services/jobService';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import { format } from 'date-fns';
-
+import { Timestamp } from 'firebase-admin/firestore';
+import { sendBookingConfirmedEmail, sendBookingRejectedEmail } from '@/services/emailService'; // Import email service
 
 export async function fetchClientBookingRequestsAction(clientId: string): Promise<BookingRequest[]> {
   if (!adminDb || !clientId) return [];
@@ -61,12 +62,11 @@ export async function providerRespondToBookingAction(
         updatedAt: bookingData.updatedAt instanceof Timestamp ? bookingData.updatedAt.toDate() : new Date(bookingData.updatedAt),
     };
 
-
     await updateStatusService(bookingId, newStatus, 'provider', providerMessage);
 
     // Notify client
     const clientProfile = await getUserProfileFromFirestore(serviceBookingData.clientId);
-    const providerProfile = await getUserProfileFromFirestore(providerId);
+    const providerProfile = await getUserProfileFromFirestore(providerId); // Re-fetch for current details
     const statusText = newStatus === 'confirmed' ? 'confirmed' : 'not accepted';
     
     let jobTitleSegment = "";
@@ -77,14 +77,31 @@ export async function providerRespondToBookingAction(
         jobTitleSegment = ` for "${serviceBookingData.serviceDescription.substring(0,20)}..."`;
     }
 
-
     await createNotification({
       userId: serviceBookingData.clientId,
       type: 'booking_status_changed',
-      message: `Your booking request with ${providerProfile?.fullName || providerProfile?.businessName || 'Provider'} for ${format(serviceBookingData.requestedDate, 'PPP')}${jobTitleSegment} has been ${statusText}. ${providerMessage ? 'Provider message: ' + providerMessage.substring(0,50) + '...' : ''}`,
+      message: `Your booking request with ${providerProfile?.businessName || providerProfile?.fullName || 'Provider'} for ${format(serviceBookingData.requestedDate, 'PPP')}${jobTitleSegment} has been ${statusText}. ${providerMessage ? 'Provider message: ' + providerMessage.substring(0,50) + '...' : ''}`,
       relatedEntityId: bookingId,
-      link: `/dashboard` // Link to client's dashboard to see booking status
+      link: `/dashboard` 
     });
+
+    // Send email notification to client
+    if (clientProfile?.email) {
+      if (newStatus === 'confirmed') {
+        await sendBookingConfirmedEmail(
+          clientProfile.email,
+          providerProfile?.businessName || providerProfile?.fullName || "The Provider",
+          clientProfile.fullName || "Valued Client",
+          serviceBookingData.requestedDate
+        );
+      } else if (newStatus === 'rejected') {
+        await sendBookingRejectedEmail(
+          clientProfile.email,
+          providerProfile?.businessName || providerProfile?.fullName || "The Provider",
+          serviceBookingData.requestedDate
+        );
+      }
+    }
 
     return { success: true, message: `Booking request ${newStatus}.` };
   } catch (error: any) {

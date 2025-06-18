@@ -5,7 +5,8 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import { FieldValue, Timestamp, type Query } from 'firebase-admin/firestore';
 import type { Chat, ChatMessage, ChatParticipant } from '@/models/chat';
 import { getUserProfileFromFirestore } from '@/services/userService';
-import { createNotification } from '@/services/notificationService'; // Import notification service
+import { createNotification } from '@/services/notificationService'; 
+import { sendNewMessageAlert } from '@/services/emailService'; // Import email service
 
 // Helper function (can be co-located or imported)
 function generateChatId(uid1: string, uid2: string): string {
@@ -146,7 +147,7 @@ export async function sendMessageAction(
         text: lastMessageText,
         senderUid,
         timestamp: FieldValue.serverTimestamp(),
-        isReadBy: { [senderUid]: true, [receiverUid]: false } // Mark as read by sender, unread by receiver
+        isReadBy: { [senderUid]: true, [receiverUid]: false } 
       },
       updatedAt: FieldValue.serverTimestamp(),
     };
@@ -162,7 +163,7 @@ export async function sendMessageAction(
     batch.update(chatRef, updatePayload);
     await batch.commit();
 
-    // Create notification for the receiver
+    // Create in-app notification for the receiver
     const actualSenderName = senderDisplayName || chatData.participants[senderUid]?.displayName || "Someone";
     await createNotification({
       userId: receiverUid,
@@ -171,6 +172,17 @@ export async function sendMessageAction(
       relatedEntityId: chatId,
       link: `/messages/${chatId}`
     });
+
+    // Send email notification
+    const receiverProfile = await getUserProfileFromFirestore(receiverUid);
+    if (receiverProfile?.email) {
+      await sendNewMessageAlert(
+        receiverProfile.email,
+        actualSenderName,
+        chatId,
+        lastMessageText || "Sent an image"
+      );
+    }
 
     return { success: true, messageId: newMessageDocRef.id };
 

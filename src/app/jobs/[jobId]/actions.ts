@@ -10,8 +10,8 @@ import { submitReview as submitReviewService, type ReviewData, getReviewForJobBy
 import type { User as AppUser } from '@/models/user';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import { createNotification } from '@/services/notificationService'; 
-import { getOrCreateChatAction } from '@/app/messages/actions'; // For chat activation
-
+import { getOrCreateChatAction } from '@/app/messages/actions'; 
+import { sendNewQuoteReceivedEmail, sendQuoteAcceptedEmail, sendQuoteRejectedEmail } from '@/services/emailService'; // Import email service
 
 interface SubmitQuoteResult {
   success: boolean;
@@ -41,14 +41,26 @@ export async function submitQuoteAction(
 
     const job = await getJobByIdFromFirestore(data.jobId);
     const providerProfile = await getUserProfileFromFirestore(data.providerId); 
+    const clientProfile = await getUserProfileFromFirestore(data.clientId);
+
     if (job && providerProfile) {
       await createNotification({
         userId: job.clientId,
         type: 'new_quote_received',
-        message: `You received a new quote from ${providerProfile.fullName || providerProfile.email || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
+        message: `You received a new quote from ${providerProfile.fullName || providerProfile.businessName || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
         relatedEntityId: data.jobId, 
-        link: `/jobs/${data.jobId}?tab=quotes` // Link to quotes tab on job page
+        link: `/jobs/${data.jobId}?tab=quotes` 
       });
+
+      // Send email to client about new quote
+      if (clientProfile?.email) {
+        await sendNewQuoteReceivedEmail(
+          clientProfile.email,
+          providerProfile.fullName || providerProfile.businessName || "A Fundi",
+          job.title,
+          data.jobId
+        );
+      }
     }
     
     return { success: true, message: "Quote submitted successfully!", quoteId };
@@ -90,6 +102,8 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
     await updateJobStatus(jobId, 'assigned', providerIdToAssign);
     
     const job = await getJobByIdFromFirestore(jobId);
+    const providerProfile = await getUserProfileFromFirestore(providerIdToAssign); // Fetch provider's main user profile
+    const clientProfile = await getUserProfileFromFirestore(clientId); // Fetch client's profile
     let newChatId: string | null = null;
 
     if (job) {
@@ -100,17 +114,24 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
         relatedEntityId: jobId,
         link: `/jobs/${jobId}`
       });
+
+      // Send email to provider about accepted quote
+      if (providerProfile?.email) {
+        await sendQuoteAcceptedEmail(
+          providerProfile.email,
+          job.title,
+          clientProfile?.fullName || "The Client",
+          jobId
+        );
+      }
       
       // Activate/create chat session
       const chatResult = await getOrCreateChatAction(clientId, providerIdToAssign);
       newChatId = chatResult.chatId;
       if (newChatId) {
-          const clientProfile = await getUserProfileFromFirestore(clientId);
-          const providerProfile = await getUserProfileFromFirestore(providerIdToAssign);
-          
           await createNotification({
             userId: providerIdToAssign,
-            type: 'new_message', // Or a more specific type like 'chat_activated'
+            type: 'new_message', 
             message: `Chat session started with ${clientProfile?.fullName || 'the client'} for job: "${job.title.substring(0,30)}..."`,
             relatedEntityId: newChatId,
             link: `/messages/${newChatId}`
@@ -153,6 +174,8 @@ export async function rejectQuoteAction(quoteId: string, clientId: string): Prom
     await updateQuoteStatus(quoteId, 'rejected');
 
     const job = await getJobByIdFromFirestore(quoteToReject.jobId);
+    const providerProfile = await getUserProfileFromFirestore(quoteToReject.providerId);
+
     if (job) {
       await createNotification({
         userId: quoteToReject.providerId,
@@ -161,6 +184,15 @@ export async function rejectQuoteAction(quoteId: string, clientId: string): Prom
         relatedEntityId: job.id,
         link: `/jobs/${job.id}`
       });
+
+      // Send email to provider about rejected quote
+      if (providerProfile?.email) {
+        await sendQuoteRejectedEmail(
+          providerProfile.email,
+          job.title,
+          job.id
+        );
+      }
     }
     return { success: true, message: "Quote rejected." };
   } catch (error: any) {
