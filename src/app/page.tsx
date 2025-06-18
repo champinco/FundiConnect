@@ -4,12 +4,12 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, MapPin, Star, CheckCircle2 } from 'lucide-react'; // Added Star, CheckCircle2
+import { Search, MapPin, Star, CheckCircle2, Loader2 } from 'lucide-react'; 
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchFeaturedProvidersAction } from '@/app/actions/home_page_actions';
+import { fetchFeaturedProvidersAction, fetchHomepageStatsAction, type HomepageStats } from '@/app/actions/home_page_actions';
 
 const serviceCategories: ServiceCategory[] = [
   'Plumbing',
@@ -25,6 +25,9 @@ export default function HomePage() {
   const [featuredProviders, setFeaturedProviders] = useState<Provider[]>([]);
   const [isLoadingProviders, setIsLoadingProviders] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const [stats, setStats] = useState<HomepageStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
     async function loadFeaturedProviders() {
@@ -42,6 +45,20 @@ export default function HomePage() {
       }
     }
     loadFeaturedProviders();
+
+    async function loadStats() {
+      setIsLoadingStats(true);
+      try {
+        const fetchedStats = await fetchHomepageStatsAction();
+        setStats(fetchedStats);
+      } catch (error) {
+        console.error("Error fetching homepage stats:", error);
+        setStats({ totalJobsCompleted: 0, averageProviderRating: 0, totalVerifiedProviders: 0 }); // Fallback
+      } finally {
+        setIsLoadingStats(false);
+      }
+    }
+    loadStats();
   }, []);
 
   const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -98,12 +115,20 @@ export default function HomePage() {
               <Search className="mr-2 h-5 w-5" /> Search
             </Button>
           </form>
-          <div className="mt-8 text-sm text-neutral-300 flex items-center justify-center space-x-4 md:space-x-6">
-            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-400" /> 10,000+ Jobs Completed</span>
-            <span className="hidden sm:inline">|</span>
-            <span className="flex items-center"><Star className="h-5 w-5 mr-1.5 text-yellow-400 fill-yellow-400" /> 4.8/5 Average Rating</span>
-            <span className="hidden sm:inline">|</span>
-            <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-400" /> All Providers Verified</span>
+          <div className="mt-8 text-sm text-neutral-300 flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-4 md:space-x-6 min-h-[24px]">
+            {isLoadingStats ? (
+              <>
+                <span className="flex items-center"><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Loading stats...</span>
+              </>
+            ) : (
+              <>
+                <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-400" /> {stats?.totalJobsCompleted.toLocaleString() || '0'}+ Jobs Completed</span>
+                <span className="hidden sm:inline">|</span>
+                <span className="flex items-center"><Star className="h-5 w-5 mr-1.5 text-yellow-400 fill-yellow-400" /> {stats?.averageProviderRating.toFixed(1) || '0.0'}/5 Average Rating</span>
+                <span className="hidden sm:inline">|</span>
+                <span className="flex items-center"><CheckCircle2 className="h-5 w-5 mr-1.5 text-green-400" /> {stats?.totalVerifiedProviders.toLocaleString() || '0'} Providers Verified</span>
+              </>
+            )}
           </div>
            <div className="mt-6">
             <Button asChild variant="link" className="text-white hover:text-neutral-200">

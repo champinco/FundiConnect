@@ -85,3 +85,52 @@ export async function fetchFeaturedProvidersAction(): Promise<Provider[]> {
   }
 }
 
+
+export interface HomepageStats {
+  totalJobsCompleted: number;
+  averageProviderRating: number;
+  totalVerifiedProviders: number;
+}
+
+export async function fetchHomepageStatsAction(): Promise<HomepageStats> {
+  if (!adminDb) {
+    console.error("[fetchHomepageStatsAction] Admin DB not initialized.");
+    // Return default/error state
+    return { totalJobsCompleted: 0, averageProviderRating: 0, totalVerifiedProviders: 0 };
+  }
+
+  try {
+    // 1. Total Jobs Completed
+    const completedJobsSnap = await adminDb.collection('jobs').where('status', '==', 'completed').count().get();
+    const totalJobsCompleted = completedJobsSnap.data().count;
+
+    // 2. Average Provider Rating & Total Verified Providers
+    const providersSnap = await adminDb.collection('providerProfiles').get();
+    let totalVerifiedProviders = 0;
+    let sumOfRatings = 0;
+    let providersWithRatingsCount = 0;
+
+    providersSnap.forEach(doc => {
+      const provider = doc.data() as ProviderProfile;
+      if (provider.isVerified) {
+        totalVerifiedProviders++;
+      }
+      if (provider.rating > 0 && provider.reviewsCount > 0) {
+        sumOfRatings += provider.rating;
+        providersWithRatingsCount++;
+      }
+    });
+
+    const averageProviderRating = providersWithRatingsCount > 0 ? parseFloat((sumOfRatings / providersWithRatingsCount).toFixed(1)) : 0;
+
+    console.log(`[fetchHomepageStatsAction] Stats: JobsCompleted=${totalJobsCompleted}, AvgRating=${averageProviderRating}, VerifiedProviders=${totalVerifiedProviders}`);
+    return {
+      totalJobsCompleted,
+      averageProviderRating,
+      totalVerifiedProviders,
+    };
+  } catch (error) {
+    console.error("[fetchHomepageStatsAction] Error fetching homepage stats:", error);
+    return { totalJobsCompleted: 0, averageProviderRating: 0, totalVerifiedProviders: 0 };
+  }
+}
