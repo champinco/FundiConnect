@@ -169,6 +169,10 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
     { key: 'linkedin', Icon: Linkedin, color: 'text-sky-700', name: 'LinkedIn' },
   ];
 
+  const displayMainService = provider.mainService === 'Other' && provider.otherMainServiceDescription
+    ? provider.otherMainServiceDescription
+    : provider.mainService;
+
   return (
     <div className="container mx-auto px-4 py-8">
       <Card className="overflow-hidden shadow-xl">
@@ -400,7 +404,7 @@ export default function ProviderProfilePage({ params }: { params: { id: string }
                         <p className="font-medium">Main Service</p>
                          <div className="flex items-center text-muted-foreground">
                            <ServiceCategoryIcon category={provider.mainService || 'Other'} iconOnly className="h-4 w-4 mr-1.5"/>
-                           {provider.mainService || 'Other'}
+                           {displayMainService}
                          </div>
                     </div>
                   </div>

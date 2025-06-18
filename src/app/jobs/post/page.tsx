@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, Upload, Briefcase, Send, Loader2, Paperclip, DollarSign, AlertTriangle, Clock } from 'lucide-react'; // Added Clock
+import { CalendarIcon, Upload, Briefcase, Send, Loader2, Paperclip, DollarSign, AlertTriangle, Clock } from 'lucide-react'; 
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { useToast } from "@/hooks/use-toast";
 import { postJobAction } from '../actions';
@@ -21,9 +21,9 @@ import { auth, analytics } from '@/lib/firebase';
 import { logEvent } from 'firebase/analytics';
 import { uploadFileToStorage } from '@/services/storageService';
 import type { JobUrgency } from '@/models/job';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'; // Added Popover
-import { Calendar } from '@/components/ui/calendar'; // Added Calendar
-import { format } from 'date-fns'; // Added date-fns format
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'; 
+import { Calendar } from '@/components/ui/calendar'; 
+import { format } from 'date-fns'; 
 
 
 const allServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
@@ -51,7 +51,7 @@ export default function PostJobPage() {
     resolver: zodResolver(postJobFormSchema),
     defaultValues: {
       jobTitle: "",
-      serviceCategory: "Other",
+      serviceCategory: undefined,
       otherCategoryDescription: "",
       jobDescription: "",
       location: "",
@@ -291,7 +291,7 @@ export default function PostJobPage() {
                             mode="single"
                             selected={field.value || undefined}
                             onSelect={field.onChange}
-                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) } // Disable past dates
+                            disabled={(date) => date < new Date(new Date().setDate(new Date().getDate() -1)) } 
                             initialFocus
                         />
                         </PopoverContent>
@@ -360,4 +360,3 @@ export default function PostJobPage() {
     </div>
   );
 }
-

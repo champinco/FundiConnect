@@ -15,6 +15,7 @@ export interface Provider {
   reviewsCount: number;
   location: string;
   mainService: ServiceCategory;
+  otherMainServiceDescription?: string; // Added
   isVerified: boolean;
   verificationAuthority?: string; // e.g., "NCA" or "EPRA"
   bioSummary: string;
@@ -54,9 +55,11 @@ export default function ProviderCard({ provider }: ProviderCardProps) {
           <MapPin className="h-4 w-4 text-primary" />
           <span>{provider.location}</span>
         </div>
-        <div className="mb-3">
+        <div className="mb-3 flex items-center">
           <ServiceCategoryIcon category={provider.mainService} iconOnly className="h-6 w-6 text-primary inline-block mr-2" />
-          <span className="text-sm font-semibold">{provider.mainService}</span>
+          <span className="text-sm font-semibold">
+            {provider.mainService === 'Other' && provider.otherMainServiceDescription ? provider.otherMainServiceDescription : provider.mainService}
+          </span>
         </div>
         <p className="text-sm text-muted-foreground line-clamp-3">
           {provider.bioSummary}

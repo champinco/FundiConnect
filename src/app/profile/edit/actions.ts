@@ -49,6 +49,7 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
         userId: userId,
         businessName: appUser.fullName || `Provider ${userId.substring(0, 6)}`,
         mainService: 'Other' as ServiceCategory,
+        otherMainServiceDescription: '', // Initialize as empty
         specialties: [],
         skills: [], 
         bio: 'Welcome to FundiConnect! Please complete your profile to attract clients.',
@@ -138,7 +139,7 @@ export async function updateProviderProfileAction(
     });
     
     const portfolioToSave: PortfolioItem[] = (data.portfolio || []).map(item => ({
-        id: item.id || '', // Ensure ID exists, or handle generation
+        id: item.id || '', 
         description: item.description,
         imageUrl: item.imageUrl || null,
         dataAiHint: item.dataAiHint || item.description.split(" ").slice(0,2).join(" ") || "project image",
@@ -158,6 +159,7 @@ export async function updateProviderProfileAction(
     const updatePayload: any = {
       businessName: data.businessName,
       mainService: data.mainService,
+      otherMainServiceDescription: data.mainService === 'Other' && data.otherMainServiceDescription ? data.otherMainServiceDescription.trim() : null,
       specialties: specialtiesArray,
       skills: skillsArray,
       bio: data.bio,
@@ -213,6 +215,7 @@ export async function updateProviderProfileAction(
         bannerImageUrl: updatePayload.bannerImageUrl,
         unavailableDates: updatePayload.unavailableDates,
         receivesEmergencyJobAlerts: updatePayload.receivesEmergencyJobAlerts,
+        otherMainServiceDescription: updatePayload.otherMainServiceDescription,
       }
     };
 

@@ -26,6 +26,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       title: jobData.title?.trim(),
       description: jobData.description?.trim(),
       serviceCategory: jobData.serviceCategory,
+      otherCategoryDescription: jobData.serviceCategory === 'Other' && jobData.otherCategoryDescription ? jobData.otherCategoryDescription.trim() : null,
       location: jobData.location?.trim(),
       status: jobData.status || 'open',
       photosOrVideos: jobData.photosOrVideos || [],
@@ -34,7 +35,7 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       quotesReceived: 0,
       assignedProviderId: jobData.assignedProviderId || null,
       deadline: jobData.deadline ? Timestamp.fromDate(new Date(jobData.deadline)) : null,
-      urgency: jobData.urgency || 'medium', // Ensure urgency is saved, default to medium if not provided
+      urgency: jobData.urgency || 'medium', 
       acceptedQuoteId: jobData.acceptedQuoteId || null,
     };
 
@@ -45,9 +46,6 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
       dataToSave.budget = null;
     }
 
-    if (jobData.otherCategoryDescription) {
-      dataToSave.otherCategoryDescription = jobData.otherCategoryDescription.trim();
-    }
     if (jobData.budgetRange && (jobData.budgetRange.min != null || jobData.budgetRange.max != null)) {
       dataToSave.budgetRange = jobData.budgetRange;
     }
@@ -99,7 +97,8 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
         postedAt: (jobData.postedAt as Timestamp)?.toDate(),
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
         deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
-        urgency: jobData.urgency || 'medium', // Ensure urgency is part of the returned object
+        urgency: jobData.urgency || 'medium', 
+        otherCategoryDescription: jobData.otherCategoryDescription || undefined,
       } as Job;
     } else {
       return null;
@@ -135,6 +134,7 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
         deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
         urgency: jobData.urgency || 'medium',
+        otherCategoryDescription: jobData.otherCategoryDescription || undefined,
       } as Job);
     });
     return jobs;
@@ -253,6 +253,7 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
         updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
         deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
         urgency: jobData.urgency || 'medium',
+        otherCategoryDescription: jobData.otherCategoryDescription || undefined,
       } as Job);
     });
     return jobs;
@@ -296,6 +297,7 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
         updatedAt,
         deadline,
         urgency: jobData.urgency || 'medium',
+        otherCategoryDescription: jobData.otherCategoryDescription || undefined,
       } as Job);
     });
     console.log(`[getAllJobsFromFirestore] Fetched ${jobs.length} jobs for browsing.`);
@@ -309,4 +311,3 @@ export async function getAllJobsFromFirestore(limitCount: number = 50): Promise<
     throw new Error('Could not fetch all jobs from Firestore.');
   }
 }
-

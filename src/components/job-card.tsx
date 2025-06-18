@@ -50,8 +50,7 @@ export default function JobCard({ job }: JobCardProps) {
         </div>
          <CardDescription className="flex items-center text-xs text-muted-foreground pt-1">
             <ServiceCategoryIcon category={job.serviceCategory} iconOnly className="h-3.5 w-3.5 mr-1.5" />
-            {job.serviceCategory}
-            {job.serviceCategory === 'Other' && job.otherCategoryDescription && ` (${job.otherCategoryDescription})`}
+            {job.serviceCategory === 'Other' && job.otherCategoryDescription ? job.otherCategoryDescription : job.serviceCategory}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-0 pb-4 text-sm flex-grow">

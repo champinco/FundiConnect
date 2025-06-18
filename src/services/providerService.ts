@@ -48,6 +48,7 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
 
     const dataToSave = {
       ...profileData,
+      otherMainServiceDescription: profileData.mainService === 'Other' && profileData.otherMainServiceDescription ? profileData.otherMainServiceDescription.trim() : null,
       certifications: certificationsWithAdminTimestamps,
       portfolio: (Array.isArray(profileData.portfolio) ? profileData.portfolio : []).map(item => ({
           id: item.id || '',
@@ -132,6 +133,7 @@ export async function getProviderProfileFromFirestore(providerId: string): Promi
         userId: data.userId || '',
         businessName: data.businessName || 'N/A',
         mainService: data.mainService || 'Other',
+        otherMainServiceDescription: data.otherMainServiceDescription || undefined,
         specialties: Array.isArray(data.specialties) ? data.specialties : [],
         skills: Array.isArray(data.skills) ? data.skills : [],
         bio: data.bio || '',
@@ -208,6 +210,7 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
         userId: data.userId || '',
         businessName: data.businessName || 'N/A',
         mainService: data.mainService || 'Other',
+        otherMainServiceDescription: data.otherMainServiceDescription || undefined,
         specialties: Array.isArray(data.specialties) ? data.specialties : [],
         skills: Array.isArray(data.skills) ? data.skills : [],
         bio: data.bio || '',
@@ -291,6 +294,7 @@ export async function getEmergencyOptedInProvidersByCategory(serviceCategory: Se
         userId: data.userId || '',
         businessName: data.businessName || 'N/A',
         mainService: data.mainService || 'Other',
+        otherMainServiceDescription: data.otherMainServiceDescription || undefined,
         specialties: Array.isArray(data.specialties) ? data.specialties : [],
         skills: Array.isArray(data.skills) ? data.skills : [],
         bio: data.bio || '',

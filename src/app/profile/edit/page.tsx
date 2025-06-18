@@ -54,6 +54,7 @@ export default function EditProviderProfilePage() {
     defaultValues: {
       businessName: "",
       mainService: undefined,
+      otherMainServiceDescription: "",
       specialties: [],
       skills: [],
       bio: "",
@@ -89,6 +90,8 @@ export default function EditProviderProfilePage() {
   
   const [portfolioItemPreviews, setPortfolioItemPreviews] = useState<Record<string, string | null>>({});
 
+  const mainServiceValue = watch("mainService");
+
 
   const handlePortfolioItemImageChange = (event: ChangeEvent<HTMLInputElement>, index: number) => {
     if (event.target.files && event.target.files[0]) {
@@ -98,8 +101,8 @@ export default function EditProviderProfilePage() {
         return;
       }
       setValue(`portfolio.${index}.newImageFile`, file, { shouldValidate: true });
-      const fieldId = watch(`portfolio.${index}.id`); // Use the actual ID of the portfolio item
-      if (fieldId) { // Ensure fieldId is defined
+      const fieldId = watch(`portfolio.${index}.id`); 
+      if (fieldId) { 
         setPortfolioItemPreviews(prev => ({ ...prev, [fieldId]: URL.createObjectURL(file) }));
       }
     }
@@ -127,6 +130,7 @@ export default function EditProviderProfilePage() {
 
             reset({
               ...result.providerProfile,
+              otherMainServiceDescription: result.providerProfile.otherMainServiceDescription || "",
               specialties: (result.providerProfile.specialties ?? []).join(', '),
               skills: (result.providerProfile.skills ?? []).join(', '),
               yearsOfExperience: result.providerProfile.yearsOfExperience ?? 0,
@@ -143,7 +147,7 @@ export default function EditProviderProfilePage() {
               })),
               portfolio: (result.providerProfile.portfolio ?? []).map(item => ({
                   ...item,
-                  id: item.id || uuidv4(), // Ensure ID exists
+                  id: item.id || uuidv4(), 
                   newImageFile: undefined, 
               })),
               unavailableDates: (result.providerProfile.unavailableDates ?? []).map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())),
@@ -276,11 +280,12 @@ export default function EditProviderProfilePage() {
         }
         if (uploadedProfilePicUrl) setProfilePicturePreview(uploadedProfilePicUrl);
         if (uploadedBannerImgUrl) setBannerImagePreview(uploadedBannerImgUrl);
-        // Set social media URLs after successful update
+        
         setValue('twitterUrl', result.updatedProfile?.socialMediaLinks?.twitter || "");
         setValue('instagramUrl', result.updatedProfile?.socialMediaLinks?.instagram || "");
         setValue('facebookUrl', result.updatedProfile?.socialMediaLinks?.facebook || "");
         setValue('linkedinUrl', result.updatedProfile?.socialMediaLinks?.linkedin || "");
+        setValue('otherMainServiceDescription', result.updatedProfile?.otherMainServiceDescription || "");
 
 
       } else {
@@ -396,6 +401,18 @@ export default function EditProviderProfilePage() {
                   />
                   {errors.mainService && <p className="text-sm text-destructive mt-1">{errors.mainService.message}</p>}
                 </div>
+                {mainServiceValue === 'Other' && (
+                  <div>
+                    <Label htmlFor="otherMainServiceDescription" className="font-semibold">Specify Your 'Other' Main Service</Label>
+                    <Input 
+                      id="otherMainServiceDescription" 
+                      {...register("otherMainServiceDescription")} 
+                      placeholder="e.g., Custom Metal Fabrication" 
+                      className="mt-1" 
+                    />
+                    {errors.otherMainServiceDescription && <p className="text-sm text-destructive mt-1">{errors.otherMainServiceDescription.message}</p>}
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="specialties" className="font-semibold flex items-center"><Sparkles className="mr-2 h-4 w-4" /> Specialties (Comma-separated)</Label>
                   <Input id="specialties" {...register("specialties")} placeholder="e.g., Drain unclogging, Geyser installation" className="mt-1" />

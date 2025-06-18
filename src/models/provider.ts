@@ -25,6 +25,7 @@ export interface ProviderProfile {
   userId: string;
   businessName: string;
   mainService: ServiceCategory;
+  otherMainServiceDescription?: string; // If mainService is 'Other'
   specialties: string[];
   skills: string[];
   bio: string;

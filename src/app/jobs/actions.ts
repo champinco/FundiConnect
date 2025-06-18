@@ -46,7 +46,7 @@ export async function postJobAction(
       status: 'open', 
       photosOrVideos: photoUrls || [],
       budget: values.budget,
-      urgency: values.urgency as JobUrgency, // Ensure urgency is passed
+      urgency: values.urgency as JobUrgency, 
       deadline: values.deadline ? new Date(values.deadline) : null
     };
 
@@ -63,7 +63,7 @@ export async function postJobAction(
         if (provider.id !== actualClientId) { 
           await createNotification({
             userId: provider.id,
-            type: 'job_status_changed', // Could be a more specific type like 'urgent_job_alert'
+            type: 'job_status_changed', 
             message: `URGENT job posted in ${values.serviceCategory}: "${values.jobTitle.substring(0, 30)}..." in ${values.location}.`,
             relatedEntityId: jobId,
             link: `/jobs/${jobId}`
@@ -109,15 +109,14 @@ export async function fetchMyClientJobsAction(userId: string): Promise<Job[]> {
   }
   try {
     console.log(`[fetchMyClientJobsAction] Fetching jobs for client ${userId} using searchJobsAction.`);
-    const jobs = await searchClientJobsAction({
+    const jobResult = await searchClientJobsAction({ // Corrected: expect JobSearchResult
       isMyJobsSearch: true,
       currentUserId: userId,
       filterByStatus: 'all_my' 
     });
-    return jobs;
+    return jobResult.jobs; // Extract jobs array from the result
   } catch (error: any) {
     console.error(`[fetchMyClientJobsAction] Error fetching jobs for client ${userId}. Error:`, error.message, error.stack, error.code);
     throw new Error(`Failed to fetch client jobs: ${error.message}.`);
   }
 }
-

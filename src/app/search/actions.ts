@@ -44,7 +44,6 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
       console.log(`[searchProvidersAction] Applying location filter: >= ${locationSearchTerm}, <= ${locationSearchTerm}\\uf8ff`);
-      // This is a prefix search. For more precise location, consider geocoding and radius search.
       providerQuery = providerQuery.where('location', '>=', locationSearchTerm)
                                    .where('location', '<=', locationSearchTerm + '\uf8ff');
     }
@@ -78,6 +77,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
         reviewsCount: data.reviewsCount || 0,
         location: data.location,
         mainService: data.mainService,
+        otherMainServiceDescription: data.otherMainServiceDescription,
         isVerified: data.isVerified || false,
         verificationAuthority: data.verificationAuthority,
         bioSummary: data.bio ? (data.bio.substring(0, 100) + (data.bio.length > 150 ? '...' : '')) : 'No bio available.',
@@ -111,16 +111,18 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
 
         const nameMatch = p.businessName.toLowerCase().includes(searchTerm);
         const serviceMatch = p.mainService.toLowerCase().includes(searchTerm);
+        const otherServiceDescMatch = p.mainService === 'Other' && p.otherMainServiceDescription && p.otherMainServiceDescription.toLowerCase().includes(searchTerm);
         const bioMatch = p.bio && p.bio.toLowerCase().includes(searchTerm);
-        const locationMatch = p.location && p.location.toLowerCase().includes(searchTerm); // Check provider's location
+        const locationMatch = p.location && p.location.toLowerCase().includes(searchTerm); 
         const skillsMatch = p.skills && p.skills.some(skill => skill.toLowerCase().includes(searchTerm));
         const specialtiesMatch = p.specialties && p.specialties.some(spec => spec.toLowerCase().includes(searchTerm));
         
-        const match = nameMatch || serviceMatch || bioMatch || locationMatch || skillsMatch || specialtiesMatch;
+        const match = nameMatch || serviceMatch || otherServiceDescMatch || bioMatch || locationMatch || skillsMatch || specialtiesMatch;
 
         console.log(`[searchProvidersAction] Text Filter Eval: Provider ID ${p.id} ('${p.businessName}') for searchTerm '${searchTerm}':
           Name Match: ${nameMatch} (Value: '${p.businessName.toLowerCase()}')
           Main Service Match: ${serviceMatch} (Value: '${p.mainService.toLowerCase()}')
+          Other Service Desc Match: ${otherServiceDescMatch} (Value: '${p.otherMainServiceDescription?.toLowerCase() || 'N/A'}')
           Bio Match: ${bioMatch} (Bio length: ${p.bio?.length || 0})
           Location Match (Provider's Loc): ${locationMatch} (Value: ${p.location?.toLowerCase() || 'N/A'})
           Skills Match: ${skillsMatch} (Skills: ${(p.skills || []).join(', ')})
@@ -151,8 +153,8 @@ export interface JobSearchParams {
 }
 
 export interface JobSearchResult {
-  jobs: JobCardProps['job'][];
-  effectiveLocationUsed?: string | null; // The location actually used for the search
+  jobs: Job[]; 
+  effectiveLocationUsed?: string | null; 
 }
 
 export async function searchJobsAction(params: JobSearchParams): Promise<JobSearchResult> {
@@ -172,7 +174,6 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobSear
   let usedProviderDefaultLocation = false;
 
   try {
-    // Logic to default to provider's location if searching jobs and no location is specified
     if (!params.isMyJobsSearch && params.currentUserId && (!params.location || params.location.trim() === '')) {
       console.log(`[searchJobsAction] No location specified by user ${params.currentUserId}. Attempting to use provider's default location.`);
       const userProfile = await getUserProfileFromFirestore(params.currentUserId);
@@ -241,6 +242,7 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobSear
         postedAt,
         updatedAt,
         deadline,
+        otherCategoryDescription: data.otherCategoryDescription,
       } as Job);
     });
 
@@ -249,24 +251,13 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobSear
       console.log(`[searchJobsAction] Applying client-side text filter for jobs: ${keywordTerm}`);
       jobsData = jobsData.filter(job =>
         (job.title && job.title.toLowerCase().includes(keywordTerm)) ||
-        (job.description && job.description.toLowerCase().includes(keywordTerm))
+        (job.description && job.description.toLowerCase().includes(keywordTerm)) ||
+        (job.serviceCategory === 'Other' && job.otherCategoryDescription && job.otherCategoryDescription.toLowerCase().includes(keywordTerm))
       );
     }
 
-    const jobCardData: JobCardProps['job'][] = jobsData.map(job => ({
-      id: job.id,
-      title: job.title,
-      serviceCategory: job.serviceCategory,
-      otherCategoryDescription: job.otherCategoryDescription,
-      location: job.location,
-      postedAt: job.postedAt,
-      status: job.status,
-      description: job.description, 
-      budget: job.budget, 
-      deadline: job.deadline, 
-    }));
-    console.log(`[searchJobsAction] Found ${jobCardData.length} jobs. Effective location used: ${effectiveLocationForQuery}`);
-    return { jobs: jobCardData, effectiveLocationUsed: effectiveLocationForQuery };
+    console.log(`[searchJobsAction] Found ${jobsData.length} jobs. Effective location used: ${effectiveLocationForQuery}`);
+    return { jobs: jobsData, effectiveLocationUsed: effectiveLocationForQuery };
 
   } catch (error: any) {
     console.error(`[searchJobsAction] Error during job search. Params: ${JSON.stringify(params)}. Error:`, error.message, error.stack, error.code);
@@ -277,4 +268,3 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobSear
     throw new Error(`An error occurred while searching for jobs: ${error.message}.`);
   }
 }
-

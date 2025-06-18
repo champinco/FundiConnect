@@ -1,5 +1,5 @@
 
-"use client"; // This page needs to be a client component to use hooks like useState, useEffect, and onAuthStateChanged
+"use client"; 
 
 import { useEffect, useState, Suspense, use as useReact } from 'react'; 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
@@ -192,7 +192,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
               </div>
               <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-2">
                 <ServiceCategoryIcon category={job.serviceCategory} iconOnly className="h-4 w-4" />
-                <span>{job.serviceCategory}{job.otherCategoryDescription ? ` (${job.otherCategoryDescription})` : ''}</span>
+                <span>{job.serviceCategory === 'Other' && job.otherCategoryDescription ? job.otherCategoryDescription : job.serviceCategory}</span>
               </div>
             </div>
             <Badge 
