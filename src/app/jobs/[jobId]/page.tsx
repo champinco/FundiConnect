@@ -1,13 +1,13 @@
 
 "use client"; 
 
-import { useEffect, useState, Suspense, use as useReact } from 'react'; 
+import { useEffect, useState, Suspense, use as useReact, useRef } from 'react'; // Added useRef
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3, Loader2 } from 'lucide-react';
+import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3, Loader2, Star } from 'lucide-react'; // Added Star
 import { format } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import Link from 'next/link';
@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { getOrCreateChatAction } from '@/app/messages/actions';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 // Loader for Suspense boundary if JobDetails itself is not async
@@ -51,7 +52,7 @@ function JobDetailLoader() {
                                     <div className="h-5 w-3/4 bg-muted rounded"></div>
                                     <div className="h-5 w-2/3 bg-muted rounded"></div>
                                     <div className="h-5 w-3/4 bg-muted rounded"></div>
-                                </CardContent>
+                                </Content>
                             </Card>
                         </aside>
                     </CardContent>
@@ -75,6 +76,8 @@ function JobDetails({ jobId }: JobDetailsProps) {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const reviewFormRef = useRef<HTMLDivElement>(null); // Ref for the review form section
+  const [promptForReview, setPromptForReview] = useState(false); // State to trigger review prompt
 
   const fetchData = async () => {
     if (jobId) {
@@ -110,6 +113,14 @@ function JobDetails({ jobId }: JobDetailsProps) {
   useEffect(() => {
     fetchData();
   }, [jobId]); 
+
+  useEffect(() => {
+    if (promptForReview && job?.status === 'completed' && reviewFormRef.current) {
+      reviewFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // setPromptForReview(false); // Reset after scrolling if desired, or keep to show message
+    }
+  }, [promptForReview, job?.status]);
+
 
   const handleQuoteActionComplete = () => {
     fetchData(); 
@@ -236,7 +247,10 @@ function JobDetails({ jobId }: JobDetailsProps) {
               <MarkAsCompletedButton 
                   jobId={job.id} 
                   currentJobStatus={job.status} 
-                  jobClientId={job.clientId} 
+                  jobClientId={job.clientId}
+                  onJobSuccessfullyCompleted={() => {
+                    setPromptForReview(true);
+                  }}
               />
             )}
 
@@ -244,14 +258,26 @@ function JobDetails({ jobId }: JobDetailsProps) {
               <SubmitQuoteForm jobId={jobId} clientId={job.clientId} />
             )}
             
-            {currentUser?.uid === job.clientId && job.assignedProviderId && ( 
-              <SubmitReviewForm 
-                  jobId={job.id} 
-                  providerId={job.assignedProviderId} 
-                  clientId={job.clientId} 
-                  currentJobStatus={job.status} 
-              />
-            )}
+            <div ref={reviewFormRef}>
+              {promptForReview && job.status === 'completed' && (
+                  <Alert className="mb-6 bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-700">
+                    <Star className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <AlertTitle className="font-semibold text-green-700 dark:text-green-300">Job Marked as Complete!</AlertTitle>
+                    <AlertDescription className="text-green-600 dark:text-green-400">
+                      Thank you for confirming the job is finished. Please take a moment to leave a review for {job.assignedProviderId ? `the provider` : 'the service'}. Your feedback is valuable!
+                    </AlertDescription>
+                  </Alert>
+              )}
+              {currentUser?.uid === job.clientId && job.assignedProviderId && ( 
+                <SubmitReviewForm 
+                    jobId={job.id} 
+                    providerId={job.assignedProviderId} 
+                    clientId={job.clientId} 
+                    currentJobStatus={job.status} 
+                />
+              )}
+            </div>
+
 
              {quotes.length > 0 && (job.status !== 'completed' && job.status !== 'cancelled') && ( 
                 <div className="mt-8">
@@ -387,3 +413,4 @@ export default function JobDetailPageWrapper({ params }: { params: { jobId: stri
         </Suspense>
     );
 }
+

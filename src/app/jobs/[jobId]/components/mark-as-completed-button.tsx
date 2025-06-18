@@ -15,9 +15,10 @@ interface MarkAsCompletedButtonProps {
   jobId: string;
   currentJobStatus: JobStatus;
   jobClientId: string;
+  onJobSuccessfullyCompleted: () => void; // New callback prop
 }
 
-export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClientId }: MarkAsCompletedButtonProps) {
+export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClientId, onJobSuccessfullyCompleted }: MarkAsCompletedButtonProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -42,11 +43,11 @@ export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClie
 
     setIsLoading(true);
     try {
-      // Pass currentUser.uid as expectedClientId to the action for server-side verification
       const result = await markJobAsCompletedAction(jobId, currentUser.uid);
       if (result.success) {
         toast({ title: "Job Status Updated", description: result.message });
         router.refresh(); // Refresh server components on the page to reflect new job status
+        onJobSuccessfullyCompleted(); // Call the callback
       } else {
         toast({ title: "Update Failed", description: result.message, variant: "destructive" });
       }
@@ -57,7 +58,6 @@ export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClie
     }
   };
 
-  // Determine if the button should be visible
   const canMarkCompleted = currentUser?.uid === jobClientId && (currentJobStatus === 'assigned' || currentJobStatus === 'in_progress');
 
   if (!canMarkCompleted) {
@@ -85,3 +85,4 @@ export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClie
     </div>
   );
 }
+
