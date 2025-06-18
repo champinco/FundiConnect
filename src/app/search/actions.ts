@@ -8,7 +8,8 @@ import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
 import type { Job, JobStatus } from '@/models/job';
 import type { JobCardProps } from '@/components/job-card';
-import { getProviderProfileFromFirestore } from '@/services/providerService'; // Import to fetch full profiles
+import { getProviderProfileFromFirestore } from '@/services/providerService';
+import { getUserProfileFromFirestore } from '@/services/userService';
 
 
 export interface SearchParams {
@@ -43,6 +44,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     if (params.location && params.location.trim() !== '') {
       const locationSearchTerm = params.location.trim();
       console.log(`[searchProvidersAction] Applying location filter: >= ${locationSearchTerm}, <= ${locationSearchTerm}\\uf8ff`);
+      // This is a prefix search. For more precise location, consider geocoding and radius search.
       providerQuery = providerQuery.where('location', '>=', locationSearchTerm)
                                    .where('location', '<=', locationSearchTerm + '\uf8ff');
     }
@@ -110,7 +112,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
         const nameMatch = p.businessName.toLowerCase().includes(searchTerm);
         const serviceMatch = p.mainService.toLowerCase().includes(searchTerm);
         const bioMatch = p.bio && p.bio.toLowerCase().includes(searchTerm);
-        const locationMatch = p.location && p.location.toLowerCase().includes(searchTerm);
+        const locationMatch = p.location && p.location.toLowerCase().includes(searchTerm); // Check provider's location
         const skillsMatch = p.skills && p.skills.some(skill => skill.toLowerCase().includes(searchTerm));
         const specialtiesMatch = p.specialties && p.specialties.some(spec => spec.toLowerCase().includes(searchTerm));
         
@@ -120,7 +122,7 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
           Name Match: ${nameMatch} (Value: '${p.businessName.toLowerCase()}')
           Main Service Match: ${serviceMatch} (Value: '${p.mainService.toLowerCase()}')
           Bio Match: ${bioMatch} (Bio length: ${p.bio?.length || 0})
-          Location Match: ${locationMatch} (Value: ${p.location?.toLowerCase() || 'N/A'})
+          Location Match (Provider's Loc): ${locationMatch} (Value: ${p.location?.toLowerCase() || 'N/A'})
           Skills Match: ${skillsMatch} (Skills: ${(p.skills || []).join(', ')})
           Specialties Match: ${specialtiesMatch} (Specialties: ${(p.specialties || []).join(', ')})
           OVERALL MATCH: ${match ? "INCLUDED" : "EXCLUDED"}`);
@@ -148,7 +150,12 @@ export interface JobSearchParams {
   isMyJobsSearch?: boolean;
 }
 
-export async function searchJobsAction(params: JobSearchParams): Promise<JobCardProps['job'][]> {
+export interface JobSearchResult {
+  jobs: JobCardProps['job'][];
+  effectiveLocationUsed?: string | null; // The location actually used for the search
+}
+
+export async function searchJobsAction(params: JobSearchParams): Promise<JobSearchResult> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
     const errorMsg = "[searchJobsAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
     console.error(errorMsg);
@@ -158,10 +165,32 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
 
   if (params.isMyJobsSearch && !params.currentUserId) {
     console.warn("[searchJobsAction] 'myJobs' search initiated without a currentUserId. Returning empty results.");
-    return [];
+    return { jobs: [], effectiveLocationUsed: params.location };
   }
 
+  let effectiveLocationForQuery = params.location;
+  let usedProviderDefaultLocation = false;
+
   try {
+    // Logic to default to provider's location if searching jobs and no location is specified
+    if (!params.isMyJobsSearch && params.currentUserId && (!params.location || params.location.trim() === '')) {
+      console.log(`[searchJobsAction] No location specified by user ${params.currentUserId}. Attempting to use provider's default location.`);
+      const userProfile = await getUserProfileFromFirestore(params.currentUserId);
+      if (userProfile?.accountType === 'provider') {
+        const providerProfile = await getProviderProfileFromFirestore(params.currentUserId);
+        if (providerProfile?.location) {
+          effectiveLocationForQuery = providerProfile.location;
+          usedProviderDefaultLocation = true;
+          console.log(`[searchJobsAction] Using provider ${params.currentUserId}'s default location: ${effectiveLocationForQuery}`);
+        } else {
+          console.log(`[searchJobsAction] Provider ${params.currentUserId} has no default location set.`);
+        }
+      } else {
+        console.log(`[searchJobsAction] User ${params.currentUserId} is not a provider, or profile not found. Not using default location.`);
+      }
+    }
+
+
     let jobQuery: AdminQuery<FirebaseFirestore.DocumentData> = adminDb.collection('jobs');
 
     if (params.isMyJobsSearch && params.currentUserId) {
@@ -186,8 +215,8 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       jobQuery = jobQuery.where('serviceCategory', '==', params.category);
     }
 
-    if (params.location && params.location.trim() !== '') {
-      const locationTerm = params.location.trim();
+    if (effectiveLocationForQuery && effectiveLocationForQuery.trim() !== '') {
+      const locationTerm = effectiveLocationForQuery.trim();
       console.log(`[searchJobsAction] Filtering by location: >= ${locationTerm}, <= ${locationTerm}\\uf8ff`);
       jobQuery = jobQuery.where('location', '>=', locationTerm)
                        .where('location', '<=', locationTerm + '\uf8ff');
@@ -236,8 +265,8 @@ export async function searchJobsAction(params: JobSearchParams): Promise<JobCard
       budget: job.budget, 
       deadline: job.deadline, 
     }));
-    console.log(`[searchJobsAction] Found ${jobCardData.length} jobs.`);
-    return jobCardData;
+    console.log(`[searchJobsAction] Found ${jobCardData.length} jobs. Effective location used: ${effectiveLocationForQuery}`);
+    return { jobs: jobCardData, effectiveLocationUsed: effectiveLocationForQuery };
 
   } catch (error: any) {
     console.error(`[searchJobsAction] Error during job search. Params: ${JSON.stringify(params)}. Error:`, error.message, error.stack, error.code);

@@ -15,12 +15,14 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Filter, Star, MapPin, Search as SearchIcon, Loader2, Info, Briefcase, PackageOpen } from 'lucide-react';
 import type { ServiceCategory } from '@/components/service-category-icon';
-import { searchProvidersAction, type SearchParams as ProviderSearchParams, searchJobsAction, type JobSearchParams } from './actions';
+import { searchProvidersAction, type SearchParams as ProviderSearchParams, searchJobsAction, type JobSearchParams, type JobSearchResult } from './actions';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { JobStatus } from '@/models/job';
+import { fetchCurrentAppUserTypeAction } from '@/app/profile/actions';
+import type { User as AppUser } from '@/models/user';
 
 
 const allServiceCategoriesList: (ServiceCategory | 'All')[] = [
@@ -40,6 +42,7 @@ function SearchPageContent() {
   }, [nextSearchParams]);
 
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [currentUserAccountType, setCurrentUserAccountType] = useState<AppUser['accountType'] | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [searchMode, setSearchMode] = useState<SearchMode>('providers');
@@ -50,7 +53,7 @@ function SearchPageContent() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const [jobKeywordsQuery, setJobKeywordsQuery] = useState('');
-  const [jobLocationQuery, setJobLocationQuery] = useState('');
+  const [jobLocationQuery, setJobLocationQuery] = useState(''); // User's input for job location
   const [selectedJobCategory, setSelectedJobCategory] = useState<ServiceCategory | 'All'>('All');
   const [jobStatusFilter, setJobStatusFilter] = useState<string | null>(null);
 
@@ -58,12 +61,19 @@ function SearchPageContent() {
   const [jobResults, setJobResults] = useState<JobCardProps['job'][]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [effectiveJobSearchLocation, setEffectiveJobSearchLocation] = useState<string | null | undefined>(null);
 
 
   useEffect(() => {
     setAuthLoading(true);
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        const type = await fetchCurrentAppUserTypeAction(user.uid);
+        setCurrentUserAccountType(type);
+      } else {
+        setCurrentUserAccountType(null);
+      }
       setAuthLoading(false);
     });
     return () => unsubscribe();
@@ -79,6 +89,7 @@ function SearchPageContent() {
     console.log(`[executeSearch] Called. Mode: ${executionMode}. Params: ${paramsFromUrl.toString()}`);
     setIsLoading(true);
     setHasSearched(true); 
+    setEffectiveJobSearchLocation(null); // Reset effective location display
 
     if (executionMode === 'providers') {
       const apiParams: ProviderSearchParams = {
@@ -110,17 +121,18 @@ function SearchPageContent() {
 
       const apiParams: JobSearchParams = {
         keywords: paramsFromUrl.get('keywords') || '',
-        location: paramsFromUrl.get('jobLocation') || '',
+        location: paramsFromUrl.get('jobLocation') || '', // Use 'jobLocation' from URL for explicit search
         category: (paramsFromUrl.get('jobCategory') as ServiceCategory | 'All') || 'All',
         isMyJobsSearch: myJobsFlag,
-        currentUserId: myJobsFlag && currentUser ? currentUser.uid : null,
+        currentUserId: currentUser ? currentUser.uid : null, // Pass current user ID for potential default location
         filterByStatus: statusParamFromUrl,
       };
       try {
         console.log('[executeSearch] Calling searchJobsAction with:', apiParams);
-        const jobs = await searchJobsAction(apiParams);
-        console.log('[executeSearch] searchJobsAction returned, job count:', jobs.length);
-        setJobResults(jobs);
+        const result: JobSearchResult = await searchJobsAction(apiParams);
+        console.log('[executeSearch] searchJobsAction returned, job count:', result.jobs.length, 'Effective Loc:', result.effectiveLocationUsed);
+        setJobResults(result.jobs);
+        setEffectiveJobSearchLocation(result.effectiveLocationUsed);
       } catch (error) {
         console.error("Error searching jobs:", error);
         setJobResults([]);
@@ -128,7 +140,7 @@ function SearchPageContent() {
     }
     setIsLoading(false);
     console.log('[executeSearch] Finished, isLoading set to false.');
-  }, [authLoading, currentUser, router, setIsLoading, setHasSearched, setProviderResults, setJobResults]);
+  }, [authLoading, currentUser, router, setIsLoading, setHasSearched, setProviderResults, setJobResults, setEffectiveJobSearchLocation]);
 
 
   useEffect(() => {
@@ -157,14 +169,14 @@ function SearchPageContent() {
       setVerifiedOnly(currentUrlParams.get('verifiedOnly') === 'true');
     } else { 
       setJobKeywordsQuery(currentUrlParams.get('keywords') || '');
-      setJobLocationQuery(currentUrlParams.get('jobLocation') || '');
+      setJobLocationQuery(currentUrlParams.get('jobLocation') || ''); // Reflects what's in URL or user typed
       setSelectedJobCategory((currentUrlParams.get('jobCategory') as ServiceCategory | 'All') || 'All');
       setJobStatusFilter(currentUrlParams.get('status') || null);
     }
 
     let performSearchNow = false;
     if (modeFromUrl === 'providers') {
-      performSearchNow = true; // Always try to perform search for providers mode to show all if no filters
+      performSearchNow = true; 
     } else if (modeFromUrl === 'jobs') {
       if (myJobsActive) {
         if (currentUser && !authLoading) { 
@@ -183,10 +195,9 @@ function SearchPageContent() {
       executeSearch(modeFromUrl, currentUrlParams);
     } else if (!isLoadingRef.current) { 
       console.log(`[SearchPage useEffect] Conditions NOT met for auto-search. Mode: ${modeFromUrl}. HasSearched: ${hasSearched}`);
-      // If no search is performed, ensure UI reflects "no search yet" state for providers if applicable
       if (modeFromUrl === 'providers' && !(currentUrlParams.has('query') || currentUrlParams.has('location') || (currentUrlParams.get('category') && currentUrlParams.get('category') !== 'All') || currentUrlParams.has('minRating') || currentUrlParams.get('verifiedOnly') === 'true')) {
-        setHasSearched(false); // Show initial prompt if no filters are active
-        setProviderResults([]); // Clear previous results if any
+        setHasSearched(false); 
+        setProviderResults([]); 
       }
     }
   }, [memoizedNextSearchParams, authLoading, currentUser, executeSearch, searchMode]); 
@@ -209,6 +220,7 @@ function SearchPageContent() {
     
     if (searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true') {
         query.set('myJobs', 'true');
+         if (!newParams.status && !query.has('status')) query.set('status', 'all_my'); // Ensure status for myJobs
     } else if (searchMode !== 'jobs' || memoizedNextSearchParams.get('myJobs') !== 'true') {
         query.delete('myJobs'); 
         query.delete('status'); 
@@ -232,7 +244,7 @@ function SearchPageContent() {
 
     } else { 
       paramsToUpdate.keywords = jobKeywordsQuery || null;
-      paramsToUpdate.jobLocation = jobLocationQuery || null;
+      paramsToUpdate.jobLocation = jobLocationQuery || null; // User's explicit input
       paramsToUpdate.jobCategory = selectedJobCategory === 'All' ? null : selectedJobCategory;
       if (memoizedNextSearchParams.get('myJobs') === 'true') {
         paramsToUpdate.status = jobStatusFilter || 'all_my'; 
@@ -252,7 +264,7 @@ function SearchPageContent() {
       paramsToUpdate.verifiedOnly = verifiedOnly ? 'true' : null;
     } else { 
       paramsToUpdate.keywords = jobKeywordsQuery || null;
-      paramsToUpdate.jobLocation = jobLocationQuery || null;
+      paramsToUpdate.jobLocation = jobLocationQuery || null; // User's explicit input
       paramsToUpdate.jobCategory = selectedJobCategory === 'All' ? null : selectedJobCategory;
       if (memoizedNextSearchParams.get('myJobs') === 'true') {
         paramsToUpdate.status = jobStatusFilter || 'all_my'; 
@@ -265,6 +277,11 @@ function SearchPageContent() {
     const newMode = newModeValue as SearchMode;
     const query = new URLSearchParams(); 
     query.set('mode', newMode);
+    // If switching to "My Jobs" implicitly via URL, or from "My Jobs" to general jobs
+    if (newMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true') {
+        query.set('myJobs', 'true');
+        query.set('status', jobStatusFilter || 'all_my');
+    }
     console.log('[handleModeChange] New mode:', newMode, 'Pushing to URL.');
     router.push(`/search?${query.toString()}`, { scroll: false });
   };
@@ -277,6 +294,8 @@ function SearchPageContent() {
     jobResultsLength: jobResults.length,
     memoizedNextSearchParams: memoizedNextSearchParams.toString()
   });
+
+  const isMyJobsView = searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true';
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -294,12 +313,12 @@ function SearchPageContent() {
       <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card rounded-lg shadow">
         <h1 className="text-3xl font-headline font-bold mb-2">
           {searchMode === 'providers' ? 'Find Service Providers' :
-           (memoizedNextSearchParams.get('myJobs') === 'true' ? 'My Posted Jobs' : 'Discover Job Opportunities')}
+           (isMyJobsView ? 'My Posted Jobs' : 'Discover Job Opportunities')}
         </h1>
         <p className="text-muted-foreground mb-6">
           {searchMode === 'providers'
             ? 'Search for skilled and verified Fundis for your specific needs.'
-            : (memoizedNextSearchParams.get('myJobs') === 'true'
+            : (isMyJobsView
                 ? 'Review and manage jobs you have posted.'
                 : 'Browse open jobs posted by clients and submit your quotes.')}
         </p>
@@ -351,7 +370,7 @@ function SearchPageContent() {
                   className="pl-10"
                   value={jobKeywordsQuery}
                   onChange={(e) => setJobKeywordsQuery(e.target.value)}
-                  disabled={memoizedNextSearchParams.get('myJobs') === 'true'}
+                  disabled={isMyJobsView}
                 />
               </div>
             </div>
@@ -361,23 +380,28 @@ function SearchPageContent() {
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="job-location-query"
-                  placeholder="e.g., Westlands, Mombasa"
+                  placeholder={currentUserAccountType === 'provider' && !isMyJobsView ? "e.g., Westlands (or leave blank for jobs near you)" : "e.g., Westlands, Mombasa"}
                   className="pl-10"
                   value={jobLocationQuery}
                   onChange={(e) => setJobLocationQuery(e.target.value)}
-                  disabled={memoizedNextSearchParams.get('myJobs') === 'true'}
+                  disabled={isMyJobsView}
                 />
               </div>
             </div>
             <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" 
-                    disabled={isLoading || (authLoading && memoizedNextSearchParams.get('myJobs') === 'true') || memoizedNextSearchParams.get('myJobs') === 'true'}>
+                    disabled={isLoading || (authLoading && isMyJobsView) || isMyJobsView}>
               {(isLoading && searchMode === 'jobs') ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
               Search Jobs
             </Button>
           </div>
         )}
-         {searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true' && (
+         {searchMode === 'jobs' && isMyJobsView && (
             <p className="text-xs text-muted-foreground mt-2">Keyword and location search is disabled for "My Jobs". Use filters on the left to refine by category or status.</p>
+        )}
+         {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery === '' && (
+            <p className="text-xs text-muted-foreground mt-2">
+                Showing jobs near your profile location: <span className="font-medium">{effectiveJobSearchLocation}</span>. Enter a specific location to override.
+            </p>
         )}
       </form>
 
@@ -396,7 +420,7 @@ function SearchPageContent() {
                   if (searchMode === 'providers') setSelectedProviderCategory(value as ServiceCategory | 'All');
                   else setSelectedJobCategory(value as ServiceCategory | 'All');
                 }}
-                disabled={memoizedNextSearchParams.get('myJobs') === 'true' && searchMode === 'jobs'}
+                disabled={isMyJobsView && searchMode === 'jobs'}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select category" />
@@ -443,7 +467,7 @@ function SearchPageContent() {
               </>
             )}
             
-            {searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true' && (
+            {searchMode === 'jobs' && isMyJobsView && (
                  <div>
                     <h3 className="font-medium mb-2 text-sm">Job Status</h3>
                     <Select
@@ -468,7 +492,7 @@ function SearchPageContent() {
 
 
             <Button onClick={handleApplyFilters} className="w-full bg-primary hover:bg-primary/90" 
-                    disabled={isLoading || (authLoading && searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true')}>
+                    disabled={isLoading || (authLoading && searchMode === 'jobs' && isMyJobsView)}>
               {(isLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
               Apply Filters
             </Button>
@@ -476,6 +500,20 @@ function SearchPageContent() {
         </aside>
 
         <main className="w-full md:w-3/4 lg:w-4/5">
+          {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery === '' && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+              <Info className="inline h-4 w-4 mr-1.5" />
+              Showing jobs based on your profile location: <strong>{effectiveJobSearchLocation}</strong>. Enter a specific location in the search bar to override.
+            </div>
+          )}
+           {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery !== '' && jobLocationQuery !== effectiveJobSearchLocation && (
+             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+              <Info className="inline h-4 w-4 mr-1.5" />
+               Showing jobs for location: <strong>{jobLocationQuery}</strong>.
+            </div>
+           )}
+
+
           {isLoading && (
             <div className={`grid grid-cols-1 sm:grid-cols-2 ${searchMode === 'providers' ? 'xl:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
               {[...Array(searchMode === 'providers' ? 6 : 4)].map((_, i) =>
@@ -509,15 +547,15 @@ function SearchPageContent() {
                   No {searchMode === 'providers' ? 'Providers' : 'Jobs'} Found
                 </h3>
                 <p className="text-muted-foreground mb-4">
-                  We couldn&apos;t find any {searchMode === 'providers' ? 'providers' : 'jobs'} matching your current filters.
+                  We couldn&apos;t find any {searchMode === 'providers' ? 'providers' : 'jobs'} matching your current filters{effectiveJobSearchLocation && searchMode === 'jobs' ? ` for location: ${effectiveJobSearchLocation}` : ""}.
                 </p>
                 {searchMode === 'providers' && (
                   <p className="text-sm text-muted-foreground">Try adjusting your search criteria or <Link href="/jobs/post" className="text-primary hover:underline">post a job</Link> to get quotes.</p>
                 )}
-                 {searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') !== 'true' && (
+                 {searchMode === 'jobs' && !isMyJobsView && (
                   <p className="text-sm text-muted-foreground">Try adjusting your search criteria or check back later for new job postings.</p>
                 )}
-                {searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true' && jobResults.length === 0 && (
+                {searchMode === 'jobs' && isMyJobsView && jobResults.length === 0 && (
                    <p className="text-sm text-muted-foreground">You haven&apos;t posted any jobs that match the current filters, or no jobs yet. <Link href="/jobs/post" className="text-primary hover:underline">Post a new job</Link>.</p>
                 )}
               </div>
@@ -527,17 +565,17 @@ function SearchPageContent() {
               <SearchIcon className="mx-auto h-16 w-16 text-primary mb-4" />
               <h3 className="text-2xl font-semibold mb-2">
                 {searchMode === 'providers' ? 'Find Your Fundi' :
-                 (memoizedNextSearchParams.get('myJobs') === 'true' ? 'Your Posted Jobs' : 'Discover Job Opportunities')}
+                 (isMyJobsView ? 'Your Posted Jobs' : 'Discover Job Opportunities')}
               </h3>
               <p className="text-muted-foreground">
                 {searchMode === 'providers'
                   ? 'Enter your search criteria above or use filters to find available service providers.'
-                  : (memoizedNextSearchParams.get('myJobs') === 'true'
+                  : (isMyJobsView
                       ? 'Your posted jobs will appear here. Use the filters to refine by status.'
                       : 'Use the filters to discover relevant job postings, or see all open jobs by default.')}
               </p>
                {searchMode === 'providers' && !hasSearched && (
-                  <Button onClick={() => updateUrlAndSearch({category: 'All'})} className="mt-4 bg-primary hover:bg-primary/90" disabled={isLoading || authLoading}>
+                  <Button onClick={() => updateUrlAndSearch({})} className="mt-4 bg-primary hover:bg-primary/90" disabled={isLoading || authLoading}>
                     Browse All Providers
                   </Button>
                 )}
@@ -593,4 +631,3 @@ export default function SearchPage() {
   );
 }
 
-    
