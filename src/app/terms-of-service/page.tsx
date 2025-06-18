@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollText } from "lucide-react";
 
 export default function TermsOfServicePage() {
+  // NOTE: You should manually update this date whenever the terms are officially revised.
+  const lastUpdatedDate = "October 26, 2023";
+
   return (
     <div className="container mx-auto px-4 py-12">
       <Card className="max-w-3xl mx-auto shadow-lg">
@@ -14,7 +17,7 @@ export default function TermsOfServicePage() {
         </CardHeader>
         <CardContent className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl dark:prose-invert max-w-none space-y-6 text-foreground/90">
           <p className="text-muted-foreground">
-            Last Updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            Last Updated: {lastUpdatedDate}
           </p>
 
           <section>
@@ -123,18 +126,7 @@ export default function TermsOfServicePage() {
               We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material, we will provide at least 30 days' notice prior to any new terms taking effect. What constitutes a material change will be determined at our sole discretion. By continuing to access or use our Service after any revisions become effective, you agree to be bound by the revised terms.
             </p>
           </section>
-
-          <section>
-            <h2 className="text-xl font-semibold font-headline text-primary">13. Contact Us</h2>
-            <p>
-              If you have any questions about these Terms, please contact us at:
-            </p>
-            <p>
-              FundiConnect Support<br />
-              Email: legal@fundiconnect.app (Placeholder)<br />
-              Address: Nairobi, Kenya (Placeholder)
-            </p>
-          </section>
+          
         </CardContent>
       </Card>
     </div>

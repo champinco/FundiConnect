@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollText } from "lucide-react";
 
 export default function PrivacyPolicyPage() {
+  // NOTE: You should manually update this date whenever the policy is officially revised.
+  const lastUpdatedDate = "October 26, 2023";
+
   return (
     <div className="container mx-auto px-4 py-12">
       <Card className="max-w-3xl mx-auto shadow-lg">
@@ -14,7 +17,7 @@ export default function PrivacyPolicyPage() {
         </CardHeader>
         <CardContent className="prose prose-sm sm:prose lg:prose-lg xl:prose-xl dark:prose-invert max-w-none space-y-6 text-foreground/90">
           <p className="text-muted-foreground">
-            Last Updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+            Last Updated: {lastUpdatedDate}
           </p>
 
           <section>
@@ -94,7 +97,7 @@ export default function PrivacyPolicyPage() {
             <p>You may at any time review or change the information in your account or terminate your account by:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Logging into your account settings and updating your account.</li>
-              <li>Contacting us using the contact information provided below.</li>
+              <li>Contacting us via the official support channels provided by FundiConnect.</li>
             </ul>
             <p>
               Upon your request to terminate your account, we will deactivate or delete your account and information from our active databases. However, some information may be retained in our files to prevent fraud, troubleshoot problems, assist with any investigations, enforce our Terms of Service and/or comply with legal requirements.
@@ -115,17 +118,6 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
 
-          <section>
-            <h2 className="text-xl font-semibold font-headline text-primary">9. Contact Us</h2>
-            <p>
-              If you have questions or comments about this Privacy Policy, please contact us at:
-            </p>
-            <p>
-              FundiConnect Support<br />
-              Email: support@fundiconnect.app (Placeholder) <br />
-              Address: Nairobi, Kenya (Placeholder)
-            </p>
-          </section>
         </CardContent>
       </Card>
     </div>
