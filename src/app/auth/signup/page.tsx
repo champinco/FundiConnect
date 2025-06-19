@@ -11,25 +11,24 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload, Image as ImageIcon } from 'lucide-react';
+import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload, Image as ImageIcon, Eye, EyeOff } from 'lucide-react'; // Added Eye, EyeOff
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
-import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas'; 
+import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas';
 import Image from 'next/image';
 
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { auth, analytics } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, signOut, type User as FirebaseUser } from 'firebase/auth'; // Added signOut
-import { logEvent } from 'firebase/analytics'; 
+import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, signOut, type User as FirebaseUser } from 'firebase/auth';
+import { logEvent } from 'firebase/analytics';
 import { signupUserAction } from './actions';
-import { signupFormSchema, type SignupFormValues as ServerSignupFormValues } from './schemas'; 
+import { signupFormSchema, type SignupFormValues as ServerSignupFormValues } from './schemas';
 import type { z } from 'zod';
-import { uploadFileToStorage } from '@/services/storageService'; 
+import { uploadFileToStorage } from '@/services/storageService';
 
 type ClientSignupFormValues = z.infer<typeof signupFormSchema>;
 
 const providerServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
-
 
 export default function SignupPage() {
   const { toast } = useToast();
@@ -42,12 +41,15 @@ export default function SignupPage() {
   const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
   const [bannerImagePreview, setBannerImagePreview] = useState<string | null>(null);
 
+  const [showPassword, setShowPassword] = useState(false); // State for password visibility
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // State for confirm password visibility
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      if (user && user.emailVerified) { // Only redirect if logged in AND email verified
-        router.push('/dashboard'); 
+      if (user && user.emailVerified) {
+        router.push(user.displayName === 'provider' ? '/profile/edit' : '/dashboard');
       }
     });
     return () => unsubscribe();
@@ -62,7 +64,7 @@ export default function SignupPage() {
       confirmPassword: "",
       accountType: "client",
       businessName: "",
-      mainService: undefined, 
+      mainService: undefined,
       providerLocation: "",
       contactPhoneNumber: "",
       yearsOfExperience: 0,
@@ -113,9 +115,8 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
       
-      await sendEmailVerification(firebaseUser); 
-      // Immediately sign out the user so they are not auto-logged-in
-      await signOut(auth);
+      await sendEmailVerification(firebaseUser);
+      await signOut(auth); // Sign out user to force email verification before login
 
       if (data.accountType === 'provider') {
         if (profilePictureFile) {
@@ -147,8 +148,8 @@ export default function SignupPage() {
         profilePictureUrl: profilePictureUrl,
         bannerImageUrl: bannerImageUrl,
       };
-      if (data.yearsOfExperience === undefined) { 
-        serverActionData.yearsOfExperience = 0; 
+      if (data.yearsOfExperience === undefined) {
+        serverActionData.yearsOfExperience = 0;
       }
 
       const signupResult = await signupUserAction(serverActionData, firebaseUser.uid);
@@ -160,7 +161,7 @@ export default function SignupPage() {
             account_type: data.accountType 
           });
         }
-        reset(); 
+        reset();
         setProfilePictureFile(null);
         setProfilePicturePreview(null);
         setBannerImageFile(null);
@@ -168,11 +169,10 @@ export default function SignupPage() {
 
         toast({ 
             title: "Signup Complete! Please Verify Your Email", 
-            description: "A verification email has been sent to your inbox. Please click the link in the email to verify your account before logging in.",
-            duration: 10000, // Longer duration for this important message
+            description: "A verification email has been sent. Please click the link in the email to verify your account before logging in.",
+            duration: 10000,
         });
-        router.push('/auth/login'); // Redirect all users to login page
-
+        router.push('/auth/login'); // Redirect all users to login after signup and email verification prompt
       } else {
         toast({ title: "Profile Creation Failed", description: signupResult.message, variant: "destructive" });
       }
@@ -192,7 +192,7 @@ export default function SignupPage() {
     }
   };
 
-  if (currentUser && currentUser.emailVerified && !isLoading) { 
+  if (currentUser && currentUser.emailVerified && !isLoading) {
     return (
         <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
             <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
@@ -200,7 +200,6 @@ export default function SignupPage() {
         </div>
     );
   }
-
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -228,12 +227,52 @@ export default function SignupPage() {
             </div>
             <div>
               <Label htmlFor="password" className="font-semibold flex items-center"><KeyRound className="mr-2 h-4 w-4" /> Password</Label>
-              <Input id="password" type="password" {...register("password")} placeholder="Min. 6 characters" className="mt-1" disabled={isLoading} />
+              <div className="relative mt-1">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  {...register("password")}
+                  placeholder="Min. 6 characters"
+                  className="pr-10"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:text-primary"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
               {errors.password && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
             </div>
             <div>
               <Label htmlFor="confirmPassword" className="font-semibold flex items-center"><KeyRound className="mr-2 h-4 w-4" /> Confirm Password</Label>
-              <Input id="confirmPassword" type="password" {...register("confirmPassword")} placeholder="Re-enter your password" className="mt-1" disabled={isLoading} />
+              <div className="relative mt-1">
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  {...register("confirmPassword")}
+                  placeholder="Re-enter your password"
+                  className="pr-10"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:text-primary"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isLoading}
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
               {errors.confirmPassword && <p className="text-sm text-destructive mt-1">{errors.confirmPassword.message}</p>}
             </div>
             <div>
@@ -267,7 +306,7 @@ export default function SignupPage() {
                 <div className="pt-4 border-t mt-6">
                   <h3 className="text-lg font-semibold mb-4 text-primary">Provider Details (Basic Information)</h3>
                    <p className="text-sm text-muted-foreground mb-4">
-                    You&apos;ll be asked to verify your email, then you can log in and complete your detailed profile (certifications, portfolio, etc.) to get verified and start attracting clients.
+                    After verifying your email and logging in, you&apos;ll be guided to complete your detailed profile (certifications, portfolio, etc.) to get verified and start attracting clients.
                   </p>
                 </div>
                 <div>
@@ -376,4 +415,3 @@ export default function SignupPage() {
     </div>
   );
 }
-

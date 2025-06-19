@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, Suspense } from 'react'; // Added Suspense
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from 'zod';
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, KeyRound, Loader2 } from 'lucide-react';
+import { LogIn, Mail, KeyRound, Loader2, Eye, EyeOff } from 'lucide-react'; // Added Eye, EyeOff
 import { useToast } from "@/hooks/use-toast";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { auth, analytics } from '@/lib/firebase';
@@ -24,25 +24,24 @@ const loginFormSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginFormSchema>;
 
-// New component to contain the logic using useSearchParams
 function LoginContent() {
   const { toast } = useToast();
   const router = useRouter();
-  const searchParams = useSearchParams(); // Hook used here
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null); // Local auth state
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+  const [showPassword, setShowPassword] = useState(false); // State for password visibility
 
-  // Effect for handling auth state changes and redirection
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      if (user && !isLoading) { // Check !isLoading to prevent premature redirect during login op
+      if (user && !isLoading) {
         const redirectUrl = searchParams.get('redirect');
         router.push(redirectUrl || '/dashboard');
       }
     });
     return () => unsubscribe();
-  }, [router, searchParams, isLoading]); // isLoading added as dependency
+  }, [router, searchParams, isLoading]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -57,23 +56,19 @@ function LoginContent() {
       if (analytics) {
         logEvent(analytics, 'login', { method: 'email' });
       }
-      // Redirection is now primarily handled by the useEffect after currentUser state updates
-      // const redirectUrl = searchParams.get('redirect');
-      // router.push(redirectUrl || '/dashboard');
     } catch (error: any) {
       console.error("Error logging in:", error);
       let errorMessage = "Failed to login. Please check your credentials and try again.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-        errorMessage = "Invalid email or password. Please try again.";
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/email-not-verified' || error.code === 'auth/unverified-email' || (error.code === 'auth/functions-unauthenticated' && error.message.toLowerCase().includes("verify your email")) ) {
+        errorMessage = "Invalid email or password, or email not verified. Please try again or verify your email.";
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = "Too many login attempts. Please try again later.";
       } else if (error.code) {
         errorMessage = error.message.replace('Firebase: ', '').split(' (auth/')[0];
       }
       toast({ title: "Login Error", description: errorMessage, variant: "destructive" });
-      setIsLoading(false); // Ensure isLoading is reset on error
+      setIsLoading(false);
     }
-    // Do not setIsLoading(false) here if login is successful, let useEffect handle redirect
   };
 
   if (currentUser && !isLoading) {
@@ -118,14 +113,27 @@ function LoginContent() {
             <Label htmlFor="password" className="font-semibold flex items-center">
               <KeyRound className="mr-2 h-4 w-4" /> Password
             </Label>
-            <Input
-              id="password"
-              type="password"
-              {...register("password")}
-              placeholder="Enter your password"
-              className="mt-1"
-              disabled={isLoading}
-            />
+            <div className="relative mt-1">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                {...register("password")}
+                placeholder="Enter your password"
+                className="pr-10" // Add padding for the icon
+                disabled={isLoading}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute inset-y-0 right-0 h-full px-3 text-muted-foreground hover:text-primary"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
             <div className="flex justify-between items-center mt-1">
               {errors.password ? <p className="text-sm text-destructive">{errors.password.message}</p> : <span />}
               <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline hover:text-primary/80">Forgot password?</Link>
