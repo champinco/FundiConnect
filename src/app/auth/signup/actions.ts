@@ -7,7 +7,7 @@ import { createProviderProfileInFirestore } from '@/services/providerService';
 import type { User, AccountType } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
 import type { SignupFormValues } from './schemas';
-import { sendWelcomeEmail } from '@/services/emailService'; // Import email service
+import { sendWelcomeEmail } from '@/services/emailService'; 
 
 interface SignupResult {
   success: boolean;
@@ -30,7 +30,7 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
       fullName: values.fullName,
       phoneNumber: values.accountType === 'provider' ? values.contactPhoneNumber : null,
       accountType: values.accountType as AccountType,
-      photoURL: values.accountType === 'provider' ? values.profilePictureUrl : null, // Use passed URL
+      photoURL: values.profilePictureUrl || null, 
       providerProfileId: values.accountType === 'provider' ? firebaseUserId : undefined,
     };
 
@@ -45,14 +45,14 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
         businessName: values.businessName || values.fullName,
         mainService: values.mainService || 'Other',
         specialties: [],
-        skills: [], // Initialize skills array
+        skills: [], 
         bio: values.bio || `Fundi specializing in ${values.mainService || 'various services'}. Profile for ${values.businessName || values.fullName}.`,
         location: values.providerLocation || 'Nairobi',
         fullAddress: null, 
         yearsOfExperience: values.yearsOfExperience !== undefined ? Number(values.yearsOfExperience) : 0,
         contactPhoneNumber: values.contactPhoneNumber || "",
         profilePictureUrl: values.profilePictureUrl || null, 
-        bannerImageUrl: null, 
+        bannerImageUrl: values.bannerImageUrl || null, 
         website: null, 
         socialMediaLinks: null, 
         isVerified: false,
@@ -75,7 +75,6 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
       console.log(`[signupUserAction] Welcome email queued for ${values.email}`);
     } catch (emailError: any) {
       console.warn(`[signupUserAction] Failed to queue welcome email for ${values.email}: ${emailError.message}`);
-      // Do not fail the whole signup for email error
     }
 
     console.log("[signupUserAction] All profiles created successfully for firebaseUserId:", firebaseUserId);

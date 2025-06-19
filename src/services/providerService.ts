@@ -48,6 +48,7 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
 
     const dataToSave = {
       ...profileData,
+      bannerImageUrl: profileData.bannerImageUrl || null, // Ensure bannerImageUrl is handled
       otherMainServiceDescription: profileData.mainService === 'Other' && profileData.otherMainServiceDescription ? profileData.otherMainServiceDescription.trim() : null,
       certifications: certificationsWithAdminTimestamps,
       portfolio: (Array.isArray(profileData.portfolio) ? profileData.portfolio : []).map(item => ({
@@ -149,7 +150,7 @@ export async function getProviderProfileFromFirestore(providerId: string): Promi
         operatingHours: data.operatingHours,
         serviceAreas: Array.isArray(data.serviceAreas) ? data.serviceAreas : [],
         profilePictureUrl: data.profilePictureUrl,
-        bannerImageUrl: data.bannerImageUrl,
+        bannerImageUrl: data.bannerImageUrl, // Ensure bannerImageUrl is retrieved
         website: data.website,
         socialMediaLinks: typeof data.socialMediaLinks === 'object' ? data.socialMediaLinks : null,
         createdAt: robustTimestampToDate(data.createdAt, new Date())!, 
@@ -226,7 +227,7 @@ export async function getProvidersByServiceFromFirestore(serviceCategory: Servic
         operatingHours: data.operatingHours,
         serviceAreas: Array.isArray(data.serviceAreas) ? data.serviceAreas : [],
         profilePictureUrl: data.profilePictureUrl,
-        bannerImageUrl: data.bannerImageUrl,
+        bannerImageUrl: data.bannerImageUrl, // Ensure bannerImageUrl is included
         website: data.website,
         socialMediaLinks: typeof data.socialMediaLinks === 'object' ? data.socialMediaLinks : null,
         createdAt: robustTimestampToDate(data.createdAt, new Date())!,
@@ -310,10 +311,7 @@ export async function getEmergencyOptedInProvidersByCategory(serviceCategory: Se
         operatingHours: data.operatingHours,
         serviceAreas: Array.isArray(data.serviceAreas) ? data.serviceAreas : [],
         profilePictureUrl: data.profilePictureUrl,
-        bannerImageUrl: data.bannerImageUrl,
-        website: data.website,
-        socialMediaLinks: typeof data.socialMediaLinks === 'object' ? data.socialMediaLinks : null,
-        createdAt: robustTimestampToDate(data.createdAt, new Date())!,
+        bannerImageUrl: data.bannerImageUrl, // Ensure bannerImageUrl is included
         updatedAt: robustTimestampToDate(data.updatedAt, new Date())!,
         certifications: (Array.isArray(data.certifications) ? data.certifications : []).map(cert => ({
           ...cert,

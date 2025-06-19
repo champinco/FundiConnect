@@ -11,15 +11,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload } from 'lucide-react';
+import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload, Image as ImageIcon } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas'; 
+import Image from 'next/image';
 
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
-import { auth, analytics } from '@/lib/firebase'; // Added analytics
+import { auth, analytics } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, type User as FirebaseUser } from 'firebase/auth';
-import { logEvent } from 'firebase/analytics'; // Added logEvent
+import { logEvent } from 'firebase/analytics'; 
 import { signupUserAction } from './actions';
 import { signupFormSchema, type SignupFormValues as ServerSignupFormValues } from './schemas'; 
 import type { z } from 'zod';
@@ -35,8 +36,11 @@ export default function SignupPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(auth.currentUser);
+  
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
+  const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
+  const [bannerImagePreview, setBannerImagePreview] = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -63,6 +67,8 @@ export default function SignupPage() {
       contactPhoneNumber: "",
       yearsOfExperience: 0,
       bio: "",
+      newProfilePictureFile: null,
+      newBannerImageFile: null,
     },
   });
 
@@ -71,8 +77,8 @@ export default function SignupPage() {
   const handleProfilePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0];
-      if (file.size > 2 * 1024 * 1024) {
-        toast({ title: "File too large", description: "Profile picture should be less than 2MB.", variant: "destructive" });
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({ title: "File too large", description: "Profile picture should be less than 5MB.", variant: "destructive" });
         return;
       }
       setProfilePictureFile(file);
@@ -83,32 +89,61 @@ export default function SignupPage() {
     }
   };
 
+  const handleBannerImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      const file = event.target.files[0];
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({ title: "File too large", description: "Banner image should be less than 5MB.", variant: "destructive" });
+        return;
+      }
+      setBannerImageFile(file);
+      setBannerImagePreview(URL.createObjectURL(file));
+    } else {
+      setBannerImageFile(null);
+      setBannerImagePreview(null);
+    }
+  };
+
   const onSubmit = async (data: ClientSignupFormValues) => {
     setIsLoading(true);
     let profilePictureUrl: string | null = null;
+    let bannerImageUrl: string | null = null;
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
       
-      await sendEmailVerification(firebaseUser); // Send verification email
+      await sendEmailVerification(firebaseUser); 
 
-      if (data.accountType === 'provider' && profilePictureFile) {
-        try {
-          profilePictureUrl = await uploadFileToStorage(profilePictureFile, `providerProfiles/${firebaseUser.uid}/profilePictures`);
-        } catch (uploadError: any) {
-          toast({
-            title: "Profile Picture Upload Failed",
-            description: uploadError.message || "Could not upload profile picture. You can add it later.",
-            variant: "destructive",
-          });
-          // Optionally, decide if this should halt the process or just proceed without a picture
+      if (data.accountType === 'provider') {
+        if (profilePictureFile) {
+          try {
+            profilePictureUrl = await uploadFileToStorage(profilePictureFile, `providerProfiles/${firebaseUser.uid}/profilePictures`);
+          } catch (uploadError: any) {
+            toast({
+              title: "Profile Picture Upload Failed",
+              description: uploadError.message || "Could not upload profile picture. You can add it later via Edit Profile.",
+              variant: "destructive",
+            });
+          }
+        }
+        if (bannerImageFile) {
+          try {
+            bannerImageUrl = await uploadFileToStorage(bannerImageFile, `providerProfiles/${firebaseUser.uid}/bannerImages`);
+          } catch (uploadError: any) {
+            toast({
+              title: "Banner Image Upload Failed",
+              description: uploadError.message || "Could not upload banner image. You can add it later via Edit Profile.",
+              variant: "destructive",
+            });
+          }
         }
       }
       
       const serverActionData: ServerSignupFormValues = {
         ...data,
         profilePictureUrl: profilePictureUrl,
+        bannerImageUrl: bannerImageUrl,
       };
       if (data.yearsOfExperience === undefined) { 
         serverActionData.yearsOfExperience = 0; 
@@ -117,9 +152,14 @@ export default function SignupPage() {
       const signupResult = await signupUserAction(serverActionData, firebaseUser.uid);
 
       if (signupResult.success) {
+        let successDescription = "Your profile setup is complete. A verification email has been sent. Please check your inbox (and spam folder) to verify. Redirecting to login...";
+        if (data.accountType === 'provider') {
+            successDescription = "Your basic provider profile is set up! A verification email has been sent. IMPORTANT: Go to 'My Profile' > 'Edit Profile' to add certifications, portfolio items, and other details crucial for verification and attracting clients. Redirecting to login...";
+        }
         toast({ 
           title: "Signup Successful! Please Verify Your Email", 
-          description: "Your profile setup is complete. A verification email has been sent to your address. Please check your inbox (and spam folder) to verify. Redirecting to login..." 
+          description: successDescription,
+          duration: 10000, // Longer duration for the important message
         });
         if (analytics) {
           logEvent(analytics, 'sign_up', { 
@@ -130,6 +170,8 @@ export default function SignupPage() {
         reset(); 
         setProfilePictureFile(null);
         setProfilePicturePreview(null);
+        setBannerImageFile(null);
+        setBannerImagePreview(null);
         router.push('/auth/login'); 
       } else {
         toast({ title: "Profile Creation Failed", description: signupResult.message, variant: "destructive" });
@@ -274,15 +316,46 @@ export default function SignupPage() {
                   {errors.bio && <p className="text-sm text-destructive mt-1">{errors.bio.message}</p>}
                 </div>
                  <div>
-                    <Label htmlFor="profilePicture" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Profile Picture (Optional)</Label>
-                    <Input id="profilePicture" type="file" onChange={handleProfilePictureChange} accept="image/png, image/jpeg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled={isLoading}/>
+                    <Label htmlFor="newProfilePictureFile" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Profile Picture (Optional)</Label>
+                    <Input 
+                        id="newProfilePictureFile" 
+                        type="file" 
+                        {...register("newProfilePictureFile")}
+                        onChange={handleProfilePictureChange} 
+                        accept="image/png, image/jpeg, image/webp" 
+                        className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" 
+                        disabled={isLoading}
+                    />
                     {profilePicturePreview && (
                         <div className="mt-2">
-                            <img src={profilePicturePreview} alt="Profile preview" className="h-24 w-24 rounded-full object-cover border" data-ai-hint="profile image preview" />
+                            <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="h-24 w-24 rounded-full object-cover border" data-ai-hint="profile image preview" />
                         </div>
                     )}
-                    <p className="text-xs text-muted-foreground mt-1">Max 2MB. Recommended: Square image.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Square image.</p>
+                    {errors.newProfilePictureFile && <p className="text-sm text-destructive mt-1">{errors.newProfilePictureFile.message}</p>}
                 </div>
+                 <div>
+                    <Label htmlFor="newBannerImageFile" className="font-semibold flex items-center"><ImageIcon className="mr-2 h-4 w-4" /> Banner Image (Optional)</Label>
+                    <Input 
+                        id="newBannerImageFile" 
+                        type="file" 
+                        {...register("newBannerImageFile")}
+                        onChange={handleBannerImageChange} 
+                        accept="image/png, image/jpeg, image/webp" 
+                        className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" 
+                        disabled={isLoading}
+                    />
+                    {bannerImagePreview && (
+                        <div className="mt-2">
+                            <Image src={bannerImagePreview} alt="Banner preview" width={200} height={100} className="h-24 w-48 rounded-md object-cover border" data-ai-hint="profile banner image"/>
+                        </div>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Landscape image (e.g., 1200x400px).</p>
+                    {errors.newBannerImageFile && <p className="text-sm text-destructive mt-1">{errors.newBannerImageFile.message}</p>}
+                </div>
+                 <p className="text-sm text-muted-foreground mt-4">
+                  <strong>Important:</strong> After signup, go to "My Profile" &gt; "Edit Profile" to add your certifications, portfolio, and other details to become verifiable and attract more clients.
+                </p>
               </>
             )}
           </CardContent>
@@ -301,5 +374,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
-    

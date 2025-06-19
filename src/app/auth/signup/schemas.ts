@@ -2,6 +2,11 @@
 import { z } from 'zod';
 import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas'; // Re-use for mainService
 
+const MAX_FILE_SIZE_MB = 5; // Max file size for profile/banner images
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+
+
 export const signupFormSchema = z.object({
   fullName: z.string().min(2, { message: "Full name must be at least 2 characters." }),
   email: z.string().email({ message: "Please enter a valid email address." }),
@@ -11,13 +16,33 @@ export const signupFormSchema = z.object({
   // Provider specific fields - conditionally required
   businessName: z.string().optional(),
   mainService: z.enum(serviceCategoriesForValidation).optional(),
-  providerLocation: z.string().optional(), // Using a different name to avoid conflict with job location if schemas merge
+  providerLocation: z.string().optional(), 
   contactPhoneNumber: z.string().optional(),
   yearsOfExperience: z.preprocess(
     (val) => (typeof val === 'string' && val.trim() !== '' ? Number(val) : undefined),
     z.number().min(0, "Years of experience cannot be negative.").optional()
   ),
   bio: z.string().optional(),
+  newProfilePictureFile: z
+    .custom<File | null | undefined>()
+    .refine(
+      (file) => !file || file.size <= MAX_FILE_SIZE_BYTES,
+      `Max file size for profile picture is ${MAX_FILE_SIZE_MB}MB.`
+    )
+    .refine(
+      (file) => !file || ACCEPTED_IMAGE_TYPES.includes(file.type),
+      "Only .jpg, .jpeg, .png, .webp formats are supported for profile picture."
+    ).optional().nullable(),
+  newBannerImageFile: z
+    .custom<File | null | undefined>()
+    .refine(
+      (file) => !file || file.size <= MAX_FILE_SIZE_BYTES,
+      `Max file size for banner image is ${MAX_FILE_SIZE_MB}MB.`
+    )
+    .refine(
+      (file) => !file || ACCEPTED_IMAGE_TYPES.includes(file.type),
+      "Only .jpg, .jpeg, .png, .webp formats are supported for banner image."
+    ).optional().nullable(),
 })
 .refine(data => data.password === data.confirmPassword, {
   message: "Passwords do not match.",
@@ -73,5 +98,6 @@ export const signupFormSchema = z.object({
 // This type is for the server action, which will receive all fields.
 // The client form ensures provider fields are present if accountType is provider.
 export type SignupFormValues = z.infer<typeof signupFormSchema> & {
-  profilePictureUrl?: string | null; // Add this for the server action
+  profilePictureUrl?: string | null; 
+  bannerImageUrl?: string | null;
 };
