@@ -76,12 +76,12 @@ function JobDetails({ jobId }: JobDetailsProps) {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-  const reviewFormRef = useRef<HTMLDivElement>(null); // Ref for the review form section
-  const [promptForReview, setPromptForReview] = useState(false); // State to trigger review prompt
+  const reviewFormRef = useRef<HTMLDivElement>(null); 
+  const [promptForReview, setPromptForReview] = useState(false); 
 
   const fetchData = async () => {
     if (jobId) {
-      setIsLoading(true); // Set loading true at the start of data fetch
+      setIsLoading(true); 
       try {
         const data = await fetchJobDetailsPageDataAction(jobId);
         if (data.error || !data.job) {
@@ -98,7 +98,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
         setJob(null);
         setQuotes([]);
       } finally {
-        setIsLoading(false); // Set loading false after fetch attempt
+        setIsLoading(false); 
       }
     }
   };
@@ -115,12 +115,10 @@ function JobDetails({ jobId }: JobDetailsProps) {
   }, [jobId]); 
 
   useEffect(() => {
-    // This effect now primarily handles scrolling after job status is confirmed completed and prompt is set.
     if (promptForReview && job?.status === 'completed' && reviewFormRef.current) {
       reviewFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // setPromptForReview(false); // Optionally reset after scrolling, or keep to show message
     }
-  }, [promptForReview, job?.status]); // Depend on job.status to react to its update
+  }, [promptForReview, job?.status]); 
 
 
   const handleQuoteActionComplete = () => {
@@ -128,8 +126,8 @@ function JobDetails({ jobId }: JobDetailsProps) {
   };
 
   const handleJobSuccessfullyCompleted = async () => {
-    await fetchData(); // Explicitly re-fetch data to get the latest job status
-    setPromptForReview(true); // Then set the prompt for review UI changes
+    await fetchData(); 
+    setPromptForReview(true); 
   };
 
   const handleInitiateChatWithProvider = async (providerId: string) => {
@@ -156,11 +154,11 @@ function JobDetails({ jobId }: JobDetailsProps) {
   };
 
 
-  if (isLoading && !job) { // Show loader only if job is not yet loaded
+  if (isLoading && !job) { 
     return <JobDetailLoader />;
   }
 
-  if (error || !job) { // If after loading, there's an error or still no job
+  if (error || !job) { 
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <Card className="max-w-lg mx-auto shadow-lg">
@@ -192,11 +190,9 @@ function JobDetails({ jobId }: JobDetailsProps) {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <Button variant="outline" asChild>
-          <Link href="/search?mode=jobs"> 
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Search
-          </Link>
-        </Button>
+        <Button variant="outline" onClick={() => router.back()}> 
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+          </Button>
       </div>
 
       <Card className="shadow-xl">
