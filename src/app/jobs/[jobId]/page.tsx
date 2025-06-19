@@ -81,7 +81,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
 
   const fetchData = async () => {
     if (jobId) {
-      setIsLoading(true);
+      setIsLoading(true); // Set loading true at the start of data fetch
       try {
         const data = await fetchJobDetailsPageDataAction(jobId);
         if (data.error || !data.job) {
@@ -98,7 +98,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
         setJob(null);
         setQuotes([]);
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Set loading false after fetch attempt
       }
     }
   };
@@ -115,15 +115,21 @@ function JobDetails({ jobId }: JobDetailsProps) {
   }, [jobId]); 
 
   useEffect(() => {
+    // This effect now primarily handles scrolling after job status is confirmed completed and prompt is set.
     if (promptForReview && job?.status === 'completed' && reviewFormRef.current) {
       reviewFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // setPromptForReview(false); // Reset after scrolling if desired, or keep to show message
+      // setPromptForReview(false); // Optionally reset after scrolling, or keep to show message
     }
-  }, [promptForReview, job?.status]);
+  }, [promptForReview, job?.status]); // Depend on job.status to react to its update
 
 
   const handleQuoteActionComplete = () => {
     fetchData(); 
+  };
+
+  const handleJobSuccessfullyCompleted = async () => {
+    await fetchData(); // Explicitly re-fetch data to get the latest job status
+    setPromptForReview(true); // Then set the prompt for review UI changes
   };
 
   const handleInitiateChatWithProvider = async (providerId: string) => {
@@ -150,11 +156,11 @@ function JobDetails({ jobId }: JobDetailsProps) {
   };
 
 
-  if (isLoading) {
+  if (isLoading && !job) { // Show loader only if job is not yet loaded
     return <JobDetailLoader />;
   }
 
-  if (error || !job) {
+  if (error || !job) { // If after loading, there's an error or still no job
     return (
       <div className="container mx-auto px-4 py-8 text-center">
         <Card className="max-w-lg mx-auto shadow-lg">
@@ -248,9 +254,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
                   jobId={job.id} 
                   currentJobStatus={job.status} 
                   jobClientId={job.clientId}
-                  onJobSuccessfullyCompleted={() => {
-                    setPromptForReview(true);
-                  }}
+                  onJobSuccessfullyCompleted={handleJobSuccessfullyCompleted}
               />
             )}
 

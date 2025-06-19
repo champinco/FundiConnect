@@ -9,18 +9,18 @@ import { markJobAsCompletedAction } from '../actions';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { JobStatus } from '@/models/job';
-import { useRouter } from 'next/navigation';
+// Removed: import { useRouter } from 'next/navigation'; // Not needed anymore here
 
 interface MarkAsCompletedButtonProps {
   jobId: string;
   currentJobStatus: JobStatus;
   jobClientId: string;
-  onJobSuccessfullyCompleted: () => void; // New callback prop
+  onJobSuccessfullyCompleted: () => void; 
 }
 
 export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClientId, onJobSuccessfullyCompleted }: MarkAsCompletedButtonProps) {
   const { toast } = useToast();
-  const router = useRouter();
+  // const router = useRouter(); // Not needed anymore here
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
 
@@ -46,7 +46,7 @@ export default function MarkAsCompletedButton({ jobId, currentJobStatus, jobClie
       const result = await markJobAsCompletedAction(jobId, currentUser.uid);
       if (result.success) {
         toast({ title: "Job Status Updated", description: result.message });
-        router.refresh(); // Refresh server components on the page to reflect new job status
+        // router.refresh(); // Removed: Parent component will handle data refresh
         onJobSuccessfullyCompleted(); // Call the callback
       } else {
         toast({ title: "Update Failed", description: result.message, variant: "destructive" });
