@@ -52,7 +52,7 @@ function JobDetailLoader() {
                                     <div className="h-5 w-3/4 bg-muted rounded"></div>
                                     <div className="h-5 w-2/3 bg-muted rounded"></div>
                                     <div className="h-5 w-3/4 bg-muted rounded"></div>
-                                </Content>
+                                </CardContent>
                             </Card>
                         </aside>
                     </CardContent>
