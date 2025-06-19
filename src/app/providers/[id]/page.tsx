@@ -3,7 +3,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation'; 
-import { useEffect, useState } from 'react'; 
+import { use, useEffect, useState } from 'react'; // Added 'use'
 import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
@@ -31,10 +31,12 @@ import { formatDynamicDate } from '@/lib/dateUtils';
 import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions';
 import { getOrCreateChatAction } from '@/app/messages/actions';
 
-export default function ProviderProfilePage({ params }: { params: { id: string } }) {
+// Props for the Page component now expect params to be a Promise
+export default function ProviderProfilePage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
+  const params = use(paramsPromise); // Unwrap the promise to get the actual params object
   const router = useRouter();
   const { toast } = useToast();
-  const providerId = params.id;
+  const providerId = params.id; // Access id from the resolved params
 
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
