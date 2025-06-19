@@ -1,7 +1,7 @@
 
 "use client"; 
 
-import { useEffect, useState, Suspense, use as useReact, useRef } from 'react'; // Added useRef
+import { useEffect, useState, Suspense, use, useRef } from 'react'; // Changed useReact to use, imported directly
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -404,8 +404,8 @@ function JobDetails({ jobId }: JobDetailsProps) {
 }
 
 
-export default function JobDetailPageWrapper({ params }: { params: { jobId: string } }) {
-    const resolvedParams = useReact(params as unknown as Promise<{ jobId: string }>);
+export default function JobDetailPageWrapper({ params: paramsPromise }: { params: Promise<{ jobId: string }> }) { // Expect paramsPromise
+    const resolvedParams = use(paramsPromise); // Use React.use to unwrap the promise
 
     return (
         <Suspense fallback={<JobDetailLoader />}>
