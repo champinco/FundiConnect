@@ -1,9 +1,9 @@
 
-import { beforeSignIn } from "firebase-functions/v2/identity";
+import { beforeUserSignIn, AuthBlockingError, type AuthBlockingEvent } from "firebase-functions/v2/identity";
 import * as logger from "firebase-functions/logger";
 
 // Block users with unverified emails from signing in
-export const checkEmailVerification = beforeSignIn(async (event) => {
+export const checkEmailVerification = beforeUserSignIn(async (event: AuthBlockingEvent) => {
   const user = event.data;
 
   // Check if the user's email is not verified
@@ -12,7 +12,7 @@ export const checkEmailVerification = beforeSignIn(async (event) => {
   if (user.email && !user.emailVerified) {
     logger.warn(`Sign-in blocked for user ${user.uid} (${user.email}) due to unverified email.`);
     // Throwing an exception here blocks the sign-in attempt
-    throw new beforeSignIn.AuthBlockingError(
+    throw new AuthBlockingError(
       'unverified-email',
       'Please verify your email before signing in.'
     );
