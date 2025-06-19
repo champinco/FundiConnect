@@ -19,7 +19,7 @@ import Image from 'next/image';
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from 'next/navigation';
 import { auth, analytics } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, type User as FirebaseUser } from 'firebase/auth';
+import { createUserWithEmailAndPassword, onAuthStateChanged, sendEmailVerification, signOut, type User as FirebaseUser } from 'firebase/auth'; // Added signOut
 import { logEvent } from 'firebase/analytics'; 
 import { signupUserAction } from './actions';
 import { signupFormSchema, type SignupFormValues as ServerSignupFormValues } from './schemas'; 
@@ -46,15 +46,8 @@ export default function SignupPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      if (user) {
-        // If user is already logged in and lands on signup, redirect based on their state
-        // For instance, if they just completed /profile/edit as part of signup, they might go to dashboard.
-        // If they just landed here while logged in, redirect to dashboard.
-        if(router.asPath.includes('/profile/edit')) { // Check if previous page was edit profile
-             // Potentially do nothing or redirect to dashboard if profile is complete enough
-        } else {
-            router.push('/dashboard'); // Default redirect for already logged-in users
-        }
+      if (user && user.emailVerified) { // Only redirect if logged in AND email verified
+        router.push('/dashboard'); 
       }
     });
     return () => unsubscribe();
@@ -121,6 +114,8 @@ export default function SignupPage() {
       const firebaseUser = userCredential.user;
       
       await sendEmailVerification(firebaseUser); 
+      // Immediately sign out the user so they are not auto-logged-in
+      await signOut(auth);
 
       if (data.accountType === 'provider') {
         if (profilePictureFile) {
@@ -171,21 +166,13 @@ export default function SignupPage() {
         setBannerImageFile(null);
         setBannerImagePreview(null);
 
-        if (data.accountType === 'provider') {
-            toast({ 
-              title: "Account Created! Email Verification Sent.", 
-              description: "Next, please complete your detailed provider profile to get verified and start attracting clients.",
-              duration: 8000,
-            });
-            router.push('/profile/edit'); // Redirect to edit profile page
-        } else { // Client account
-            toast({ 
-              title: "Signup Successful! Please Verify Your Email", 
-              description: "Your profile setup is complete. A verification email has been sent. Please check your inbox (and spam folder) to verify. Redirecting to login...",
-              duration: 8000, 
-            });
-            router.push('/auth/login'); 
-        }
+        toast({ 
+            title: "Signup Complete! Please Verify Your Email", 
+            description: "A verification email has been sent to your inbox. Please click the link in the email to verify your account before logging in.",
+            duration: 10000, // Longer duration for this important message
+        });
+        router.push('/auth/login'); // Redirect all users to login page
+
       } else {
         toast({ title: "Profile Creation Failed", description: signupResult.message, variant: "destructive" });
       }
@@ -205,11 +192,11 @@ export default function SignupPage() {
     }
   };
 
-  if (currentUser && !isLoading) { // Check !isLoading to avoid premature redirect if auth state resolves quickly
+  if (currentUser && currentUser.emailVerified && !isLoading) { 
     return (
         <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
             <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
-            <p>You are already logged in. Redirecting...</p>
+            <p>You are already logged in and verified. Redirecting...</p>
         </div>
     );
   }
@@ -280,7 +267,7 @@ export default function SignupPage() {
                 <div className="pt-4 border-t mt-6">
                   <h3 className="text-lg font-semibold mb-4 text-primary">Provider Details (Basic Information)</h3>
                    <p className="text-sm text-muted-foreground mb-4">
-                    You&apos;ll be able to add more details like certifications and portfolio items on the next step.
+                    You&apos;ll be asked to verify your email, then you can log in and complete your detailed profile (certifications, portfolio, etc.) to get verified and start attracting clients.
                   </p>
                 </div>
                 <div>
@@ -378,7 +365,7 @@ export default function SignupPage() {
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
               {isLoading ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
-              ) : (accountType === 'provider' ? "Next: Complete Profile Details" : "Create Account")}
+              ) : ("Create Account & Verify Email")}
             </Button>
              <p className="text-xs text-muted-foreground mt-4 text-center">
                 Already have an account? <a href="/auth/login" className="text-primary hover:underline hover:text-primary/80">Login here</a>.
