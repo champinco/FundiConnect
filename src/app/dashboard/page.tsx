@@ -6,17 +6,24 @@ import Link from 'next/link';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { User as AppUser } from '@/models/user';
-import type { ProviderProfile } from '@/models/provider';
+import type { ProviderProfile, Certification, PortfolioItem } from '@/models/provider';
 import type { Job } from '@/models/job';
 import type { BookingRequest, BookingStatus } from '@/models/booking';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare } from 'lucide-react';
-import { formatDynamicDate } from '@/lib/dateUtils'; 
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import Image from 'next/image';
+import VerifiedBadge from '@/components/verified-badge';
+import ServiceCategoryIcon from '@/components/service-category-icon';
+
+import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone } from 'lucide-react';
+import { formatDynamicDate, formatSafeDate } from '@/lib/dateUtils'; 
 import { format } from 'date-fns';
 import { fetchDashboardDataAction, type DashboardPageData } from './actions';
 import { providerRespondToBookingAction } from '@/app/actions/booking_actions';
@@ -53,6 +60,7 @@ export default function DashboardPage() {
   const [bookingResponseAction, setBookingResponseAction] = useState<'confirmed' | 'rejected' | null>(null);
   const [providerMessage, setProviderMessage] = useState('');
   const [isRespondingToBooking, setIsRespondingToBooking] = useState(false);
+  const [isProfileDetailOpen, setIsProfileDetailOpen] = useState(false);
 
   const fetchData = async (userId: string) => {
     setIsLoading(true);
@@ -114,6 +122,12 @@ export default function DashboardPage() {
   const clientData = useMemo(() => appUser?.accountType === 'client' && dashboardDisplayData && 'jobSummary' in dashboardDisplayData ? dashboardDisplayData as ClientDashboardDisplayData : null, [appUser, dashboardDisplayData]);
   const providerData = useMemo(() => appUser?.accountType === 'provider' && dashboardDisplayData && 'providerProfile' in dashboardDisplayData ? dashboardDisplayData as ProviderDashboardDisplayData : null, [appUser, dashboardDisplayData]);
 
+  const socialMediaPlatforms = [
+    { key: 'twitter', Icon: Twitter, color: 'text-sky-500', name: 'Twitter' },
+    { key: 'instagram', Icon: Instagram, color: 'text-pink-600', name: 'Instagram' },
+    { key: 'facebook', Icon: Facebook, color: 'text-blue-700', name: 'Facebook' },
+    { key: 'linkedin', Icon: Linkedin, color: 'text-sky-700', name: 'LinkedIn' },
+  ];
 
   if (isLoading) {
     return (
@@ -290,9 +304,142 @@ export default function DashboardPage() {
               )}
             </CardContent>
              <CardFooter className="pt-6">
-               <Button asChild variant="outline" className="w-full">
-                 <Link href={`/providers/${appUser.uid}`}><LayoutDashboard className="mr-2" />View My Public Profile</Link>
-               </Button>
+                <Dialog open={isProfileDetailOpen} onOpenChange={setIsProfileDetailOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" className="w-full">
+                        <LayoutDashboard className="mr-2" /> View My Profile Details
+                        </Button>
+                    </DialogTrigger>
+                    {providerData.providerProfile && (
+                        <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-3xl max-h-[90vh]">
+                            <DialogHeader>
+                                <DialogTitle className="text-2xl font-headline text-primary">{providerData.providerProfile.businessName}</DialogTitle>
+                                <DialogDescription>
+                                    Your comprehensive provider profile overview.
+                                    <Button asChild variant="link" className="p-0 h-auto ml-2 text-sm">
+                                        <Link href={`/providers/${appUser.uid}`} onClick={() => setIsProfileDetailOpen(false)}>View Public Page</Link>
+                                    </Button>
+                                </DialogDescription>
+                            </DialogHeader>
+                            <ScrollArea className="max-h-[calc(90vh-150px)] pr-2">
+                                <div className="space-y-6 py-4">
+                                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                                        <Avatar className="h-24 w-24 border-2 border-primary">
+                                            <AvatarImage src={providerData.providerProfile.profilePictureUrl || undefined} alt={providerData.providerProfile.businessName} data-ai-hint="provider avatar"/>
+                                            <AvatarFallback className="text-3xl">{(providerData.providerProfile.businessName || "P").substring(0,1)}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="text-center sm:text-left">
+                                            {providerData.providerProfile.isVerified && (
+                                                <VerifiedBadge authority={`${providerData.providerProfile.verificationAuthority} Verified`} isVerified={providerData.providerProfile.isVerified} />
+                                            )}
+                                            <p className="text-lg mt-1 font-semibold text-muted-foreground flex items-center justify-center sm:justify-start">
+                                                <ServiceCategoryIcon category={providerData.providerProfile.mainService} iconOnly className="h-5 w-5 mr-2 text-primary" />
+                                                {providerData.providerProfile.mainService === 'Other' && providerData.providerProfile.otherMainServiceDescription ? providerData.providerProfile.otherMainServiceDescription : providerData.providerProfile.mainService}
+                                            </p>
+                                            <p className="text-sm text-muted-foreground">Rating: {providerData.providerProfile.rating.toFixed(1)} ({providerData.providerProfile.reviewsCount} reviews)</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <Separator />
+                                    
+                                    <div>
+                                        <h4 className="font-semibold mb-1 text-md">About</h4>
+                                        <p className="text-sm text-muted-foreground whitespace-pre-line">{providerData.providerProfile.bio || "No bio provided."}</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div><strong className="text-sm">Location:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.location}</span></div>
+                                        {providerData.providerProfile.fullAddress && <div><strong className="text-sm">Full Address:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.fullAddress}</span></div>}
+                                        <div><strong className="text-sm">Experience:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.yearsOfExperience} years</span></div>
+                                        <div><strong className="text-sm">Contact:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.contactPhoneNumber}</span></div>
+                                        {providerData.providerProfile.operatingHours && <div><strong className="text-sm">Hours:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.operatingHours}</span></div>}
+                                        {providerData.providerProfile.website && 
+                                          <div><strong className="text-sm">Website:</strong> <a href={providerData.providerProfile.website.startsWith('http') ? providerData.providerProfile.website : `https://${providerData.providerProfile.website}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{providerData.providerProfile.website}</a></div>
+                                        }
+                                    </div>
+
+                                    {providerData.providerProfile.serviceAreas && providerData.providerProfile.serviceAreas.length > 0 && (
+                                        <div>
+                                            <h4 className="font-semibold mb-1 text-md">Service Areas</h4>
+                                            <div className="flex flex-wrap gap-1">
+                                                {providerData.providerProfile.serviceAreas.map(area => <Badge key={area} variant="secondary">{area}</Badge>)}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {providerData.providerProfile.socialMediaLinks && Object.keys(providerData.providerProfile.socialMediaLinks).length > 0 && (
+                                      <div className="pt-2">
+                                        <h4 className="font-semibold mb-1 text-md">Social Media</h4>
+                                        <div className="flex items-center space-x-3">
+                                          {socialMediaPlatforms.map(({ key, Icon, color, name }) => (
+                                            providerData.providerProfile.socialMediaLinks![key] && (
+                                              <a
+                                                key={key}
+                                                href={providerData.providerProfile.socialMediaLinks![key].startsWith('http') ? providerData.providerProfile.socialMediaLinks![key] : `https://${providerData.providerProfile.socialMediaLinks![key]}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title={name}
+                                                className={`hover:opacity-75 transition-opacity ${color}`}
+                                              >
+                                                <Icon className="h-5 w-5" />
+                                              </a>
+                                            )
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+
+                                    {providerData.providerProfile.certifications && providerData.providerProfile.certifications.length > 0 && (
+                                        <div>
+                                            <h4 className="font-semibold mb-2 text-md flex items-center"><BookOpen className="mr-2 h-5 w-5"/>Certifications</h4>
+                                            <ul className="space-y-2">
+                                                {providerData.providerProfile.certifications.map(cert => (
+                                                    <li key={cert.id} className="p-2 border rounded-md text-sm bg-muted/30">
+                                                        <div className="flex justify-between items-start">
+                                                          <span className="font-medium">{cert.name}</span>
+                                                          <Badge variant={cert.status === 'verified' ? 'default' : 'outline'} className="capitalize text-xs">{cert.status.replace('_', ' ')}</Badge>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground">No: {cert.number || 'N/A'}, Body: {cert.issuingBody}</p>
+                                                        {cert.issueDate && <p className="text-xs text-muted-foreground">Issued: {formatSafeDate(cert.issueDate, 'PPP')}</p>}
+                                                        {cert.expiryDate && <p className="text-xs text-muted-foreground">Expires: {formatSafeDate(cert.expiryDate, 'PPP')}</p>}
+                                                        {cert.documentUrl && (cert.status === 'verified' || cert.status === 'pending_review') && <a href={cert.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline"><ExternalLink className="inline h-3 w-3 mr-1"/>View Document</a>}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {providerData.providerProfile.portfolio && providerData.providerProfile.portfolio.length > 0 && (
+                                        <div>
+                                            <h4 className="font-semibold mb-2 text-md flex items-center"><Images className="mr-2 h-5 w-5"/>Portfolio</h4>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                {providerData.providerProfile.portfolio.map(item => item.imageUrl && (
+                                                    <div key={item.id} className="aspect-square relative group rounded overflow-hidden border">
+                                                        <Image src={item.imageUrl} alt={item.description || 'Portfolio item'} fill style={{objectFit:'cover'}} data-ai-hint={item.dataAiHint || "project image"}/>
+                                                        {item.description && <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">{item.description}</div>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* Placeholder for "Jobs Completed" - needs backend data
+                                    <div>
+                                        <h4 className="font-semibold mb-1 text-md">Jobs Completed on FundiConnect</h4>
+                                        <p className="text-sm text-muted-foreground">Data not yet available.</p>
+                                    </div>
+                                    */}
+
+                                </div>
+                            </ScrollArea>
+                            <DialogFooter className="mt-4">
+                                <Button asChild><Link href="/profile/edit" onClick={() => setIsProfileDetailOpen(false)}><Edit className="mr-2 h-4 w-4"/>Edit Full Profile</Link></Button>
+                                <DialogClose asChild>
+                                    <Button variant="outline">Close</Button>
+                                </DialogClose>
+                            </DialogFooter>
+                        </DialogContent>
+                    )}
+                </Dialog>
              </CardFooter>
           </Card>
 
@@ -440,3 +587,19 @@ export default function DashboardPage() {
   );
 }
 
+/**
+ * Safely formats a date, returning a fallback string if the date is invalid.
+ * @param dateInput The date to format.
+ * @param formatString The date-fns format string.
+ * @returns The formatted date string or 'N/A'.
+ */
+function formatSafeDate(dateInput: Date | string | number | undefined | null, formatString: string): string {
+  if (!dateInput) return 'N/A';
+  try {
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return 'Invalid Date';
+    return format(date, formatString);
+  } catch (e) {
+    return 'Invalid Date';
+  }
+}
