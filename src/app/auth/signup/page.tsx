@@ -91,11 +91,7 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
       
-      await sendEmailVerification(firebaseUser);
-      toast({ 
-        title: "Verification Email Sent!", 
-        description: "Your account is almost ready. Please check your email to verify your address." 
-      });
+      await sendEmailVerification(firebaseUser); // Send verification email
 
       if (data.accountType === 'provider' && profilePictureFile) {
         try {
@@ -106,6 +102,7 @@ export default function SignupPage() {
             description: uploadError.message || "Could not upload profile picture. You can add it later.",
             variant: "destructive",
           });
+          // Optionally, decide if this should halt the process or just proceed without a picture
         }
       }
       
@@ -121,12 +118,12 @@ export default function SignupPage() {
 
       if (signupResult.success) {
         toast({ 
-          title: "Signup Successful!", 
-          description: "Your profile setup is complete. Remember to verify your email. Redirecting to login..." 
+          title: "Signup Successful! Please Verify Your Email", 
+          description: "Your profile setup is complete. A verification email has been sent to your address. Please check your inbox (and spam folder) to verify. Redirecting to login..." 
         });
         if (analytics) {
           logEvent(analytics, 'sign_up', { 
-            method: 'email', // Standard Firebase event parameter
+            method: 'email', 
             account_type: data.accountType 
           });
         }
