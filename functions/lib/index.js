@@ -34,10 +34,11 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkEmailVerification = void 0;
-const identity_1 = require("firebase-functions/v2/identity");
+const identity_1 = require("firebase-functions/v2/identity"); // Corrected import name
 const logger = __importStar(require("firebase-functions/logger"));
 // Block users with unverified emails from signing in
-exports.checkEmailVerification = (0, identity_1.beforeUserSignIn)(async (event) => {
+// Note: Corrected trigger name to beforeUserSignedIn
+exports.checkEmailVerification = (0, identity_1.beforeUserSignedIn)(async (event) => {
     const user = event.data;
     // Check if the user's email is not verified
     // This check applies to all sign-in methods. If you want to be more specific,
@@ -45,7 +46,9 @@ exports.checkEmailVerification = (0, identity_1.beforeUserSignIn)(async (event) 
     if (user.email && !user.emailVerified) {
         logger.warn(`Sign-in blocked for user ${user.uid} (${user.email}) due to unverified email.`);
         // Throwing an exception here blocks the sign-in attempt
-        throw new identity_1.AuthBlockingError('unverified-email', 'Please verify your email before signing in.');
+        // Access AuthBlockingError via the trigger function object (beforeUserSignedIn)
+        throw new identity_1.beforeUserSignedIn.AuthBlockingError(// Reference AuthBlockingError this way
+        'unverified-email', 'Please verify your email before signing in.');
     }
     // If the email is verified, or if it's a sign-in method where email verification is not applicable (e.g. anonymous),
     // allow the sign-in to proceed.
