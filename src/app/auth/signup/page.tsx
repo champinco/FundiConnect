@@ -47,7 +47,14 @@ export default function SignupPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       if (user) {
-        router.push('/');
+        // If user is already logged in and lands on signup, redirect based on their state
+        // For instance, if they just completed /profile/edit as part of signup, they might go to dashboard.
+        // If they just landed here while logged in, redirect to dashboard.
+        if(router.asPath.includes('/profile/edit')) { // Check if previous page was edit profile
+             // Potentially do nothing or redirect to dashboard if profile is complete enough
+        } else {
+            router.push('/dashboard'); // Default redirect for already logged-in users
+        }
       }
     });
     return () => unsubscribe();
@@ -152,15 +159,6 @@ export default function SignupPage() {
       const signupResult = await signupUserAction(serverActionData, firebaseUser.uid);
 
       if (signupResult.success) {
-        let successDescription = "Your profile setup is complete. A verification email has been sent. Please check your inbox (and spam folder) to verify. Redirecting to login...";
-        if (data.accountType === 'provider') {
-            successDescription = "Your basic provider profile is set up! A verification email has been sent. IMPORTANT: Go to 'My Profile' > 'Edit Profile' to add certifications, portfolio items, and other details crucial for verification and attracting clients. Redirecting to login...";
-        }
-        toast({ 
-          title: "Signup Successful! Please Verify Your Email", 
-          description: successDescription,
-          duration: 10000, // Longer duration for the important message
-        });
         if (analytics) {
           logEvent(analytics, 'sign_up', { 
             method: 'email', 
@@ -172,7 +170,22 @@ export default function SignupPage() {
         setProfilePicturePreview(null);
         setBannerImageFile(null);
         setBannerImagePreview(null);
-        router.push('/auth/login'); 
+
+        if (data.accountType === 'provider') {
+            toast({ 
+              title: "Account Created! Email Verification Sent.", 
+              description: "Next, please complete your detailed provider profile to get verified and start attracting clients.",
+              duration: 8000,
+            });
+            router.push('/profile/edit'); // Redirect to edit profile page
+        } else { // Client account
+            toast({ 
+              title: "Signup Successful! Please Verify Your Email", 
+              description: "Your profile setup is complete. A verification email has been sent. Please check your inbox (and spam folder) to verify. Redirecting to login...",
+              duration: 8000, 
+            });
+            router.push('/auth/login'); 
+        }
       } else {
         toast({ title: "Profile Creation Failed", description: signupResult.message, variant: "destructive" });
       }
@@ -192,13 +205,15 @@ export default function SignupPage() {
     }
   };
 
-  if (currentUser) {
+  if (currentUser && !isLoading) { // Check !isLoading to avoid premature redirect if auth state resolves quickly
     return (
         <div className="flex items-center justify-center min-h-[calc(100vh-8rem)]">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mr-3" />
             <p>You are already logged in. Redirecting...</p>
         </div>
     );
   }
+
 
   return (
     <div className="container mx-auto px-4 py-12">
@@ -263,7 +278,10 @@ export default function SignupPage() {
             {accountType === 'provider' && (
               <>
                 <div className="pt-4 border-t mt-6">
-                  <h3 className="text-lg font-semibold mb-4 text-primary">Provider Details</h3>
+                  <h3 className="text-lg font-semibold mb-4 text-primary">Provider Details (Basic Information)</h3>
+                   <p className="text-sm text-muted-foreground mb-4">
+                    You&apos;ll be able to add more details like certifications and portfolio items on the next step.
+                  </p>
                 </div>
                 <div>
                   <Label htmlFor="businessName" className="font-semibold flex items-center"><Building className="mr-2 h-4 w-4" /> Business Name</Label>
@@ -328,7 +346,7 @@ export default function SignupPage() {
                     />
                     {profilePicturePreview && (
                         <div className="mt-2">
-                            <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="h-24 w-24 rounded-full object-cover border" data-ai-hint="profile image preview" />
+                            <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="h-24 w-24 rounded-full object-cover border" data-ai-hint="profile image preview"/>
                         </div>
                     )}
                     <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Square image.</p>
@@ -353,9 +371,6 @@ export default function SignupPage() {
                     <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Landscape image (e.g., 1200x400px).</p>
                     {errors.newBannerImageFile && <p className="text-sm text-destructive mt-1">{errors.newBannerImageFile.message}</p>}
                 </div>
-                 <p className="text-sm text-muted-foreground mt-4">
-                  <strong>Important:</strong> After signup, go to "My Profile" &gt; "Edit Profile" to add your certifications, portfolio, and other details to become verifiable and attract more clients.
-                </p>
               </>
             )}
           </CardContent>
@@ -363,7 +378,7 @@ export default function SignupPage() {
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isLoading}>
               {isLoading ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
-              ) : "Create Account"}
+              ) : (accountType === 'provider' ? "Next: Complete Profile Details" : "Create Account")}
             </Button>
              <p className="text-xs text-muted-foreground mt-4 text-center">
                 Already have an account? <a href="/auth/login" className="text-primary hover:underline hover:text-primary/80">Login here</a>.
@@ -374,3 +389,4 @@ export default function SignupPage() {
     </div>
   );
 }
+
