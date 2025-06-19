@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, MapPin, Star, CheckCircle2, Loader2 } from 'lucide-react'; 
+import { Search, MapPin, Star, CheckCircle2, Loader2 } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderCard, { type Provider } from '@/components/provider-card';
 import { useState, useEffect, type FormEvent } from 'react';
@@ -76,10 +76,9 @@ export default function HomePage() {
   return (
     <div className="flex flex-col ">
       {/* Hero Section */}
-      <section 
+      <section
         className="relative py-16 md:py-24 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
-        data-ai-hint="black technician electronics"
+        style={{ backgroundImage: "url('/images/hero-background.jpg')" }}
       >
         <div className="absolute inset-0 bg-black/60 z-0"></div> {/* Overlay */}
         <div className="container relative z-10 mx-auto px-4 text-center">
