@@ -1,9 +1,10 @@
 
-"use client"; 
+"use client";
 
 import Image from 'next/image';
-import { useRouter } from 'next/navigation'; 
-import { use, useEffect, useState } from 'react'; // Added 'use'
+import { useRouter } from 'next/navigation';
+// Ensure 'use' is imported correctly from React
+import { use, useEffect, useState } from 'react';
 import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
@@ -11,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from '@/components/ui/separator';
-import { useToast } from "@/hooks/use-toast"; 
+import { useToast } from "@/hooks/use-toast";
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -21,11 +22,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
 
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'; 
-import { auth } from '@/lib/firebase'; 
-import type { ProviderProfile } from '@/models/provider'; 
+import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
-import Link from 'next/link'; 
+import Link from 'next/link';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions';
@@ -33,10 +34,10 @@ import { getOrCreateChatAction } from '@/app/messages/actions';
 
 // Props for the Page component now expect params to be a Promise
 export default function ProviderProfilePage({ params: paramsPromise }: { params: Promise<{ id: string }> }) {
-  const params = use(paramsPromise); // Unwrap the promise to get the actual params object
+  const resolvedParams = use(paramsPromise); // Unwrap the promise to get the actual params object
   const router = useRouter();
   const { toast } = useToast();
-  const providerId = params.id; // Access id from the resolved params
+  const providerId = resolvedParams.id; // Access id from the resolved params
 
   const [provider, setProvider] = useState<ProviderProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -60,7 +61,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
 
   useEffect(() => {
     if (providerId) {
-      setIsLoading(true); 
+      setIsLoading(true);
       setError(null);
       fetchPublicProviderProfileDataAction(providerId)
         .then((data) => {
@@ -70,7 +71,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
             setReviews([]);
           } else {
             setProvider(data.provider);
-            setReviews(data.reviews || []); 
+            setReviews(data.reviews || []);
           }
         })
         .catch(err => {
@@ -79,7 +80,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
           setProvider(null);
           setReviews([]);
         })
-        .finally(() => setIsLoading(false)); 
+        .finally(() => setIsLoading(false));
     }
   }, [providerId]);
 
@@ -93,7 +94,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
 
     setIsChatLoading(true);
     try {
-      const result = await getOrCreateChatAction(currentUser.uid, provider.userId); 
+      const result = await getOrCreateChatAction(currentUser.uid, provider.userId);
       if (result.error || !result.chatId) {
         throw new Error(result.error || "Could not initiate chat.");
       }
@@ -105,7 +106,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
       setIsChatLoading(false);
     }
   };
-  
+
   const handleRequestBookingSubmit = async () => {
     if (!currentUser) {
       toast({ title: "Login Required", description: "Please login to request a booking.", variant: "destructive" });
@@ -136,7 +137,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
     }
   };
 
-  if (isLoading) { 
+  if (isLoading) {
     return <ProviderProfileSkeleton />;
   }
 
@@ -156,14 +157,14 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
   }
 
   const today = new Date();
-  today.setHours(0,0,0,0); 
+  today.setHours(0,0,0,0);
 
   const providerUnavailableDatesParsed = (provider.unavailableDates || []).map(dateStr => parseISO(dateStr));
   const isDateDisabled = (date: Date): boolean => {
     if (date < today) return true;
     return providerUnavailableDatesParsed.some(unavailableDate => isSameDay(unavailableDate, date));
   };
-  
+
   const socialMediaPlatforms = [
     { key: 'twitter', Icon: Twitter, color: 'text-sky-500', name: 'Twitter' },
     { key: 'instagram', Icon: Instagram, color: 'text-pink-600', name: 'Instagram' },
@@ -209,7 +210,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="p-6">
           <div className="grid md:grid-cols-3 gap-6 mb-6">
             <div className="md:col-span-2">
@@ -226,7 +227,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                     </CardHeader>
                     <CardContent className="space-y-4 text-foreground/90">
                       <p className="whitespace-pre-line">{provider.bio || "No biography provided."}</p>
-                      
+
                       {provider.specialties && provider.specialties.length > 0 && (
                         <div className="pt-3">
                           <h4 className="font-semibold mb-2 text-md flex items-center"><Sparkles className="h-5 w-5 mr-2 text-primary" />Specialties:</h4>
@@ -302,12 +303,12 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {provider.portfolio.map(item => (
                             <div key={item.id || item.imageUrl} className="rounded-lg overflow-hidden shadow group aspect-video relative border">
-                              <Image 
-                                src={item.imageUrl || 'https://placehold.co/600x400.png'} 
-                                alt={item.description || 'Portfolio item'} 
-                                fill 
-                                style={{objectFit: 'cover'}} 
-                                className="transition-transform duration-300 group-hover:scale-105" 
+                              <Image
+                                src={item.imageUrl || 'https://placehold.co/600x400.png'}
+                                alt={item.description || 'Portfolio item'}
+                                fill
+                                style={{objectFit: 'cover'}}
+                                className="transition-transform duration-300 group-hover:scale-105"
                                 data-ai-hint={item.dataAiHint || item.description?.split(' ').slice(0,2).join(' ') || 'project image'}
                               />
                               {item.imageUrl && item.description && (
@@ -334,19 +335,20 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                       <CardTitle className="text-xl">Client Reviews</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      {isLoading && (!reviews || reviews.length === 0) ? ( 
+                      {isLoading && (!reviews || reviews.length === 0) ? (
                         <div className="space-y-4">
                           {[...Array(3)].map((_, i) => (
                             <div key={i} className="flex space-x-3 border-b pb-4 last:border-b-0">
                               <Avatar className="h-10 w-10 opacity-50"><AvatarFallback>C</AvatarFallback></Avatar>
                               <div className="flex-1 space-y-1.5">
                                 <div className="flex justify-between items-center">
-                                   <Skeleton className="h-4 bg-muted rounded w-1/3 animate-pulse"></Skeleton>
-                                   <Skeleton className="h-3 bg-muted rounded w-1/4 animate-pulse"></Skeleton>
+                                   {/* Using div as Skeleton is not available here directly, implying placeholder */}
+                                   <div className="h-4 bg-muted rounded w-1/3 animate-pulse"></div>
+                                   <div className="h-3 bg-muted rounded w-1/4 animate-pulse"></div>
                                 </div>
-                                <Skeleton className="h-3 bg-muted rounded w-1/5 animate-pulse mb-1.5"></Skeleton>
-                                <Skeleton className="h-4 bg-muted rounded w-full animate-pulse"></Skeleton>
-                                <Skeleton className="h-4 bg-muted rounded w-5/6 animate-pulse"></Skeleton>
+                                <div className="h-3 bg-muted rounded w-1/5 animate-pulse mb-1.5"></div>
+                                <div className="h-4 bg-muted rounded w-full animate-pulse"></div>
+                                <div className="h-4 bg-muted rounded w-5/6 animate-pulse"></div>
                               </div>
                             </div>
                           ))}
@@ -427,7 +429,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                       </div>
                     </div>
                   )}
-                  
+
                   {provider.website && (
                     <div className="flex items-start">
                       <ExternalLink className="h-5 w-5 mr-3 mt-1 text-primary shrink-0" />
@@ -536,7 +538,4 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
   );
 }
 
-const Skeleton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div className={cn("animate-pulse rounded-md bg-muted", className)} {...props} />
-);
-const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' '); 
+    
