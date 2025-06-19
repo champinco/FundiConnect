@@ -142,8 +142,7 @@ export default function HomePage() {
       {/* Service Categories Section */}
       <section
         className="relative py-12 md:py-16 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
-        data-ai-hint="tools workshop"
+        style={{ backgroundImage: "url('https://manus.im/share/lkpeqDTWbH0ikUZt4PYl0f/og-image.png')" }}
       >
         <div className="absolute inset-0 bg-black/40 z-0"></div> {/* Overlay */}
         <div className="container relative z-10 mx-auto px-4 text-white">
