@@ -34,10 +34,10 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkEmailVerification = void 0;
-const identity_1 = require("firebase-functions/v2/identity"); // Corrected import name
+const identity_1 = require("firebase-functions/v2/identity");
 const logger = __importStar(require("firebase-functions/logger"));
+const https_1 = require("firebase-functions/v2/https"); // Import HttpsError
 // Block users with unverified emails from signing in
-// Note: Corrected trigger name to beforeUserSignedIn
 exports.checkEmailVerification = (0, identity_1.beforeUserSignedIn)(async (event) => {
     const user = event.data;
     // Check if the user's email is not verified
@@ -45,14 +45,14 @@ exports.checkEmailVerification = (0, identity_1.beforeUserSignedIn)(async (event
     // you might inspect event.data.providerId or other event properties.
     if (user.email && !user.emailVerified) {
         logger.warn(`Sign-in blocked for user ${user.uid} (${user.email}) due to unverified email.`);
-        // Throwing an exception here blocks the sign-in attempt
-        // Access AuthBlockingError via the trigger function object (beforeUserSignedIn)
-        throw new identity_1.beforeUserSignedIn.AuthBlockingError(// Reference AuthBlockingError this way
-        'unverified-email', 'Please verify your email before signing in.');
+        // Use HttpsError for blocking sign-in.
+        // The client will receive this error and should display the message.
+        throw new https_1.HttpsError('unauthenticated', // A standard FunctionsErrorCode. 'failed-precondition' could also be used.
+        'Please verify your email before signing in.');
     }
     // If the email is verified, or if it's a sign-in method where email verification is not applicable (e.g. anonymous),
     // allow the sign-in to proceed.
-    logger.info(`Sign-in allowed for user ${user.uid} (${user.email}).`);
+    logger.info(`Sign-in allowed for user ${user.uid} (${user.email}). Email verified: ${user.emailVerified}`);
     return {}; // Explicitly return an empty object or undefined for success
 });
 //# sourceMappingURL=index.js.map

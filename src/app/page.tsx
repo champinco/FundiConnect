@@ -140,8 +140,13 @@ export default function HomePage() {
       </section>
 
       {/* Service Categories Section */}
-      <section className="py-12 md:py-16 bg-background">
-        <div className="container mx-auto px-4">
+      <section
+        className="relative py-12 md:py-16 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
+        data-ai-hint="tools workshop"
+      >
+        <div className="absolute inset-0 bg-black/40 z-0"></div> {/* Overlay */}
+        <div className="container relative z-10 mx-auto px-4 text-white">
           <h2 className="text-3xl font-bold font-headline text-center mb-10">
             Browse Services
           </h2>
