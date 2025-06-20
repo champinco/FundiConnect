@@ -320,7 +320,7 @@ function SearchPageContent() {
             fill
             style={{ objectFit: 'cover' }}
             priority
-            data-ai-hint="service providers team work"
+            data-ai-hint="provider workshop professional"
           />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <h2 className="text-3xl md:text-4xl font-bold font-headline text-white text-center px-4" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>
