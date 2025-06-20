@@ -6,6 +6,7 @@ import ProviderCard, { type Provider } from '@/components/provider-card';
 import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton';
 import JobCard, { type JobCardProps } from '@/components/job-card';
 import JobCardSkeleton from '@/components/skeletons/job-card-skeleton';
+import Image from 'next/image'; // Added for banner image
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -299,7 +300,7 @@ function SearchPageContent() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Tabs value={searchMode} onValueChange={handleModeChange} className="mb-8">
+      <Tabs value={searchMode} onValueChange={handleModeChange} className="mb-6">
         <TabsList className="grid w-full grid-cols-2 md:w-1/2 mx-auto">
           <TabsTrigger value="providers" className="text-base py-2.5">
             <SearchIcon className="mr-2 h-5 w-5" /> Find Fundis
@@ -309,6 +310,25 @@ function SearchPageContent() {
           </TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {/* Banner Image Section */}
+      <div className="mb-8 rounded-lg overflow-hidden shadow-lg">
+        <div className="relative h-48 md:h-64 w-full">
+          <Image
+            src="https://placehold.co/1200x300.png"
+            alt="Service providers banner"
+            fill
+            style={{ objectFit: 'cover' }}
+            priority
+            data-ai-hint="service providers team work"
+          />
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+            <h2 className="text-3xl md:text-4xl font-bold font-headline text-white text-center px-4" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>
+              {searchMode === 'providers' ? 'Connect with Skilled Professionals' : 'Explore Opportunities'}
+            </h2>
+          </div>
+        </div>
+      </div>
 
       <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card rounded-lg shadow">
         <h1 className="text-3xl font-headline font-bold mb-2">
