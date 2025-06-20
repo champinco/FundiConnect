@@ -315,12 +315,11 @@ function SearchPageContent() {
       <div className="mb-8 rounded-lg overflow-hidden shadow-lg">
         <div className="relative h-48 md:h-64 w-full">
           <Image
-            src="https://placehold.co/1200x300.png"
-            alt="Service providers banner"
+            src="https://i.imgur.com/j7n0NnU.jpeg"
+            alt="Technicians installing solar panels"
             fill
             style={{ objectFit: 'cover' }}
             priority
-            data-ai-hint="provider workshop professional"
           />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
             <h2 className="text-3xl md:text-4xl font-bold font-headline text-white text-center px-4" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>
