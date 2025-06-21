@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, type FormEvent, useMemo, Suspense, useCallback, useRef } from 'react';
@@ -6,7 +5,6 @@ import ProviderCard, { type Provider } from '@/components/provider-card';
 import ProviderCardSkeleton from '@/components/skeletons/provider-card-skeleton';
 import JobCard, { type JobCardProps } from '@/components/job-card';
 import JobCardSkeleton from '@/components/skeletons/job-card-skeleton';
-import Image from 'next/image'; // Added for banner image
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -299,14 +297,7 @@ function SearchPageContent() {
   const isMyJobsView = searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true';
 
   return (
-    <div
-      className="relative bg-cover bg-center bg-fixed min-h-screen"
-      style={{
-        backgroundImage: "url('https://i.imgur.com/j7n0NnU.jpeg')",
-      }}
-    >
-      <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" />
-      <div className="relative z-10 container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8">
         <Tabs value={searchMode} onValueChange={handleModeChange} className="mb-6">
           <TabsList className="grid w-full grid-cols-2 md:w-1/2 mx-auto">
             <TabsTrigger value="providers" className="text-base py-2.5">
@@ -318,7 +309,7 @@ function SearchPageContent() {
           </TabsList>
         </Tabs>
 
-        <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card/95 rounded-lg shadow">
+        <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card rounded-lg shadow">
           <h1 className="text-3xl font-headline font-bold mb-2">
             {searchMode === 'providers' ? 'Find Service Providers' :
              (isMyJobsView ? 'My Posted Jobs' : 'Discover Job Opportunities')}
@@ -411,11 +402,17 @@ function SearchPageContent() {
                   Showing jobs near your profile location: <span className="font-medium">{effectiveJobSearchLocation}</span>. Enter a specific location to override.
               </p>
           )}
+           {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery !== '' && jobLocationQuery !== effectiveJobSearchLocation && (
+             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+              <Info className="inline h-4 w-4 mr-1.5" />
+               Showing jobs for location: <strong>{jobLocationQuery}</strong>.
+            </div>
+           )}
         </form>
 
         <div className="flex flex-col md:flex-row gap-8">
           <aside className="w-full md:w-1/4 lg:w-1/5">
-            <div className="p-6 bg-card/95 rounded-lg shadow space-y-6 sticky top-20">
+            <div className="p-6 bg-card rounded-lg shadow space-y-6 sticky top-20">
               <h2 className="text-xl font-semibold flex items-center">
                 <Filter className="mr-2 h-5 w-5 text-primary" /> Filters
               </h2>
@@ -508,19 +505,6 @@ function SearchPageContent() {
           </aside>
 
           <main className="w-full md:w-3/4 lg:w-4/5">
-            {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery === '' && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
-                <Info className="inline h-4 w-4 mr-1.5" />
-                Showing jobs based on your profile location: <strong>{effectiveJobSearchLocation}</strong>. Enter a specific location in the search bar to override.
-              </div>
-            )}
-             {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery !== '' && jobLocationQuery !== effectiveJobSearchLocation && (
-               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
-                <Info className="inline h-4 w-4 mr-1.5" />
-                 Showing jobs for location: <strong>{jobLocationQuery}</strong>.
-              </div>
-             )}
-
 
             {isLoading && (
               <div className={`grid grid-cols-1 sm:grid-cols-2 ${searchMode === 'providers' ? 'xl:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
@@ -591,7 +575,6 @@ function SearchPageContent() {
             )}
           </main>
         </div>
-      </div>
     </div>
   );
 }
