@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, type FormEvent, useMemo, Suspense, useCallback, useRef } from 'react';
@@ -416,6 +417,18 @@ function SearchPageContent() {
               <h2 className="text-xl font-semibold flex items-center">
                 <Filter className="mr-2 h-5 w-5 text-primary" /> Filters
               </h2>
+
+              {searchMode === 'providers' && (
+                <div>
+                  <h3 className="font-medium mb-2 text-sm">Filter by Skill or Keyword</h3>
+                  <Input
+                    id="provider-keyword-filter"
+                    placeholder="e.g., repair, install, EPRA"
+                    value={providerSearchQuery}
+                    onChange={(e) => setProviderSearchQuery(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div>
                 <h3 className="font-medium mb-2 text-sm">Service Category</h3>
