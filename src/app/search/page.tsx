@@ -299,290 +299,297 @@ function SearchPageContent() {
   const isMyJobsView = searchMode === 'jobs' && memoizedNextSearchParams.get('myJobs') === 'true';
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <Tabs value={searchMode} onValueChange={handleModeChange} className="mb-6">
-        <TabsList className="grid w-full grid-cols-2 md:w-1/2 mx-auto">
-          <TabsTrigger value="providers" className="text-base py-2.5">
-            <SearchIcon className="mr-2 h-5 w-5" /> Find Fundis
-          </TabsTrigger>
-          <TabsTrigger value="jobs" className="text-base py-2.5">
-            <Briefcase className="mr-2 h-5 w-5" /> Find Jobs
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+    <div
+      className="relative bg-cover bg-center bg-fixed min-h-screen"
+      style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
+      data-ai-hint="workshop tools"
+    >
+      <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" />
+      <div className="relative z-10 container mx-auto px-4 py-8">
+        <Tabs value={searchMode} onValueChange={handleModeChange} className="mb-6">
+          <TabsList className="grid w-full grid-cols-2 md:w-1/2 mx-auto">
+            <TabsTrigger value="providers" className="text-base py-2.5">
+              <SearchIcon className="mr-2 h-5 w-5" /> Find Fundis
+            </TabsTrigger>
+            <TabsTrigger value="jobs" className="text-base py-2.5">
+              <Briefcase className="mr-2 h-5 w-5" /> Find Jobs
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-      <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card rounded-lg shadow">
-        <h1 className="text-3xl font-headline font-bold mb-2">
-          {searchMode === 'providers' ? 'Find Service Providers' :
-           (isMyJobsView ? 'My Posted Jobs' : 'Discover Job Opportunities')}
-        </h1>
-        <p className="text-muted-foreground mb-6">
-          {searchMode === 'providers'
-            ? 'Search for skilled and verified Fundis for your specific needs.'
-            : (isMyJobsView
-                ? 'Review and manage jobs you have posted.'
-                : 'Browse open jobs posted by clients and submit your quotes.')}
-        </p>
+        <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card/95 rounded-lg shadow">
+          <h1 className="text-3xl font-headline font-bold mb-2">
+            {searchMode === 'providers' ? 'Find Service Providers' :
+             (isMyJobsView ? 'My Posted Jobs' : 'Discover Job Opportunities')}
+          </h1>
+          <p className="text-muted-foreground mb-6">
+            {searchMode === 'providers'
+              ? 'Search for skilled and verified Fundis for your specific needs.'
+              : (isMyJobsView
+                  ? 'Review and manage jobs you have posted.'
+                  : 'Browse open jobs posted by clients and submit your quotes.')}
+          </p>
 
-        {searchMode === 'providers' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="provider-service-query">Service or Provider Name</Label>
-              <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="provider-service-query"
-                  placeholder="e.g., Electrician, Juma's Services"
-                  className="pl-10"
-                  value={providerSearchQuery}
-                  onChange={(e) => setProviderSearchQuery(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="provider-location-query">Provider Location</Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="provider-location-query"
-                  placeholder="e.g., Nairobi, Kilimani"
-                  className="pl-10"
-                  value={providerLocationQuery}
-                  onChange={(e) => setProviderLocationQuery(e.target.value)}
-                />
-              </div>
-            </div>
-            <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" disabled={isLoading || authLoading}>
-              {(isLoading && searchMode === 'providers') ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
-              Search Providers
-            </Button>
-          </div>
-        )}
-
-        {searchMode === 'jobs' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="job-keywords-query">Keywords (Title/Description)</Label>
-              <div className="relative">
-                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="job-keywords-query"
-                  placeholder="e.g., Leaking tap, wiring"
-                  className="pl-10"
-                  value={jobKeywordsQuery}
-                  onChange={(e) => setJobKeywordsQuery(e.target.value)}
-                  disabled={isMyJobsView}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="job-location-query">Job Location</Label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="job-location-query"
-                  placeholder={currentUserAccountType === 'provider' && !isMyJobsView ? "e.g., Westlands (or leave blank for jobs near you)" : "e.g., Westlands, Mombasa"}
-                  className="pl-10"
-                  value={jobLocationQuery}
-                  onChange={(e) => setJobLocationQuery(e.target.value)}
-                  disabled={isMyJobsView}
-                />
-              </div>
-            </div>
-            <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" 
-                    disabled={isLoading || (authLoading && isMyJobsView) || isMyJobsView}>
-              {(isLoading && searchMode === 'jobs') ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
-              Search Jobs
-            </Button>
-          </div>
-        )}
-         {searchMode === 'jobs' && isMyJobsView && (
-            <p className="text-xs text-muted-foreground mt-2">Keyword and location search is disabled for "My Jobs". Use filters on the left to refine by category or status.</p>
-        )}
-         {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery === '' && (
-            <p className="text-xs text-muted-foreground mt-2">
-                Showing jobs near your profile location: <span className="font-medium">{effectiveJobSearchLocation}</span>. Enter a specific location to override.
-            </p>
-        )}
-      </form>
-
-      <div className="flex flex-col md:flex-row gap-8">
-        <aside className="w-full md:w-1/4 lg:w-1/5">
-          <div className="p-6 bg-card rounded-lg shadow space-y-6 sticky top-20">
-            <h2 className="text-xl font-semibold flex items-center">
-              <Filter className="mr-2 h-5 w-5 text-primary" /> Filters
-            </h2>
-
-            <div>
-              <h3 className="font-medium mb-2 text-sm">Service Category</h3>
-              <Select
-                value={searchMode === 'providers' ? selectedProviderCategory : selectedJobCategory}
-                onValueChange={(value) => {
-                  if (searchMode === 'providers') setSelectedProviderCategory(value as ServiceCategory | 'All');
-                  else setSelectedJobCategory(value as ServiceCategory | 'All');
-                }}
-                disabled={isMyJobsView && searchMode === 'jobs'}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allServiceCategoriesList.map(category => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {searchMode === 'providers' && (
-              <>
-                <div>
-                  <h3 className="font-medium mb-2 text-sm">Minimum Rating</h3>
-                  <Select
-                    value={minRating?.toString() || "0"}
-                    onValueChange={(value) => setMinRating(value === "0" ? null : parseFloat(value))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Any Rating" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Any Rating</SelectItem>
-                      <SelectItem value="4.5">4.5 <Star className="inline h-3 w-3 fill-yellow-400 text-yellow-400" /> & Up</SelectItem>
-                      <SelectItem value="4">4 <Star className="inline h-3 w-3 fill-yellow-400 text-yellow-400" /> & Up</SelectItem>
-                      <SelectItem value="3">3 <Star className="inline h-3 w-3 fill-yellow-400 text-yellow-400" /> & Up</SelectItem>
-                    </SelectContent>
-                  </Select>
+          {searchMode === 'providers' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="provider-service-query">Service or Provider Name</Label>
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="provider-service-query"
+                    placeholder="e.g., Electrician, Juma's Services"
+                    className="pl-10"
+                    value={providerSearchQuery}
+                    onChange={(e) => setProviderSearchQuery(e.target.value)}
+                  />
                 </div>
-
-                <div>
-                  <h3 className="font-medium mb-2 text-sm">Verification</h3>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="verified-only"
-                      checked={verifiedOnly}
-                      onCheckedChange={(checked) => setVerifiedOnly(checked as boolean)}
-                    />
-                    <Label htmlFor="verified-only" className="text-sm">Verified Fundis Only</Label>
-                  </div>
-                </div>
-              </>
-            )}
-            
-            {searchMode === 'jobs' && isMyJobsView && (
-                 <div>
-                    <h3 className="font-medium mb-2 text-sm">Job Status</h3>
-                    <Select
-                        value={jobStatusFilter || 'all_my'}
-                        onValueChange={(value) => setJobStatusFilter(value === 'all_my' ? 'all_my' : value as JobStatus | null)}
-                    >
-                        <SelectTrigger>
-                        <SelectValue placeholder="Filter by status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all_my">All My Jobs</SelectItem>
-                            <SelectItem value="open">Open</SelectItem>
-                            <SelectItem value="pending_quotes">Pending Quotes</SelectItem>
-                            <SelectItem value="assigned">Assigned</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            )}
-
-
-            <Button onClick={handleApplyFilters} className="w-full bg-primary hover:bg-primary/90" 
-                    disabled={isLoading || (authLoading && searchMode === 'jobs' && isMyJobsView)}>
-              {(isLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
-              Apply Filters
-            </Button>
-          </div>
-        </aside>
-
-        <main className="w-full md:w-3/4 lg:w-4/5">
-          {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery === '' && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
-              <Info className="inline h-4 w-4 mr-1.5" />
-              Showing jobs based on your profile location: <strong>{effectiveJobSearchLocation}</strong>. Enter a specific location in the search bar to override.
-            </div>
-          )}
-           {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery !== '' && jobLocationQuery !== effectiveJobSearchLocation && (
-             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
-              <Info className="inline h-4 w-4 mr-1.5" />
-               Showing jobs for location: <strong>{jobLocationQuery}</strong>.
-            </div>
-           )}
-
-
-          {isLoading && (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${searchMode === 'providers' ? 'xl:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
-              {[...Array(searchMode === 'providers' ? 6 : 4)].map((_, i) =>
-                searchMode === 'providers'
-                  ? <ProviderCardSkeleton key={i} />
-                  : <JobCardSkeleton key={i} />
-              )}
-            </div>
-          )}
-          {!isLoading && hasSearched && searchMode === 'providers' && providerResults.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {providerResults.map((provider) => (
-                <ProviderCard key={provider.id} provider={provider} />
-              ))}
-            </div>
-          )}
-          {!isLoading && hasSearched && searchMode === 'jobs' && jobResults.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {jobResults.map((job) => (
-                <JobCard key={job.id} job={job} />
-              ))}
-            </div>
-          )}
-          {!isLoading && hasSearched && (
-            (searchMode === 'providers' && providerResults.length === 0) ||
-            (searchMode === 'jobs' && jobResults.length === 0)
-          ) && (
-              <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
-                <PackageOpen className="mx-auto h-16 w-16 text-primary mb-4" />
-                <h3 className="text-2xl font-semibold mb-2">
-                  No {searchMode === 'providers' ? 'Providers' : 'Jobs'} Found
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  We couldn&apos;t find any {searchMode === 'providers' ? 'providers' : 'jobs'} matching your current filters{effectiveJobSearchLocation && searchMode === 'jobs' ? ` for location: ${effectiveJobSearchLocation}` : ""}.
-                </p>
-                {searchMode === 'providers' && (
-                  <p className="text-sm text-muted-foreground">Try adjusting your search criteria or <Link href="/jobs/post" className="text-primary hover:underline">post a job</Link> to get quotes.</p>
-                )}
-                 {searchMode === 'jobs' && !isMyJobsView && (
-                  <p className="text-sm text-muted-foreground">Try adjusting your search criteria or check back later for new job postings.</p>
-                )}
-                {searchMode === 'jobs' && isMyJobsView && jobResults.length === 0 && (
-                   <p className="text-sm text-muted-foreground">You haven&apos;t posted any jobs that match the current filters, or no jobs yet. <Link href="/jobs/post" className="text-primary hover:underline">Post a new job</Link>.</p>
-                )}
               </div>
-            )}
-          {!isLoading && !hasSearched && (
-            <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
-              <SearchIcon className="mx-auto h-16 w-16 text-primary mb-4" />
-              <h3 className="text-2xl font-semibold mb-2">
-                {searchMode === 'providers' ? 'Find Your Fundi' :
-                 (isMyJobsView ? 'Your Posted Jobs' : 'Discover Job Opportunities')}
-              </h3>
-              <p className="text-muted-foreground">
-                {searchMode === 'providers'
-                  ? 'Enter your search criteria above or use filters to find available service providers.'
-                  : (isMyJobsView
-                      ? 'Your posted jobs will appear here. Use the filters to refine by status.'
-                      : 'Use the filters to discover relevant job postings, or see all open jobs by default.')}
+              <div className="space-y-1.5">
+                <Label htmlFor="provider-location-query">Provider Location</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="provider-location-query"
+                    placeholder="e.g., Nairobi, Kilimani"
+                    className="pl-10"
+                    value={providerLocationQuery}
+                    onChange={(e) => setProviderLocationQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" disabled={isLoading || authLoading}>
+                {(isLoading && searchMode === 'providers') ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
+                Search Providers
+              </Button>
+            </div>
+          )}
+
+          {searchMode === 'jobs' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="job-keywords-query">Keywords (Title/Description)</Label>
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="job-keywords-query"
+                    placeholder="e.g., Leaking tap, wiring"
+                    className="pl-10"
+                    value={jobKeywordsQuery}
+                    onChange={(e) => setJobKeywordsQuery(e.target.value)}
+                    disabled={isMyJobsView}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="job-location-query">Job Location</Label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="job-location-query"
+                    placeholder={currentUserAccountType === 'provider' && !isMyJobsView ? "e.g., Westlands (or leave blank for jobs near you)" : "e.g., Westlands, Mombasa"}
+                    className="pl-10"
+                    value={jobLocationQuery}
+                    onChange={(e) => setJobLocationQuery(e.target.value)}
+                    disabled={isMyJobsView}
+                  />
+                </div>
+              </div>
+              <Button type="submit" className="w-full md:w-auto h-10 bg-accent hover:bg-accent/90" 
+                      disabled={isLoading || (authLoading && isMyJobsView) || isMyJobsView}>
+                {(isLoading && searchMode === 'jobs') ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SearchIcon className="mr-2 h-4 w-4" />}
+                Search Jobs
+              </Button>
+            </div>
+          )}
+           {searchMode === 'jobs' && isMyJobsView && (
+              <p className="text-xs text-muted-foreground mt-2">Keyword and location search is disabled for "My Jobs". Use filters on the left to refine by category or status.</p>
+          )}
+           {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery === '' && (
+              <p className="text-xs text-muted-foreground mt-2">
+                  Showing jobs near your profile location: <span className="font-medium">{effectiveJobSearchLocation}</span>. Enter a specific location to override.
               </p>
-               {searchMode === 'providers' && !hasSearched && (
-                  <Button onClick={() => updateUrlAndSearch({})} className="mt-4 bg-primary hover:bg-primary/90" disabled={isLoading || authLoading}>
-                    Browse All Providers
-                  </Button>
-                )}
-            </div>
           )}
-        </main>
+        </form>
+
+        <div className="flex flex-col md:flex-row gap-8">
+          <aside className="w-full md:w-1/4 lg:w-1/5">
+            <div className="p-6 bg-card/95 rounded-lg shadow space-y-6 sticky top-20">
+              <h2 className="text-xl font-semibold flex items-center">
+                <Filter className="mr-2 h-5 w-5 text-primary" /> Filters
+              </h2>
+
+              <div>
+                <h3 className="font-medium mb-2 text-sm">Service Category</h3>
+                <Select
+                  value={searchMode === 'providers' ? selectedProviderCategory : selectedJobCategory}
+                  onValueChange={(value) => {
+                    if (searchMode === 'providers') setSelectedProviderCategory(value as ServiceCategory | 'All');
+                    else setSelectedJobCategory(value as ServiceCategory | 'All');
+                  }}
+                  disabled={isMyJobsView && searchMode === 'jobs'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allServiceCategoriesList.map(category => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {searchMode === 'providers' && (
+                <>
+                  <div>
+                    <h3 className="font-medium mb-2 text-sm">Minimum Rating</h3>
+                    <Select
+                      value={minRating?.toString() || "0"}
+                      onValueChange={(value) => setMinRating(value === "0" ? null : parseFloat(value))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Any Rating" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Any Rating</SelectItem>
+                        <SelectItem value="4.5">4.5 <Star className="inline h-3 w-3 fill-yellow-400 text-yellow-400" /> & Up</SelectItem>
+                        <SelectItem value="4">4 <Star className="inline h-3 w-3 fill-yellow-400 text-yellow-400" /> & Up</SelectItem>
+                        <SelectItem value="3">3 <Star className="inline h-3 w-3 fill-yellow-400 text-yellow-400" /> & Up</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium mb-2 text-sm">Verification</h3>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="verified-only"
+                        checked={verifiedOnly}
+                        onCheckedChange={(checked) => setVerifiedOnly(checked as boolean)}
+                      />
+                      <Label htmlFor="verified-only" className="text-sm">Verified Fundis Only</Label>
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {searchMode === 'jobs' && isMyJobsView && (
+                   <div>
+                      <h3 className="font-medium mb-2 text-sm">Job Status</h3>
+                      <Select
+                          value={jobStatusFilter || 'all_my'}
+                          onValueChange={(value) => setJobStatusFilter(value === 'all_my' ? 'all_my' : value as JobStatus | null)}
+                      >
+                          <SelectTrigger>
+                          <SelectValue placeholder="Filter by status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="all_my">All My Jobs</SelectItem>
+                              <SelectItem value="open">Open</SelectItem>
+                              <SelectItem value="pending_quotes">Pending Quotes</SelectItem>
+                              <SelectItem value="assigned">Assigned</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                          </SelectContent>
+                      </Select>
+                  </div>
+              )}
+
+
+              <Button onClick={handleApplyFilters} className="w-full bg-primary hover:bg-primary/90" 
+                      disabled={isLoading || (authLoading && searchMode === 'jobs' && isMyJobsView)}>
+                {(isLoading) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Filter className="mr-2 h-4 w-4" />}
+                Apply Filters
+              </Button>
+            </div>
+          </aside>
+
+          <main className="w-full md:w-3/4 lg:w-4/5">
+            {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery === '' && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+                <Info className="inline h-4 w-4 mr-1.5" />
+                Showing jobs based on your profile location: <strong>{effectiveJobSearchLocation}</strong>. Enter a specific location in the search bar to override.
+              </div>
+            )}
+             {searchMode === 'jobs' && !isMyJobsView && effectiveJobSearchLocation && jobLocationQuery !== '' && jobLocationQuery !== effectiveJobSearchLocation && (
+               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300">
+                <Info className="inline h-4 w-4 mr-1.5" />
+                 Showing jobs for location: <strong>{jobLocationQuery}</strong>.
+              </div>
+             )}
+
+
+            {isLoading && (
+              <div className={`grid grid-cols-1 sm:grid-cols-2 ${searchMode === 'providers' ? 'xl:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
+                {[...Array(searchMode === 'providers' ? 6 : 4)].map((_, i) =>
+                  searchMode === 'providers'
+                    ? <ProviderCardSkeleton key={i} />
+                    : <JobCardSkeleton key={i} />
+                )}
+              </div>
+            )}
+            {!isLoading && hasSearched && searchMode === 'providers' && providerResults.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {providerResults.map((provider) => (
+                  <ProviderCard key={provider.id} provider={provider} />
+                ))}
+              </div>
+            )}
+            {!isLoading && hasSearched && searchMode === 'jobs' && jobResults.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {jobResults.map((job) => (
+                  <JobCard key={job.id} job={job} />
+                ))}
+              </div>
+            )}
+            {!isLoading && hasSearched && (
+              (searchMode === 'providers' && providerResults.length === 0) ||
+              (searchMode === 'jobs' && jobResults.length === 0)
+            ) && (
+                <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
+                  <PackageOpen className="mx-auto h-16 w-16 text-primary mb-4" />
+                  <h3 className="text-2xl font-semibold mb-2">
+                    No {searchMode === 'providers' ? 'Providers' : 'Jobs'} Found
+                  </h3>
+                  <p className="text-muted-foreground mb-4">
+                    We couldn&apos;t find any {searchMode === 'providers' ? 'providers' : 'jobs'} matching your current filters{effectiveJobSearchLocation && searchMode === 'jobs' ? ` for location: ${effectiveJobSearchLocation}` : ""}.
+                  </p>
+                  {searchMode === 'providers' && (
+                    <p className="text-sm text-muted-foreground">Try adjusting your search criteria or <Link href="/jobs/post" className="text-primary hover:underline">post a job</Link> to get quotes.</p>
+                  )}
+                   {searchMode === 'jobs' && !isMyJobsView && (
+                    <p className="text-sm text-muted-foreground">Try adjusting your search criteria or check back later for new job postings.</p>
+                  )}
+                  {searchMode === 'jobs' && isMyJobsView && jobResults.length === 0 && (
+                     <p className="text-sm text-muted-foreground">You haven&apos;t posted any jobs that match the current filters, or no jobs yet. <Link href="/jobs/post" className="text-primary hover:underline">Post a new job</Link>.</p>
+                  )}
+                </div>
+              )}
+            {!isLoading && !hasSearched && (
+              <div className="text-center py-12 bg-card rounded-lg shadow flex flex-col items-center">
+                <SearchIcon className="mx-auto h-16 w-16 text-primary mb-4" />
+                <h3 className="text-2xl font-semibold mb-2">
+                  {searchMode === 'providers' ? 'Find Your Fundi' :
+                   (isMyJobsView ? 'Your Posted Jobs' : 'Discover Job Opportunities')}
+                </h3>
+                <p className="text-muted-foreground">
+                  {searchMode === 'providers'
+                    ? 'Enter your search criteria above or use filters to find available service providers.'
+                    : (isMyJobsView
+                        ? 'Your posted jobs will appear here. Use the filters to refine by status.'
+                        : 'Use the filters to discover relevant job postings, or see all open jobs by default.')}
+                </p>
+                 {searchMode === 'providers' && !hasSearched && (
+                    <Button onClick={() => updateUrlAndSearch({})} className="mt-4 bg-primary hover:bg-primary/90" disabled={isLoading || authLoading}>
+                      Browse All Providers
+                    </Button>
+                  )}
+              </div>
+            )}
+          </main>
+        </div>
       </div>
     </div>
   );
