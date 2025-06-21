@@ -5,8 +5,12 @@ import { adminDb } from '@/lib/firebaseAdmin';
 import type { ProviderProfile } from '@/models/provider';
 import type { Provider } from '@/components/provider-card';
 import type { ServiceCategory } from '@/components/service-category-icon';
-import type { Job } from '@/models/job'; // Import Job model
+import type { Job } from '@/models/job'; // Keep for type safety, though not used in new featured logic
 
+/**
+ * Fetches the top 3 verified providers based on rating and review count.
+ * This implementation uses a single, efficient, and scalable Firestore query.
+ */
 export async function fetchFeaturedProvidersAction(): Promise<Provider[]> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
     console.error("[fetchFeaturedProvidersAction] CRITICAL: Firebase Admin DB not initialized. Aborting.");
@@ -14,74 +18,51 @@ export async function fetchFeaturedProvidersAction(): Promise<Provider[]> {
   }
 
   try {
-    // 1. Get all 'completed' jobs
-    const jobsSnapshot = await adminDb.collection('jobs').where('status', '==', 'completed').get();
-    const providerJobCounts: Record<string, number> = {};
+    const MIN_REVIEWS_FOR_FEATURED = 3; // Set a minimum number of reviews to be considered for featuring.
+    
+    console.log(`[fetchFeaturedProvidersAction] Fetching top providers with at least ${MIN_REVIEWS_FOR_FEATURED} reviews.`);
 
-    jobsSnapshot.forEach(doc => {
-        const job = doc.data() as Job;
-        if (job.assignedProviderId) {
-            providerJobCounts[job.assignedProviderId] = (providerJobCounts[job.assignedProviderId] || 0) + 1;
-        }
-    });
-    console.log(`[fetchFeaturedProvidersAction] Calculated job counts for ${Object.keys(providerJobCounts).length} providers.`);
+    const providersQuery = adminDb.collection('providerProfiles')
+      .where('isVerified', '==', true)
+      .where('reviewsCount', '>=', MIN_REVIEWS_FOR_FEATURED)
+      .orderBy('reviewsCount', 'desc') // Order by most reviews first
+      .orderBy('rating', 'desc')       // Then by highest rating
+      .limit(3);
 
-    // 2. Get all verified provider profiles
-    const verifiedProvidersSnapshot = await adminDb.collection('providerProfiles').where('isVerified', '==', true).get();
-    const verifiedProviderData: Record<string, ProviderProfile> = {};
-    verifiedProvidersSnapshot.forEach(doc => {
-        // Assuming doc.data() is ProviderProfile; needs casting and date handling if timestamps are involved
-        const data = doc.data() as ProviderProfile; 
-        verifiedProviderData[doc.id] = {
-            ...data,
-            // Ensure any Firestore Timestamps are converted if ProviderProfile expects JS Dates
-            // For MVP, assuming direct cast is sufficient if dates are not immediately used or already stored as strings/numbers
-        };
-    });
-    console.log(`[fetchFeaturedProvidersAction] Fetched ${verifiedProvidersSnapshot.size} verified provider profiles.`);
+    const snapshot = await providersQuery.get();
 
-    // 3. Combine, filter by verified, and rank
-    const rankedProviders: Array<{ id: string; count: number; profile: ProviderProfile }> = [];
-    for (const providerId in providerJobCounts) {
-        if (verifiedProviderData[providerId]) { // Check if this provider is verified
-            rankedProviders.push({
-                id: providerId,
-                count: providerJobCounts[providerId],
-                profile: verifiedProviderData[providerId]
-            });
-        }
+    if (snapshot.empty) {
+        console.log("[fetchFeaturedProvidersAction] No providers met the featuring criteria. Returning empty array.");
+        return [];
     }
 
-    rankedProviders.sort((a, b) => b.count - a.count); // Sort by job count descending
-    console.log(`[fetchFeaturedProvidersAction] ${rankedProviders.length} verified providers with completed jobs found and ranked.`);
-
-    // 4. Take top 3 (or fewer if not enough)
-    const topProvidersData = rankedProviders.slice(0, 3);
-
-    // 5. Map to Provider[] type for the frontend
-    const providers: Provider[] = topProvidersData.map(item => {
-        const data = item.profile;
+    const providers: Provider[] = snapshot.docs.map(doc => {
+        const data = doc.data() as ProviderProfile;
         const bio = data.bio || "";
         return {
-            id: item.id,
+            id: doc.id,
             name: data.businessName || "Unnamed Provider",
             profilePictureUrl: data.profilePictureUrl || 'https://placehold.co/300x300.png',
             rating: data.rating || 0,
             reviewsCount: data.reviewsCount || 0,
             location: data.location || "N/A",
             mainService: data.mainService || 'Other' as ServiceCategory,
-            isVerified: data.isVerified || false, // Should be true
+            isVerified: data.isVerified || false,
             verificationAuthority: data.verificationAuthority || undefined,
             bioSummary: bio.substring(0, 100) + (bio.length > 100 ? '...' : ''),
-            // Optionally, you could add completedJobsCount to the Provider type if you want to display it on the card
-            // completedJobs: item.count, 
         };
     });
-    console.log(`[fetchFeaturedProvidersAction] Successfully fetched ${providers.length} featured providers based on completed jobs and verification.`);
+
+    console.log(`[fetchFeaturedProvidersAction] Successfully fetched ${providers.length} featured providers.`);
     return providers;
+
   } catch (error: any) {
     console.error("[fetchFeaturedProvidersAction] Error fetching featured providers:", error.message, error.stack);
-    return [];
+    // This error might indicate a missing Firestore composite index.
+    if (error.message && error.message.includes('index')) {
+        console.error("A composite index is likely required for this query. Please check the Firebase console error logs for a creation link.");
+    }
+    return []; // Return empty on error to prevent crashing the homepage.
   }
 }
 
@@ -92,45 +73,54 @@ export interface HomepageStats {
   totalVerifiedProviders: number;
 }
 
+/**
+ * Fetches homepage statistics using efficient count queries and optimized reads.
+ */
 export async function fetchHomepageStatsAction(): Promise<HomepageStats> {
   if (!adminDb) {
     console.error("[fetchHomepageStatsAction] Admin DB not initialized.");
-    // Return default/error state
     return { totalJobsCompleted: 0, averageProviderRating: 0, totalVerifiedProviders: 0 };
   }
 
   try {
-    // 1. Total Jobs Completed
+    // 1. Total Jobs Completed (Efficiently using .count())
     const completedJobsSnap = await adminDb.collection('jobs').where('status', '==', 'completed').count().get();
     const totalJobsCompleted = completedJobsSnap.data().count;
 
-    // 2. Average Provider Rating & Total Verified Providers
-    const providersSnap = await adminDb.collection('providerProfiles').get();
-    let totalVerifiedProviders = 0;
+    // 2. Total Verified Providers (Efficiently using .count())
+    const verifiedProvidersSnap = await adminDb.collection('providerProfiles').where('isVerified', '==', true).count().get();
+    const totalVerifiedProviders = verifiedProvidersSnap.data().count;
+
+    // 3. Average Provider Rating (Optimized to fetch only providers with ratings)
+    const ratedProvidersSnap = await adminDb.collection('providerProfiles').where('rating', '>', 0).get();
     let sumOfRatings = 0;
     let providersWithRatingsCount = 0;
 
-    providersSnap.forEach(doc => {
+    ratedProvidersSnap.forEach(doc => {
       const provider = doc.data() as ProviderProfile;
-      if (provider.isVerified) {
-        totalVerifiedProviders++;
-      }
-      if (provider.rating > 0 && provider.reviewsCount > 0) {
+      // This check is slightly redundant due to the query, but good for safety.
+      if (provider.rating > 0) { 
         sumOfRatings += provider.rating;
         providersWithRatingsCount++;
       }
     });
 
-    const averageProviderRating = providersWithRatingsCount > 0 ? parseFloat((sumOfRatings / providersWithRatingsCount).toFixed(1)) : 0;
+    const averageProviderRating = providersWithRatingsCount > 0 
+        ? parseFloat((sumOfRatings / providersWithRatingsCount).toFixed(1)) 
+        : 0;
 
     console.log(`[fetchHomepageStatsAction] Stats: JobsCompleted=${totalJobsCompleted}, AvgRating=${averageProviderRating}, VerifiedProviders=${totalVerifiedProviders}`);
+    
     return {
       totalJobsCompleted,
       averageProviderRating,
       totalVerifiedProviders,
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("[fetchHomepageStatsAction] Error fetching homepage stats:", error);
+    if (error.message && error.message.includes('index')) {
+        console.error("A composite index is likely required for a stats query. Please check the Firebase console error logs for a creation link.");
+    }
     return { totalJobsCompleted: 0, averageProviderRating: 0, totalVerifiedProviders: 0 };
   }
 }
