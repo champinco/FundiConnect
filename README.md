@@ -1,32 +1,30 @@
-# Firebase Studio
-
-This is a NextJS starter in Firebase Studio.
-
-To get started, take a look at src/app/page.tsx.
-# FundiConnect
 # FundiConnect
 
-## Troubleshooting Build Issues
+## How to Fix "Cannot find module" Errors (e.g., './548.js')
 
-If you encounter errors like "Cannot find module" (e.g., "Cannot find module './548.js'" or "./447.js") after building or starting the application, it usually indicates that your `.next` build directory is corrupted or in an inconsistent state.
+If your application fails to start and you see an error like `Error: Cannot find module './548.js'`, it means your build cache is out of sync. This is a common issue with Next.js development and is **not a bug in the application source code itself**.
 
-To resolve this, perform a clean rebuild:
+**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files and creates fresh ones.
 
-1.  **Stop the Next.js server** if it's running.
-2.  **Delete the `.next` directory** from your project root. This folder contains all build artifacts.
+Here are the steps:
+
+1.  **Stop the server** (if it's running).
+
+2.  **Delete the `.next` folder**:
     ```bash
     rm -rf .next
     ```
-    (On Windows, you can use `rd /s /q .next` in Command Prompt or `Remove-Item -Recurse -Force .next` in PowerShell).
-3.  **Rebuild the application**:
+    *(On Windows, use `rd /s /q .next` in Command Prompt or `Remove-Item -Recurse -Force .next` in PowerShell).*
+
+3.  **Rebuild the app**:
     ```bash
     npm run build
     ```
-    Carefully check the output of this command for any build errors. If the build itself fails, address those errors first.
-4.  **Start the server**:
+    *Check the output of this command for any new errors. If the build itself fails, address those first.*
+
+4.  **Start the app again**:
     ```bash
     npm start
     ```
 
-This process ensures that all build artifacts are freshly generated and should resolve "Cannot find module" errors related to the build.
-
+Following these steps should resolve the "Cannot find module" error.
