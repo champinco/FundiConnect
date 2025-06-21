@@ -301,8 +301,9 @@ function SearchPageContent() {
   return (
     <div
       className="relative bg-cover bg-center bg-fixed min-h-screen"
-      style={{ backgroundImage: "url('https://placehold.co/1920x1080.png')" }}
-      data-ai-hint="workshop tools"
+      style={{
+        backgroundImage: "url('https://i.imgur.com/j7n0NnU.jpeg')",
+      }}
     >
       <div className="absolute inset-0 bg-background/90 backdrop-blur-sm" />
       <div className="relative z-10 container mx-auto px-4 py-8">
