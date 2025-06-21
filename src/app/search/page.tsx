@@ -311,24 +311,6 @@ function SearchPageContent() {
         </TabsList>
       </Tabs>
 
-      {/* Banner Image Section */}
-      <div className="mb-8 rounded-lg overflow-hidden shadow-lg">
-        <div className="relative h-48 md:h-64 w-full">
-          <Image
-            src="https://i.imgur.com/j7n0NnU.jpeg"
-            alt="Technicians installing solar panels"
-            fill
-            style={{ objectFit: 'cover' }}
-            priority
-          />
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <h2 className="text-3xl md:text-4xl font-bold font-headline text-white text-center px-4" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>
-              {searchMode === 'providers' ? 'Connect with Skilled Professionals' : 'Explore Opportunities'}
-            </h2>
-          </div>
-        </div>
-      </div>
-
       <form onSubmit={handleFormSubmit} className="mb-8 p-6 bg-card rounded-lg shadow">
         <h1 className="text-3xl font-headline font-bold mb-2">
           {searchMode === 'providers' ? 'Find Service Providers' :
@@ -649,4 +631,3 @@ export default function SearchPage() {
     </Suspense>
   );
 }
-
