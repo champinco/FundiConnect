@@ -1,3 +1,4 @@
+
 # FundiConnect
 
 **IMPORTANT NOTE:** If you are seeing an error like `Error: Cannot find module './548.js'` or `Error: Cannot find module './447.js'` (or similar), please follow the instructions in the section below. This is a Next.js build cache issue and requires a manual fix in your terminal.
@@ -30,3 +31,30 @@ Here are the steps:
     ```
 
 Following these steps should resolve the "Cannot find module" error.
+
+---
+
+## How to Fix Firebase Storage CORS Errors (File Upload Failures)
+
+If you see a `CORS policy` error in your browser's developer console when trying to upload files (e.g., when posting a job), it means your Firebase Storage bucket needs to be configured to accept requests from your web app's domain.
+
+This is a one-time setup. This project now includes a `cors.json` file with the necessary configuration.
+
+**To fix this, run the following `gcloud` command in your terminal from the project's root directory:**
+
+1.  **Make sure you are authenticated with Google Cloud:**
+    ```bash
+    gcloud auth login
+    ```
+
+2.  **Set your project context:**
+    ```bash
+    gcloud config set project myfundi-10db8
+    ```
+
+3.  **Apply the CORS configuration to your storage bucket:**
+    ```bash
+    gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
+    ```
+
+After running this command, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
