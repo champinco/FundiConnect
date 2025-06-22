@@ -117,8 +117,7 @@ export async function updateProviderProfileAction(
   }
 
   try {
-    const providerRef = doc(adminDb, 'providerProfiles', providerId);
-    const currentTimestamp = serverTimestamp();
+    const providerRef = adminDb.collection('providerProfiles').doc(providerId);
 
     const certificationsToSave: Certification[] = (data.certifications || []).map((certFormValue, index) => {
       const uploadedDocInfo = uploadedCertificationDocuments?.find(doc => doc.index === index);
@@ -130,8 +129,8 @@ export async function updateProviderProfileAction(
         name: certFormValue.name,
         number: certFormValue.number,
         issuingBody: certFormValue.issuingBody,
-        issueDate: certFormValue.issueDate ? Timestamp.fromDate(new Date(certFormValue.issueDate)).toDate() : null,
-        expiryDate: certFormValue.expiryDate ? Timestamp.fromDate(new Date(certFormValue.expiryDate)).toDate() : null,
+        issueDate: certFormValue.issueDate ? new Date(certFormValue.issueDate) : null,
+        expiryDate: certFormValue.expiryDate ? new Date(certFormValue.expiryDate) : null,
         documentUrl: newDocumentUrl || existingDocumentUrl || null,
         status: certFormValue.status || 'pending_review',
         verificationNotes: certFormValue.verificationNotes || null,
@@ -144,7 +143,6 @@ export async function updateProviderProfileAction(
         imageUrl: item.imageUrl || null,
         dataAiHint: item.dataAiHint || item.description.split(" ").slice(0,2).join(" ") || "project image",
     }));
-
 
     const specialtiesArray = Array.isArray(data.specialties) ? data.specialties : (typeof data.specialties === 'string' ? data.specialties.split(',').map(s => s.trim()).filter(s => s) : []);
     const skillsArray = Array.isArray(data.skills) ? data.skills : (typeof data.skills === 'string' ? data.skills.split(',').map(s => s.trim()).filter(s => s) : []);
@@ -171,11 +169,15 @@ export async function updateProviderProfileAction(
       serviceAreas: serviceAreasArray,
       website: data.website || null,
       socialMediaLinks: Object.keys(socialMediaLinks).length > 0 ? socialMediaLinks : null,
-      certifications: certificationsToSave,
+      certifications: certificationsToSave.map(cert => ({
+        ...cert,
+        issueDate: cert.issueDate ? Timestamp.fromDate(new Date(cert.issueDate)) : null,
+        expiryDate: cert.expiryDate ? Timestamp.fromDate(new Date(cert.expiryDate)) : null,
+      })),
       portfolio: portfolioToSave,
       unavailableDates: (data.unavailableDates || []).map(date => format(date, 'yyyy-MM-dd')),
       receivesEmergencyJobAlerts: data.receivesEmergencyJobAlerts || false,
-      updatedAt: currentTimestamp,
+      updatedAt: serverTimestamp(),
     };
 
     if (uploadedProfilePictureUrl !== undefined) {
@@ -190,33 +192,24 @@ export async function updateProviderProfileAction(
     revalidatePath(`/providers/${providerId}`);
     revalidatePath(`/profile/edit`);
 
-     const clientSafeCertifications = certificationsToSave.map(cert => ({
-      ...cert,
-      issueDate: cert.issueDate ? new Date(cert.issueDate) : null,
-      expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : null,
-    }));
-    
-    const clientSafePortfolio = portfolioToSave.map(item => ({
-        ...item,
-    }));
+    // Create a serializable version of the profile to return to the client.
+    // Omit the 'updatedAt' field which contains a non-serializable serverTimestamp.
+    const { updatedAt, ...serializablePayload } = updatePayload;
 
+    const updatedProfileForClient: Partial<ProviderProfile> = {
+      ...serializablePayload,
+      certifications: (serializablePayload.certifications || []).map((cert:any) => ({
+        ...cert,
+        issueDate: cert.issueDate ? cert.issueDate.toDate() : null,
+        expiryDate: cert.expiryDate ? cert.expiryDate.toDate() : null,
+      })),
+      portfolio: serializablePayload.portfolio,
+    };
+    
     return {
       success: true,
       message: "Profile updated successfully!",
-      updatedProfile: {
-        ...updatePayload,
-        certifications: clientSafeCertifications,
-        portfolio: clientSafePortfolio,
-        fullAddress: updatePayload.fullAddress,
-        operatingHours: updatePayload.operatingHours,
-        website: updatePayload.website,
-        socialMediaLinks: updatePayload.socialMediaLinks,
-        profilePictureUrl: updatePayload.profilePictureUrl,
-        bannerImageUrl: updatePayload.bannerImageUrl,
-        unavailableDates: updatePayload.unavailableDates,
-        receivesEmergencyJobAlerts: updatePayload.receivesEmergencyJobAlerts,
-        otherMainServiceDescription: updatePayload.otherMainServiceDescription,
-      }
+      updatedProfile: updatedProfileForClient
     };
 
   } catch (error: any) {
