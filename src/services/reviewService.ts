@@ -159,7 +159,7 @@ export async function getReviewsForProvider(providerId: string): Promise<Review[
   }
   try {
     const reviewsRef = adminDb.collection('reviews');
-    const q = reviewsRef.where('providerId', '==', providerId).orderBy('reviewDate', 'desc');
+    const q = reviewsRef.where('providerId', '==', providerId);
     const querySnapshot = await q.get();
     const reviews: Review[] = [];
     querySnapshot.forEach((docSnap) => {
