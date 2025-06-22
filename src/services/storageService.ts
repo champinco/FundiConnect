@@ -1,6 +1,4 @@
 
-'use server';
-
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { v4 as uuidv4 } from 'uuid';
