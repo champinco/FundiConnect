@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone } from 'lucide-react';
 import { formatDynamicDate, formatSafeDate } from '@/lib/dateUtils'; 
@@ -63,7 +64,8 @@ export default function DashboardPage() {
   const [isProfileDetailOpen, setIsProfileDetailOpen] = useState(false);
 
   const fetchData = async (userId: string) => {
-    setIsLoading(true);
+    // Keep main loader true at start, but data will populate cards individually
+    setIsLoading(true); 
     const result = await fetchDashboardDataAction(userId);
     if (result.error) {
       setError(result.error);
@@ -79,7 +81,7 @@ export default function DashboardPage() {
         setDashboardDisplayData(null); 
       }
     }
-    setIsLoading(false);
+    setIsLoading(false); // Stop main loader after all fetches complete
   };
 
   useEffect(() => {
@@ -129,7 +131,7 @@ export default function DashboardPage() {
     { key: 'linkedin', Icon: Linkedin, color: 'text-sky-700', name: 'LinkedIn' },
   ];
 
-  if (isLoading) {
+  if (isLoading && !appUser) { // Main initial loading state
     return (
       <div className="container mx-auto px-4 py-12 flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
@@ -138,7 +140,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!currentUser) {
+  if (!currentUser && !isLoading) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">
         <Card className="max-w-md mx-auto shadow-lg">
@@ -189,6 +191,15 @@ export default function DashboardPage() {
     return <span className={`px-2 py-0.5 text-xs font-medium rounded-full border capitalize ${colorClasses}`}>{status.replace('_', ' ')}</span>;
   };
   
+  // Skeleton for summary cards
+  const SummaryCardSkeleton = () => (
+    <Card className="shadow-md">
+        <CardHeader className="pb-4"><Skeleton className="h-7 w-3/4" /></CardHeader>
+        <CardContent className="space-y-3"><Skeleton className="h-5 w-1/2" /><Skeleton className="h-5 w-2/3" /><Skeleton className="h-5 w-1/2" /></CardContent>
+        <CardFooter className="pt-6"><Skeleton className="h-10 w-full" /></CardFooter>
+    </Card>
+  );
+
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
@@ -205,29 +216,31 @@ export default function DashboardPage() {
         </CardHeader>
       </Card>
 
-      {appUser.accountType === 'client' && clientData && (
+      {appUser.accountType === 'client' && (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><ListChecks className="mr-3 h-7 w-7 text-primary" />Job Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-base">
-              <p>Open Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.open}</span></p>
-              <p>Assigned/In Progress: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.assigned + clientData.jobSummary.inProgress}</span></p>
-              <p>Completed Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.completed}</span></p>
-              <Link href="/search?myJobs=true&status=all_my" className="hover:text-primary hover:underline block">
-                Total Jobs Posted: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.total}</span>
-              </Link>
-            </CardContent>
-            <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
-              <Button asChild className="w-full sm:flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
-                <Link href="/jobs/post"><PlusCircle className="mr-2" /> Post New Job</Link>
-              </Button>
-              <Button asChild variant="outline" className="w-full sm:flex-1">
-                <Link href="/search?myJobs=true&status=all_my"><Briefcase className="mr-2" /> View My Jobs</Link>
-              </Button>
-            </CardFooter>
-          </Card>
+          {!clientData ? <SummaryCardSkeleton /> : (
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><ListChecks className="mr-3 h-7 w-7 text-primary" />Job Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-base">
+                <p>Open Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.open}</span></p>
+                <p>Assigned/In Progress: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.assigned + clientData.jobSummary.inProgress}</span></p>
+                <p>Completed Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.completed}</span></p>
+                <Link href="/search?myJobs=true&status=all_my" className="hover:text-primary hover:underline block">
+                  Total Jobs Posted: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.total}</span>
+                </Link>
+              </CardContent>
+              <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
+                <Button asChild className="w-full sm:flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
+                  <Link href="/jobs/post"><PlusCircle className="mr-2" /> Post New Job</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full sm:flex-1">
+                  <Link href="/search?myJobs=true&status=all_my"><Briefcase className="mr-2" /> View My Jobs</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
           
            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-1 lg:col-span-1 bg-primary/5 dark:bg-primary/10">
             <CardHeader className="pb-4">
@@ -244,309 +257,312 @@ export default function DashboardPage() {
           </Card>
 
           {/* Client Booking Requests Card */}
-          <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />My Booking Requests ({clientData.clientBookings.length})</CardTitle>
-              <CardDescription>Track the status of your booking requests with Fundis.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {clientData.clientBookings.length > 0 ? (
-                <ul className="space-y-4 max-h-96 overflow-y-auto">
-                  {clientData.clientBookings.map(booking => (
-                    <li key={booking.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
-                        <div className="flex items-center space-x-3 mb-2">
-                            <Avatar className="h-10 w-10">
-                                <AvatarImage src={booking.providerDetails?.photoURL || undefined} alt={booking.providerDetails?.businessName || 'Provider'} data-ai-hint="provider avatar"/>
-                                <AvatarFallback>{booking.providerDetails?.businessName ? booking.providerDetails.businessName.substring(0,1).toUpperCase() : "P"}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <h4 className="font-semibold truncate text-md">{booking.providerDetails?.businessName || 'Provider'}</h4>
-                                <p className="text-xs text-muted-foreground">Requested: {format(new Date(booking.requestedDate), 'PPP')}</p>
-                            </div>
-                        </div>
-                        {renderBookingStatusBadge(booking.status)}
-                        {booking.providerResponseMessage && <p className="text-xs text-muted-foreground mt-1.5 italic">Provider: "{booking.providerResponseMessage}"</p>}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                 <div className="text-center py-8">
-                    <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
-                    <p className="text-muted-foreground">You haven't made any booking requests yet.</p>
-                 </div>
+          {!clientData ? <SummaryCardSkeleton /> : (
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />My Booking Requests ({clientData.clientBookings.length})</CardTitle>
+                <CardDescription>Track the status of your booking requests with Fundis.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clientData.clientBookings.length > 0 ? (
+                  <ul className="space-y-4 max-h-96 overflow-y-auto">
+                    {clientData.clientBookings.map(booking => (
+                      <li key={booking.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
+                          <div className="flex items-center space-x-3 mb-2">
+                              <Avatar className="h-10 w-10">
+                                  <AvatarImage src={booking.providerDetails?.photoURL || undefined} alt={booking.providerDetails?.businessName || 'Provider'} data-ai-hint="provider avatar"/>
+                                  <AvatarFallback>{booking.providerDetails?.businessName ? booking.providerDetails.businessName.substring(0,1).toUpperCase() : "P"}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                  <h4 className="font-semibold truncate text-md">{booking.providerDetails?.businessName || 'Provider'}</h4>
+                                  <p className="text-xs text-muted-foreground">Requested: {format(new Date(booking.requestedDate), 'PPP')}</p>
+                              </div>
+                          </div>
+                          {renderBookingStatusBadge(booking.status)}
+                          {booking.providerResponseMessage && <p className="text-xs text-muted-foreground mt-1.5 italic">Provider: "{booking.providerResponseMessage}"</p>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center py-8">
+                      <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground">You haven't made any booking requests yet.</p>
+                  </div>
+                )}
+              </CardContent>
+              {clientData.clientBookings.length > 0 && (
+                  <CardFooter className="pt-6">
+                      <Button asChild variant="link" className="w-full">
+                          <Link href="/search?mode=providers">Request More Bookings</Link>
+                      </Button>
+                  </CardFooter>
               )}
-            </CardContent>
-             {clientData.clientBookings.length > 0 && (
-                 <CardFooter className="pt-6">
-                    <Button asChild variant="link" className="w-full">
-                        <Link href="/search?mode=providers">Request More Bookings</Link>
-                    </Button>
-                 </CardFooter>
-            )}
-          </Card>
+            </Card>
+          )}
         </div>
       )}
 
-      {appUser.accountType === 'provider' && providerData && (
+      {appUser.accountType === 'provider' && (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><Star className="mr-3 h-7 w-7 text-yellow-400 fill-yellow-400" />Your Rating</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {providerData.providerProfile ? (
-                <>
-                  <p className="text-4xl font-bold text-primary">{providerData.providerProfile.rating.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">/ 5.0</span></p>
-                  <p className="text-sm text-muted-foreground mt-1">Based on {providerData.providerProfile.reviewsCount} reviews</p>
-                </>
-              ) : (
-                <p className="text-muted-foreground">Profile data not available.</p>
-              )}
-            </CardContent>
-             <CardFooter className="pt-6">
-                <Dialog open={isProfileDetailOpen} onOpenChange={setIsProfileDetailOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" className="w-full">
-                        <LayoutDashboard className="mr-2" /> View My Profile Details
-                        </Button>
-                    </DialogTrigger>
-                    {providerData.providerProfile && (
-                        <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-3xl max-h-[90vh]">
-                            <DialogHeader>
-                                <DialogTitle className="text-2xl font-headline text-primary">{providerData.providerProfile.businessName}</DialogTitle>
-                                <DialogDescription>
-                                    Your comprehensive provider profile overview.
-                                    <Button asChild variant="link" className="p-0 h-auto ml-2 text-sm">
-                                        <Link href={`/providers/${appUser.uid}`} onClick={() => setIsProfileDetailOpen(false)}>View Public Page</Link>
-                                    </Button>
-                                </DialogDescription>
-                            </DialogHeader>
-                            <ScrollArea className="max-h-[calc(90vh-150px)] pr-2">
-                                <div className="space-y-6 py-4">
-                                    <div className="flex flex-col sm:flex-row items-center gap-4">
-                                        <Avatar className="h-24 w-24 border-2 border-primary">
-                                            <AvatarImage src={providerData.providerProfile.profilePictureUrl || undefined} alt={providerData.providerProfile.businessName} data-ai-hint="provider avatar"/>
-                                            <AvatarFallback className="text-3xl">{(providerData.providerProfile.businessName || "P").substring(0,1)}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="text-center sm:text-left">
-                                            {providerData.providerProfile.isVerified && (
-                                                <VerifiedBadge authority={`${providerData.providerProfile.verificationAuthority} Verified`} isVerified={providerData.providerProfile.isVerified} />
-                                            )}
-                                            <p className="text-lg mt-1 font-semibold text-muted-foreground flex items-center justify-center sm:justify-start">
-                                                <ServiceCategoryIcon category={providerData.providerProfile.mainService} iconOnly className="h-5 w-5 mr-2 text-primary" />
-                                                {providerData.providerProfile.mainService === 'Other' && providerData.providerProfile.otherMainServiceDescription ? providerData.providerProfile.otherMainServiceDescription : providerData.providerProfile.mainService}
-                                            </p>
-                                            <p className="text-sm text-muted-foreground">Rating: {providerData.providerProfile.rating.toFixed(1)} ({providerData.providerProfile.reviewsCount} reviews)</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <Separator />
-                                    
-                                    <div>
-                                        <h4 className="font-semibold mb-1 text-md">About</h4>
-                                        <p className="text-sm text-muted-foreground whitespace-pre-line">{providerData.providerProfile.bio || "No bio provided."}</p>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div><strong className="text-sm">Location:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.location}</span></div>
-                                        {providerData.providerProfile.fullAddress && <div><strong className="text-sm">Full Address:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.fullAddress}</span></div>}
-                                        <div><strong className="text-sm">Experience:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.yearsOfExperience} years</span></div>
-                                        <div><strong className="text-sm">Contact:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.contactPhoneNumber}</span></div>
-                                        {providerData.providerProfile.operatingHours && <div><strong className="text-sm">Hours:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.operatingHours}</span></div>}
-                                        {providerData.providerProfile.website && 
-                                          <div><strong className="text-sm">Website:</strong> <a href={providerData.providerProfile.website.startsWith('http') ? providerData.providerProfile.website : `https://${providerData.providerProfile.website}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{providerData.providerProfile.website}</a></div>
-                                        }
-                                    </div>
-
-                                    {providerData.providerProfile.serviceAreas && providerData.providerProfile.serviceAreas.length > 0 && (
-                                        <div>
-                                            <h4 className="font-semibold mb-1 text-md">Service Areas</h4>
-                                            <div className="flex flex-wrap gap-1">
-                                                {providerData.providerProfile.serviceAreas.map(area => <Badge key={area} variant="secondary">{area}</Badge>)}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {providerData.providerProfile.socialMediaLinks && Object.keys(providerData.providerProfile.socialMediaLinks).length > 0 && (
-                                      <div className="pt-2">
-                                        <h4 className="font-semibold mb-1 text-md">Social Media</h4>
-                                        <div className="flex items-center space-x-3">
-                                          {socialMediaPlatforms.map(({ key, Icon, color, name }) => (
-                                            providerData.providerProfile.socialMediaLinks![key] && (
-                                              <a
-                                                key={key}
-                                                href={providerData.providerProfile.socialMediaLinks![key].startsWith('http') ? providerData.providerProfile.socialMediaLinks![key] : `https://${providerData.providerProfile.socialMediaLinks![key]}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                title={name}
-                                                className={`hover:opacity-75 transition-opacity ${color}`}
-                                              >
-                                                <Icon className="h-5 w-5" />
-                                              </a>
-                                            )
-                                          ))}
-                                        </div>
+          {!providerData ? <SummaryCardSkeleton /> : (
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><Star className="mr-3 h-7 w-7 text-yellow-400 fill-yellow-400" />Your Rating</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {providerData.providerProfile ? (
+                  <>
+                    <p className="text-4xl font-bold text-primary">{providerData.providerProfile.rating.toFixed(1)} <span className="text-xl font-normal text-muted-foreground">/ 5.0</span></p>
+                    <p className="text-sm text-muted-foreground mt-1">Based on {providerData.providerProfile.reviewsCount} reviews</p>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">Profile data not available.</p>
+                )}
+              </CardContent>
+              <CardFooter className="pt-6">
+                  <Dialog open={isProfileDetailOpen} onOpenChange={setIsProfileDetailOpen}>
+                      <DialogTrigger asChild>
+                          <Button variant="outline" className="w-full">
+                          <LayoutDashboard className="mr-2" /> View My Profile Details
+                          </Button>
+                      </DialogTrigger>
+                      {providerData.providerProfile && (
+                          <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-3xl max-h-[90vh]">
+                              <DialogHeader>
+                                  <DialogTitle className="text-2xl font-headline text-primary">{providerData.providerProfile.businessName}</DialogTitle>
+                                  <DialogDescription>
+                                      Your comprehensive provider profile overview.
+                                      <Button asChild variant="link" className="p-0 h-auto ml-2 text-sm">
+                                          <Link href={`/providers/${appUser.uid}`} onClick={() => setIsProfileDetailOpen(false)}>View Public Page</Link>
+                                      </Button>
+                                  </DialogDescription>
+                              </DialogHeader>
+                              <ScrollArea className="max-h-[calc(90vh-150px)] pr-2">
+                                  <div className="space-y-6 py-4">
+                                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                                          <Avatar className="h-24 w-24 border-2 border-primary">
+                                              <AvatarImage src={providerData.providerProfile.profilePictureUrl || undefined} alt={providerData.providerProfile.businessName} data-ai-hint="provider avatar"/>
+                                              <AvatarFallback className="text-3xl">{(providerData.providerProfile.businessName || "P").substring(0,1)}</AvatarFallback>
+                                          </Avatar>
+                                          <div className="text-center sm:text-left">
+                                              {providerData.providerProfile.isVerified && (
+                                                  <VerifiedBadge authority={`${providerData.providerProfile.verificationAuthority} Verified`} isVerified={providerData.providerProfile.isVerified} />
+                                              )}
+                                              <p className="text-lg mt-1 font-semibold text-muted-foreground flex items-center justify-center sm:justify-start">
+                                                  <ServiceCategoryIcon category={providerData.providerProfile.mainService} iconOnly className="h-5 w-5 mr-2 text-primary" />
+                                                  {providerData.providerProfile.mainService === 'Other' && providerData.providerProfile.otherMainServiceDescription ? providerData.providerProfile.otherMainServiceDescription : providerData.providerProfile.mainService}
+                                              </p>
+                                              <p className="text-sm text-muted-foreground">Rating: {providerData.providerProfile.rating.toFixed(1)} ({providerData.providerProfile.reviewsCount} reviews)</p>
+                                          </div>
                                       </div>
-                                    )}
+                                      
+                                      <Separator />
+                                      
+                                      <div>
+                                          <h4 className="font-semibold mb-1 text-md">About</h4>
+                                          <p className="text-sm text-muted-foreground whitespace-pre-line">{providerData.providerProfile.bio || "No bio provided."}</p>
+                                      </div>
 
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div><strong className="text-sm">Location:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.location}</span></div>
+                                          {providerData.providerProfile.fullAddress && <div><strong className="text-sm">Full Address:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.fullAddress}</span></div>}
+                                          <div><strong className="text-sm">Experience:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.yearsOfExperience} years</span></div>
+                                          <div><strong className="text-sm">Contact:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.contactPhoneNumber}</span></div>
+                                          {providerData.providerProfile.operatingHours && <div><strong className="text-sm">Hours:</strong> <span className="text-sm text-muted-foreground">{providerData.providerProfile.operatingHours}</span></div>}
+                                          {providerData.providerProfile.website && 
+                                            <div><strong className="text-sm">Website:</strong> <a href={providerData.providerProfile.website.startsWith('http') ? providerData.providerProfile.website : `https://${providerData.providerProfile.website}`} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">{providerData.providerProfile.website}</a></div>
+                                          }
+                                      </div>
 
-                                    {providerData.providerProfile.certifications && providerData.providerProfile.certifications.length > 0 && (
-                                        <div>
-                                            <h4 className="font-semibold mb-2 text-md flex items-center"><BookOpen className="mr-2 h-5 w-5"/>Certifications</h4>
-                                            <ul className="space-y-2">
-                                                {providerData.providerProfile.certifications.map(cert => (
-                                                    <li key={cert.id} className="p-2 border rounded-md text-sm bg-muted/30">
-                                                        <div className="flex justify-between items-start">
-                                                          <span className="font-medium">{cert.name}</span>
-                                                          <Badge variant={cert.status === 'verified' ? 'default' : 'outline'} className="capitalize text-xs">{cert.status.replace('_', ' ')}</Badge>
-                                                        </div>
-                                                        <p className="text-xs text-muted-foreground">No: {cert.number || 'N/A'}, Body: {cert.issuingBody}</p>
-                                                        {cert.issueDate && <p className="text-xs text-muted-foreground">Issued: {formatSafeDate(cert.issueDate, 'PPP')}</p>}
-                                                        {cert.expiryDate && <p className="text-xs text-muted-foreground">Expires: {formatSafeDate(cert.expiryDate, 'PPP')}</p>}
-                                                        {cert.documentUrl && (cert.status === 'verified' || cert.status === 'pending_review') && <a href={cert.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline"><ExternalLink className="inline h-3 w-3 mr-1"/>View Document</a>}
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                      {providerData.providerProfile.serviceAreas && providerData.providerProfile.serviceAreas.length > 0 && (
+                                          <div>
+                                              <h4 className="font-semibold mb-1 text-md">Service Areas</h4>
+                                              <div className="flex flex-wrap gap-1">
+                                                  {providerData.providerProfile.serviceAreas.map(area => <Badge key={area} variant="secondary">{area}</Badge>)}
+                                              </div>
+                                          </div>
+                                      )}
+                                      {providerData.providerProfile.socialMediaLinks && Object.keys(providerData.providerProfile.socialMediaLinks).length > 0 && (
+                                        <div className="pt-2">
+                                          <h4 className="font-semibold mb-1 text-md">Social Media</h4>
+                                          <div className="flex items-center space-x-3">
+                                            {socialMediaPlatforms.map(({ key, Icon, color, name }) => (
+                                              providerData.providerProfile.socialMediaLinks![key] && (
+                                                <a
+                                                  key={key}
+                                                  href={providerData.providerProfile.socialMediaLinks![key].startsWith('http') ? providerData.providerProfile.socialMediaLinks![key] : `https://${providerData.providerProfile.socialMediaLinks![key]}`}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  title={name}
+                                                  className={`hover:opacity-75 transition-opacity ${color}`}
+                                                >
+                                                  <Icon className="h-5 w-5" />
+                                                </a>
+                                              )
+                                            ))}
+                                          </div>
                                         </div>
-                                    )}
+                                      )}
 
-                                    {providerData.providerProfile.portfolio && providerData.providerProfile.portfolio.length > 0 && (
-                                        <div>
-                                            <h4 className="font-semibold mb-2 text-md flex items-center"><Images className="mr-2 h-5 w-5"/>Portfolio</h4>
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                                                {providerData.providerProfile.portfolio.map(item => item.imageUrl && (
-                                                    <div key={item.id} className="aspect-square relative group rounded overflow-hidden border">
-                                                        <Image src={item.imageUrl} alt={item.description || 'Portfolio item'} fill style={{objectFit:'cover'}} data-ai-hint={item.dataAiHint || "project image"}/>
-                                                        {item.description && <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">{item.description}</div>}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                    {/* Placeholder for "Jobs Completed" - needs backend data
-                                    <div>
-                                        <h4 className="font-semibold mb-1 text-md">Jobs Completed on FundiConnect</h4>
-                                        <p className="text-sm text-muted-foreground">Data not yet available.</p>
-                                    </div>
-                                    */}
 
-                                </div>
-                            </ScrollArea>
-                            <DialogFooter className="mt-4">
-                                <Button asChild><Link href="/profile/edit" onClick={() => setIsProfileDetailOpen(false)}><Edit className="mr-2 h-4 w-4"/>Edit Full Profile</Link></Button>
-                                <DialogClose asChild>
-                                    <Button variant="outline">Close</Button>
-                                </DialogClose>
-                            </DialogFooter>
-                        </DialogContent>
-                    )}
-                </Dialog>
-             </CardFooter>
-          </Card>
+                                      {providerData.providerProfile.certifications && providerData.providerProfile.certifications.length > 0 && (
+                                          <div>
+                                              <h4 className="font-semibold mb-2 text-md flex items-center"><BookOpen className="mr-2 h-5 w-5"/>Certifications</h4>
+                                              <ul className="space-y-2">
+                                                  {providerData.providerProfile.certifications.map(cert => (
+                                                      <li key={cert.id} className="p-2 border rounded-md text-sm bg-muted/30">
+                                                          <div className="flex justify-between items-start">
+                                                            <span className="font-medium">{cert.name}</span>
+                                                            <Badge variant={cert.status === 'verified' ? 'default' : 'secondary'} className="capitalize text-xs">{cert.status.replace('_', ' ')}</Badge>
+                                                          </div>
+                                                          <p className="text-xs text-muted-foreground">No: {cert.number || 'N/A'}, Body: {cert.issuingBody}</p>
+                                                          {cert.issueDate && <p className="text-xs text-muted-foreground">Issued: {formatSafeDate(cert.issueDate, 'PPP')}</p>}
+                                                          {cert.expiryDate && <p className="text-xs text-muted-foreground">Expires: {formatSafeDate(cert.expiryDate, 'PPP')}</p>}
+                                                          {cert.documentUrl && (cert.status === 'verified' || cert.status === 'pending_review') && <a href={cert.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline"><ExternalLink className="inline h-3 w-3 mr-1"/>View Document</a>}
+                                                      </li>
+                                                  ))}
+                                              </ul>
+                                          </div>
+                                      )}
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><FileText className="mr-3 h-7 w-7 text-primary" />Quote Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-base">
-              <p>Pending Quotes: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.pending}</span></p>
-              <p>Accepted Quotes: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.accepted}</span></p>
-              <p>Total Submitted: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.total}</span></p>
-            </CardContent>
-             <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
-                <Button asChild className="w-full sm:flex-1 bg-primary hover:bg-primary/90">
-                  <Link href="/search?mode=jobs"><Search className="mr-2" /> Browse Open Jobs</Link>
-                </Button>
-                 <Button asChild variant="outline" className="w-full sm:flex-1">
-                  <Link href="/profile/edit"><Edit className="mr-2" /> Edit Profile</Link>
-                </Button>
-            </CardFooter>
-          </Card>
+                                      {providerData.providerProfile.portfolio && providerData.providerProfile.portfolio.length > 0 && (
+                                          <div>
+                                              <h4 className="font-semibold mb-2 text-md flex items-center"><Images className="mr-2 h-5 w-5"/>Portfolio</h4>
+                                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                  {providerData.providerProfile.portfolio.map(item => item.imageUrl && (
+                                                      <div key={item.id} className="aspect-square relative group rounded overflow-hidden border">
+                                                          <Image src={item.imageUrl} alt={item.description || 'Portfolio item'} fill style={{objectFit:'cover'}} data-ai-hint={item.dataAiHint || "project image"}/>
+                                                          {item.description && <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity">{item.description}</div>}
+                                                      </div>
+                                                  ))}
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              </ScrollArea>
+                              <DialogFooter className="mt-4">
+                                  <Button asChild><Link href="/profile/edit" onClick={() => setIsProfileDetailOpen(false)}><Edit className="mr-2 h-4 w-4"/>Edit Full Profile</Link></Button>
+                                  <DialogClose asChild>
+                                      <Button variant="outline">Close</Button>
+                                  </DialogClose>
+                              </DialogFooter>
+                          </DialogContent>
+                      )}
+                  </Dialog>
+              </CardFooter>
+            </Card>
+          )}
 
-          <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs ({providerData.assignedJobs.length})</CardTitle>
-              <CardDescription>Jobs currently assigned to you or in progress.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {providerData.assignedJobs.length > 0 ? (
-                <ul className="space-y-4 max-h-60 overflow-y-auto">
-                  {providerData.assignedJobs.map(job => (
-                    <li key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
-                      <Link href={`/jobs/${job.id}`} className="block group">
-                        <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
-                        <p className="text-sm text-muted-foreground">Status: <span className="capitalize font-medium">{job.status.replace('_', ' ')}</span></p>
-                        <p className="text-xs text-muted-foreground">Updated: {formatDynamicDate(job.updatedAt)}</p>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                 <div className="text-center py-8">
-                    <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
-                    <p className="text-muted-foreground">No active jobs assigned to you currently.</p>
-                 </div>
+          {!providerData ? <SummaryCardSkeleton /> : (
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><FileText className="mr-3 h-7 w-7 text-primary" />Quote Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-base">
+                <p>Pending Quotes: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.pending}</span></p>
+                <p>Accepted Quotes: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.accepted}</span></p>
+                <p>Total Submitted: <span className="font-semibold text-lg text-primary">{providerData.quoteSummary.total}</span></p>
+              </CardContent>
+              <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
+                  <Button asChild className="w-full sm:flex-1 bg-primary hover:bg-primary/90">
+                    <Link href="/search?mode=jobs"><Search className="mr-2" /> Browse Open Jobs</Link>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full sm:flex-1">
+                    <Link href="/profile/edit"><Edit className="mr-2" /> Edit Profile</Link>
+                  </Button>
+              </CardFooter>
+            </Card>
+          )}
+
+          {!providerData ? <SummaryCardSkeleton /> : (
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs ({providerData.assignedJobs.length})</CardTitle>
+                <CardDescription>Jobs currently assigned to you or in progress.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {providerData.assignedJobs.length > 0 ? (
+                  <ul className="space-y-4 max-h-60 overflow-y-auto">
+                    {providerData.assignedJobs.map(job => (
+                      <li key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
+                        <Link href={`/jobs/${job.id}`} className="block group">
+                          <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
+                          <p className="text-sm text-muted-foreground">Status: <span className="capitalize font-medium">{job.status.replace('_', ' ')}</span></p>
+                          <p className="text-xs text-muted-foreground">Updated: {formatDynamicDate(job.updatedAt)}</p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center py-8">
+                      <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground">No active jobs assigned to you currently.</p>
+                  </div>
+                )}
+              </CardContent>
+              {providerData.assignedJobs.length > 0 && (
+                  <CardFooter className="pt-6">
+                      <Button asChild variant="outline" className="w-full">
+                          <Link href="/search?myJobs=true&status=assigned">View All My Active Jobs</Link>
+                      </Button>
+                  </CardFooter>
               )}
-            </CardContent>
-            {providerData.assignedJobs.length > 0 && (
-                 <CardFooter className="pt-6">
-                    <Button asChild variant="outline" className="w-full">
-                        <Link href="/search?myJobs=true&status=assigned">View All My Active Jobs</Link>
-                    </Button>
-                 </CardFooter>
-            )}
-          </Card>
+            </Card>
+          )}
 
           {/* Provider Booking Requests Card */}
-          <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-3">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />Incoming Booking Requests ({providerData.providerBookings.filter(b => b.status === 'pending').length} Pending)</CardTitle>
-              <CardDescription>Manage booking requests from clients.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {providerData.providerBookings.length > 0 ? (
-                <ul className="space-y-4 max-h-[500px] overflow-y-auto">
-                  {providerData.providerBookings.sort((a,b) => a.status === 'pending' ? -1 : 1).map(booking => ( // Show pending first
-                    <li key={booking.id} className="p-4 border rounded-lg shadow-sm bg-card">
-                      <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3">
-                        <div className="flex items-start space-x-3">
-                          <Avatar className="h-12 w-12">
-                              <AvatarImage src={booking.clientDetails?.photoURL || undefined} alt={booking.clientDetails?.name || 'Client'} data-ai-hint="client avatar"/>
-                              <AvatarFallback>{booking.clientDetails?.name ? booking.clientDetails.name.substring(0,1).toUpperCase() : "C"}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                              <h4 className="font-semibold text-md">{booking.clientDetails?.name || 'Client'}</h4>
-                              {booking.clientDetails?.email && <p className="text-xs text-muted-foreground">{booking.clientDetails.email}</p>}
-                              <p className="text-sm text-muted-foreground">Requested: <span className="font-medium text-foreground">{format(new Date(booking.requestedDate), 'PPP')}</span></p>
+          {!providerData ? <SummaryCardSkeleton /> : (
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-3">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />Incoming Booking Requests ({providerData.providerBookings.filter(b => b.status === 'pending').length} Pending)</CardTitle>
+                <CardDescription>Manage booking requests from clients.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {providerData.providerBookings.length > 0 ? (
+                  <ul className="space-y-4 max-h-[500px] overflow-y-auto">
+                    {providerData.providerBookings.sort((a,b) => a.status === 'pending' ? -1 : 1).map(booking => ( // Show pending first
+                      <li key={booking.id} className="p-4 border rounded-lg shadow-sm bg-card">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3">
+                          <div className="flex items-start space-x-3">
+                            <Avatar className="h-12 w-12">
+                                <AvatarImage src={booking.clientDetails?.photoURL || undefined} alt={booking.clientDetails?.name || 'Client'} data-ai-hint="client avatar"/>
+                                <AvatarFallback>{booking.clientDetails?.name ? booking.clientDetails.name.substring(0,1).toUpperCase() : "C"}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <h4 className="font-semibold text-md">{booking.clientDetails?.name || 'Client'}</h4>
+                                {booking.clientDetails?.email && <p className="text-xs text-muted-foreground">{booking.clientDetails.email}</p>}
+                                <p className="text-sm text-muted-foreground">Requested: <span className="font-medium text-foreground">{format(new Date(booking.requestedDate), 'PPP')}</span></p>
+                            </div>
                           </div>
+                          <div className="flex-shrink-0">{renderBookingStatusBadge(booking.status)}</div>
                         </div>
-                        <div className="flex-shrink-0">{renderBookingStatusBadge(booking.status)}</div>
-                      </div>
-                      {booking.messageToProvider && <p className="text-sm text-muted-foreground mt-2 pl-14 sm:pl-16 italic">Client message: "{booking.messageToProvider}"</p>}
-                       {booking.providerResponseMessage && <p className="text-sm text-muted-foreground mt-2 pl-14 sm:pl-16">Your response: "{booking.providerResponseMessage}"</p>}
-                      {booking.status === 'pending' && (
-                        <div className="mt-3 pl-14 sm:pl-16 flex flex-col sm:flex-row gap-2">
-                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => openBookingResponseDialog(booking, 'confirmed')}>
-                                <Check className="mr-1.5 h-4 w-4" /> Confirm
-                            </Button>
-                            <Button size="sm" variant="outline" className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openBookingResponseDialog(booking, 'rejected')}>
-                                <X className="mr-1.5 h-4 w-4" /> Reject
-                            </Button>
-                             <Button size="sm" variant="ghost" className="text-primary" asChild>
-                                <Link href={`/messages/${[currentUser.uid, booking.clientId].sort().join('_')}`}><MessageSquare className="mr-1.5 h-4 w-4"/>Message Client</Link>
-                            </Button>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                 <div className="text-center py-10">
-                    <CalendarClock className="mx-auto h-16 w-16 text-muted-foreground mb-3 opacity-60" />
-                    <p className="text-muted-foreground">No booking requests at this time.</p>
-                 </div>
-              )}
-            </CardContent>
-          </Card>
+                        {booking.messageToProvider && <p className="text-sm text-muted-foreground mt-2 pl-14 sm:pl-16 italic">Client message: "{booking.messageToProvider}"</p>}
+                        {booking.providerResponseMessage && <p className="text-sm text-muted-foreground mt-2 pl-14 sm:pl-16">Your response: "{booking.providerResponseMessage}"</p>}
+                        {booking.status === 'pending' && (
+                          <div className="mt-3 pl-14 sm:pl-16 flex flex-col sm:flex-row gap-2">
+                              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => openBookingResponseDialog(booking, 'confirmed')}>
+                                  <Check className="mr-1.5 h-4 w-4" /> Confirm
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => openBookingResponseDialog(booking, 'rejected')}>
+                                  <X className="mr-1.5 h-4 w-4" /> Reject
+                              </Button>
+                              <Button size="sm" variant="ghost" className="text-primary" asChild>
+                                  <Link href={`/messages/${[currentUser.uid, booking.clientId].sort().join('_')}`}><MessageSquare className="mr-1.5 h-4 w-4"/>Message Client</Link>
+                              </Button>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center py-10">
+                      <CalendarClock className="mx-auto h-16 w-16 text-muted-foreground mb-3 opacity-60" />
+                      <p className="text-muted-foreground">No booking requests at this time.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
       
