@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, Upload, Briefcase, Send, Loader2, Paperclip, DollarSign, AlertTriangle, Clock } from 'lucide-react'; 
+import { CalendarIcon, Upload, Briefcase, Send, Loader2, Paperclip, DollarSign, AlertTriangle, Clock, XCircle } from 'lucide-react'; 
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { useToast } from "@/hooks/use-toast";
 import { postJobAction } from '../actions';
@@ -24,7 +24,7 @@ import type { JobUrgency } from '@/models/job';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'; 
 import { Calendar } from '@/components/ui/calendar'; 
 import { format } from 'date-fns'; 
-
+import Image from 'next/image';
 
 const allServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
 const jobUrgencies: JobUrgency[] = [...jobUrgenciesForValidation];
@@ -36,6 +36,7 @@ export default function PostJobPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<{ url: string; type: string, name: string }[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -46,6 +47,13 @@ export default function PostJobPage() {
     });
     return () => unsubscribe();
   }, [router]);
+  
+  // Cleanup object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      filePreviews.forEach(preview => URL.revokeObjectURL(preview.url));
+    };
+  }, [filePreviews]);
 
   const { control, register, handleSubmit, formState: { errors }, reset, watch } = useForm<PostJobFormValues>({
     resolver: zodResolver(postJobFormSchema),
@@ -65,11 +73,35 @@ export default function PostJobPage() {
   const serviceCategoryValue = watch("serviceCategory");
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    // Revoke old object URLs first
+    filePreviews.forEach(preview => URL.revokeObjectURL(preview.url));
+    
     if (event.target.files) {
       const filesArray = Array.from(event.target.files).slice(0, 5); 
       setSelectedFiles(filesArray);
+
+      const newPreviews = filesArray.map(file => ({
+        url: URL.createObjectURL(file),
+        type: file.type,
+        name: file.name
+      }));
+      setFilePreviews(newPreviews);
+    } else {
+      setSelectedFiles([]);
+      setFilePreviews([]);
     }
   };
+  
+  const removeFile = (indexToRemove: number) => {
+    const urlToRevoke = filePreviews[indexToRemove]?.url;
+    if (urlToRevoke) {
+      URL.revokeObjectURL(urlToRevoke);
+    }
+
+    setSelectedFiles(prev => prev.filter((_, index) => index !== indexToRemove));
+    setFilePreviews(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
 
   const onSubmit = async (data: PostJobFormValues) => {
     if (!currentUser) {
@@ -121,6 +153,7 @@ export default function PostJobPage() {
         }
         reset();
         setSelectedFiles([]);
+        setFilePreviews([]);
         router.push(`/jobs/${result.jobId}`);
       } else {
         toast({
@@ -303,26 +336,54 @@ export default function PostJobPage() {
 
 
             <div>
-              <Label htmlFor="jobUpload" className="font-semibold">Upload Photos/Videos (Optional)</Label>
+              <Label htmlFor="jobUpload" className="font-semibold">Upload Photos/Videos (Optional, up to 5)</Label>
               <div className="mt-1 flex items-center justify-center w-full">
                   <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-card hover:bg-muted transition">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
                           <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
                           <p className="mb-1 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                          <p className="text-xs text-muted-foreground">Up to 5 files (PNG, JPG, MP4, etc.)</p>
+                          <p className="text-xs text-muted-foreground">PNG, JPG, MP4, etc.</p>
                       </div>
                       <Input id="dropzone-file" type="file" className="hidden" multiple onChange={handleFileChange} accept="image/*,video/*" />
                   </label>
               </div>
-              {selectedFiles.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm font-medium">{selectedFiles.length} file(s) selected:</p>
-                  <ul className="list-disc list-inside text-sm text-muted-foreground">
-                    {selectedFiles.map(file => <li key={file.name} className="truncate">{file.name} ({ (file.size / 1024 / 1024).toFixed(2) } MB)</li>)}
-                  </ul>
+              {filePreviews.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium mb-2">{filePreviews.length} file(s) selected:</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {filePreviews.map((preview, index) => (
+                      <div key={index} className="relative group aspect-square">
+                        {preview.type.startsWith('image/') ? (
+                          <Image
+                            src={preview.url}
+                            alt={`Preview ${preview.name}`}
+                            fill
+                            className="rounded-md object-cover border"
+                            data-ai-hint="job image preview"
+                          />
+                        ) : (
+                          <video
+                            src={preview.url}
+                            className="rounded-md w-full h-full object-cover border"
+                            controls={false}
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                          onClick={() => removeFile(index)}
+                        >
+                          <XCircle className="h-4 w-4" />
+                          <span className="sr-only">Remove {preview.name}</span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              <p className="text-xs text-muted-foreground mt-1">Attach images or short videos of the problem area. This helps Fundis understand the job better.</p>
+              <p className="text-xs text-muted-foreground mt-2">Attach images or short videos of the problem area. This helps Fundis understand the job better.</p>
             </div>
 
             <div>
