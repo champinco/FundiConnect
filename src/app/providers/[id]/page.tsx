@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 // Ensure 'use' is imported correctly from React
 import { use, useEffect, useState } from 'react';
-import { Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
+import { Award, Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -537,5 +537,3 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
     </div>
   );
 }
-
-    
