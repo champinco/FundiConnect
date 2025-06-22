@@ -8,6 +8,8 @@ import type { Job, JobUrgency } from '@/models/job';
 import type { PostJobFormValues } from './post/schemas';
 import { createNotification } from '@/services/notificationService'; // For urgent job notifications
 import { getEmergencyOptedInProvidersByCategory } from '@/services/providerService'; // For urgent job notifications
+import { serviceCategoriesForValidation } from './post/schemas';
+import type { ServiceCategory } from '@/components/service-category-icon';
 
 
 interface PostJobResult {
@@ -36,12 +38,16 @@ export async function postJobAction(
   }
 
   try {
+    const isKnownCategory = (serviceCategoriesForValidation as readonly string[]).includes(values.serviceCategory);
+    const finalServiceCategory = isKnownCategory ? values.serviceCategory as ServiceCategory : 'Other';
+    const finalOtherDescription = isKnownCategory ? undefined : values.serviceCategory;
+
     const jobDataForService: Omit<Job, 'id' | 'postedAt' | 'updatedAt' | 'quotesReceived'> = {
       clientId: actualClientId,
       title: values.jobTitle,
       description: values.jobDescription,
-      serviceCategory: values.serviceCategory,
-      otherCategoryDescription: values.serviceCategory === 'Other' ? values.otherCategoryDescription : undefined,
+      serviceCategory: finalServiceCategory,
+      otherCategoryDescription: finalOtherDescription,
       location: values.location,
       status: 'open', 
       photosOrVideos: photoUrls || [],
@@ -55,9 +61,10 @@ export async function postJobAction(
 
     // If job is urgent, notify opted-in providers
     if (values.urgency === 'high') {
-      console.log(`[postJobAction] Urgent job ${jobId} posted. Fetching opted-in providers for category ${values.serviceCategory}.`);
-      const optedInProviders = await getEmergencyOptedInProvidersByCategory(values.serviceCategory);
-      console.log(`[postJobAction] Found ${optedInProviders.length} providers opted-in for emergency alerts in category ${values.serviceCategory}.`);
+      const categoryToNotify = finalServiceCategory;
+      console.log(`[postJobAction] Urgent job ${jobId} posted. Fetching opted-in providers for category ${categoryToNotify}.`);
+      const optedInProviders = await getEmergencyOptedInProvidersByCategory(categoryToNotify);
+      console.log(`[postJobAction] Found ${optedInProviders.length} providers opted-in for emergency alerts in category ${categoryToNotify}.`);
       for (const provider of optedInProviders) {
         // Avoid notifying the client themselves if they happen to be a provider who opted in for their own category (edge case)
         if (provider.id !== actualClientId) { 

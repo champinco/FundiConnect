@@ -59,8 +59,7 @@ export default function PostJobPage() {
     resolver: zodResolver(postJobFormSchema),
     defaultValues: {
       jobTitle: "",
-      serviceCategory: undefined,
-      otherCategoryDescription: "",
+      serviceCategory: "",
       jobDescription: "",
       location: "",
       budget: undefined,
@@ -69,8 +68,6 @@ export default function PostJobPage() {
       postingOption: "public",
     },
   });
-
-  const serviceCategoryValue = watch("serviceCategory");
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     // Revoke old object URLs first
@@ -200,42 +197,20 @@ export default function PostJobPage() {
 
             <div>
               <Label htmlFor="serviceCategory" className="font-semibold">Service Category</Label>
-              <Controller
-                name="serviceCategory"
-                control={control}
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger id="serviceCategory" className="mt-1">
-                      <SelectValue placeholder="Select a service category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allServiceCategories.map(category => (
-                        <SelectItem key={category} value={category}>
-                          <div className="flex items-center">
-                            <ServiceCategoryIcon category={category} iconOnly className="mr-2 h-4 w-4" />
-                            {category}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+              <Input
+                id="serviceCategory"
+                {...register("serviceCategory")}
+                list="serviceCategories-datalist"
+                placeholder="e.g., Plumbing, Electrical, or type a custom service"
+                className="mt-1"
               />
+              <datalist id="serviceCategories-datalist">
+                {allServiceCategories.map(category => (
+                  <option key={category} value={category} />
+                ))}
+              </datalist>
               {errors.serviceCategory && <p className="text-sm text-destructive mt-1">{errors.serviceCategory.message}</p>}
             </div>
-            
-            {serviceCategoryValue === 'Other' && (
-              <div>
-                <Label htmlFor="otherCategoryDescription" className="font-semibold">Specify 'Other' Category</Label>
-                <Input
-                  id="otherCategoryDescription"
-                  {...register("otherCategoryDescription")}
-                  placeholder="e.g., Custom Welding Work, Event Setup"
-                  className="mt-1"
-                />
-                {errors.otherCategoryDescription && <p className="text-sm text-destructive mt-1">{errors.otherCategoryDescription.message}</p>}
-              </div>
-            )}
 
             <div>
               <Label htmlFor="jobDescription" className="font-semibold">Detailed Description</Label>
