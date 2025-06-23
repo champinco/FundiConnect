@@ -41,19 +41,24 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
 
 **To fix this, run the following `gcloud` command in your terminal from the project's root directory:**
 
-1.  **Make sure you are authenticated with Google Cloud:**
+1.  **Open your terminal (like Command Prompt or PowerShell on Windows).**
+
+2.  **Navigate to your project's root directory.** This is the main folder containing the `package.json` file. You can use the `cd` (change directory) command. For example: `cd path\to\your\project\folder`.
+
+3.  **Make sure you are authenticated with Google Cloud:**
     ```bash
     gcloud auth login
     ```
+    *A browser window will open for you to log in.*
 
-2.  **Set your project context:**
+4.  **Set your project context:**
     ```bash
     gcloud config set project myfundi-10db8
     ```
 
-3.  **Apply the CORS configuration to your storage bucket:**
+5.  **Apply the CORS configuration to your storage bucket.** Because you are now in the correct directory, the command will find `cors.json`:
     ```bash
     gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
     ```
 
-After running this command, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
+After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
