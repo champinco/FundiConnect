@@ -115,41 +115,42 @@ export default function PostJobPage() {
     }
 
     setIsLoading(true);
-    setShowCorsError(false); // Reset CORS error display on new submission
-    let uploadedPhotoUrls: string[] = [];
-
-    if (selectedFiles.length > 0) {
-      try {
-        const uploadPromises = selectedFiles.map(file =>
-          uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments`)
-        );
-        uploadedPhotoUrls = await Promise.all(uploadPromises);
-      } catch (uploadError: any) {
-        if (
-            (uploadError.code === 'storage/unknown' || uploadError.code === 'storage/unauthorized') &&
-            uploadError.message.toLowerCase().includes('cors')
-        ) {
-            setShowCorsError(true);
-            toast({
-                title: "File Upload Failed: Action Required",
-                description: "Your storage security settings are blocking uploads. Please see the alert on the page for instructions to fix this.",
-                variant: "destructive",
-                duration: 10000,
-            });
-        } else {
-            toast({
-              title: "File Upload Failed",
-              description: uploadError.message || "Could not upload one or more files. Please try again.",
-              variant: "destructive",
-            });
-        }
-        setIsLoading(false);
-        return;
-      }
-    }
-
+    setShowCorsError(false);
+    
     try {
+      let uploadedPhotoUrls: string[] = [];
+
+      // Handle file uploads first
+      if (selectedFiles.length > 0) {
+        try {
+          const uploadPromises = selectedFiles.map(file =>
+            uploadFileToStorage(file, `jobs/${currentUser.uid}/attachments`)
+          );
+          uploadedPhotoUrls = await Promise.all(uploadPromises);
+        } catch (uploadError: any) {
+           if ((uploadError.code === 'storage/unknown' || uploadError.code === 'storage/unauthorized') && uploadError.message.toLowerCase().includes('cors')) {
+              setShowCorsError(true);
+              toast({
+                  title: "File Upload Failed: Action Required",
+                  description: "Your storage security settings are blocking uploads. Please see the alert on the page for instructions to fix this.",
+                  variant: "destructive",
+                  duration: 10000,
+              });
+            } else {
+                toast({
+                  title: "File Upload Failed",
+                  description: uploadError.message || "Could not upload one or more files. Please try again.",
+                  variant: "destructive",
+                });
+            }
+            // Re-throw the error to be caught by the outer catch block, which will stop the process.
+            throw new Error("File upload failed, preventing job post.");
+        }
+      }
+
+      // If uploads are successful (or there are no files), proceed to post the job
       const result = await postJobAction(data, currentUser.uid, uploadedPhotoUrls);
+
       if (result.success && result.jobId) {
         toast({
           title: "Job Posted!",
@@ -177,12 +178,12 @@ export default function PostJobPage() {
         });
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred: " + error.message,
-        variant: "destructive",
-      });
+      // This single catch block handles errors from both upload and post-action steps.
+      // The toast for specific upload errors is already shown inside the inner catch.
+      // We log here for debugging.
+      console.error("Error during job submission process:", error.message);
     } finally {
+      // This finally block ensures the loading state is always reset.
       setIsLoading(false);
     }
   };
