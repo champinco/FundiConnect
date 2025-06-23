@@ -25,6 +25,8 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar'; 
 import { format } from 'date-fns'; 
 import Image from 'next/image';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 const allServiceCategories: ServiceCategory[] = [...serviceCategoriesForValidation];
 const jobUrgencies: JobUrgency[] = [...jobUrgenciesForValidation];
@@ -37,6 +39,7 @@ export default function PostJobPage() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [filePreviews, setFilePreviews] = useState<{ url: string; type: string, name: string }[]>([]);
+  const [showCorsError, setShowCorsError] = useState(false); // State for showing CORS error alert
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -112,6 +115,7 @@ export default function PostJobPage() {
     }
 
     setIsLoading(true);
+    setShowCorsError(false); // Reset CORS error display on new submission
     let uploadedPhotoUrls: string[] = [];
 
     if (selectedFiles.length > 0) {
@@ -121,11 +125,24 @@ export default function PostJobPage() {
         );
         uploadedPhotoUrls = await Promise.all(uploadPromises);
       } catch (uploadError: any) {
-        toast({
-          title: "File Upload Failed",
-          description: uploadError.message || "Could not upload one or more files. Please try again.",
-          variant: "destructive",
-        });
+        if (
+            (uploadError.code === 'storage/unknown' || uploadError.code === 'storage/unauthorized') &&
+            uploadError.message.toLowerCase().includes('cors')
+        ) {
+            setShowCorsError(true);
+            toast({
+                title: "File Upload Failed: Action Required",
+                description: "Your storage security settings are blocking uploads. Please see the alert on the page for instructions to fix this.",
+                variant: "destructive",
+                duration: 10000,
+            });
+        } else {
+            toast({
+              title: "File Upload Failed",
+              description: uploadError.message || "Could not upload one or more files. Please try again.",
+              variant: "destructive",
+            });
+        }
         setIsLoading(false);
         return;
       }
@@ -182,8 +199,35 @@ export default function PostJobPage() {
             Describe the service you need, and our Fundis will get in touch with quotes.
           </CardDescription>
         </CardHeader>
+        
+        {showCorsError && (
+          <div className="px-6 pb-4 border-b">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>File Upload Failed: CORS Configuration Needed</AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">
+                  This is a one-time setup issue. Your Firebase Storage needs to be configured to allow uploads from this website.
+                </p>
+                <p className="mb-2">
+                  Please run the following command in your terminal from the project's root directory:
+                </p>
+                <pre className="p-2 my-2 bg-background rounded-md text-destructive-foreground font-mono text-xs overflow-x-auto">
+                  <code>
+                    gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
+                  </code>
+                </pre>
+                <p className="mt-2 text-xs">
+                  If you get a permission error, you may need to authenticate first with `gcloud auth login`.
+                  After running the command, refresh this page and try submitting again.
+                </p>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             <div>
               <Label htmlFor="jobTitle" className="font-semibold">Job Title</Label>
               <Input
