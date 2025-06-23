@@ -58,14 +58,20 @@ function LoginContent() {
       }
     } catch (error: any) {
       console.error("Error logging in:", error);
-      let errorMessage = "Failed to login. Please check your credentials and try again.";
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential' || error.code === 'auth/email-not-verified' || error.code === 'auth/unverified-email' || (error.code === 'auth/functions-unauthenticated' && error.message.toLowerCase().includes("verify your email")) ) {
-        errorMessage = "Invalid email or password, or email not verified. Please try again or verify your email.";
+      let errorMessage = "An unexpected error occurred. Please try again.";
+
+      // Check for our custom blocking function error first
+      if (error.code === 'auth/functions-unauthenticated' && error.message.toLowerCase().includes("verify your email")) {
+        errorMessage = "Please verify your email before signing in. Check your inbox for a verification link.";
+      } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        errorMessage = "Invalid email or password. Please check your credentials and try again.";
       } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = "Too many login attempts. Please try again later.";
-      } else if (error.code) {
+        errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts. You can reset your password or try again later.";
+      } else {
+        // Fallback for other Firebase errors
         errorMessage = error.message.replace('Firebase: ', '').split(' (auth/')[0];
       }
+      
       toast({ title: "Login Error", description: errorMessage, variant: "destructive" });
       setIsLoading(false);
     }

@@ -180,11 +180,13 @@ export default function SignupPage() {
       console.error("Error during signup:", error);
       let errorMessage = "Failed to create account. Please try again.";
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "This email address is already in use. Please try logging in or use a different email.";
+        errorMessage = "This email address is already registered. Please try logging in instead.";
       } else if (error.code === 'auth/weak-password') {
-        errorMessage = "The password is too weak. Please choose a stronger password.";
-      } else if (error.code) {
-        errorMessage = error.message;
+        errorMessage = "Password is too weak. Please use at least 6 characters.";
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = "The email address is not valid. Please check and try again.";
+      } else {
+        errorMessage = error.message.replace('Firebase: ', '').split(' (auth/')[0];
       }
       toast({ title: "Signup Error", description: errorMessage, variant: "destructive" });
     } finally {

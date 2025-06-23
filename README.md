@@ -1,15 +1,14 @@
-
 # FundiConnect
 
-**IMPORTANT NOTE:** If you are seeing an error like `Error: Cannot find module './548.js'` or `Error: Cannot find module './447.js'` (or similar), please follow the instructions in the section below. This is a Next.js build cache issue and requires a manual fix in your terminal.
+---
+**🛑 READ THIS FIRST: How to Fix "Cannot find module" Errors (e.g., './447.js') 🛑**
+---
 
-## How to Fix "Cannot find module" Errors (e.g., './548.js', './447.js')
+If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.**
 
-If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your build cache is out of sync. This is a common issue with Next.js development and is **not a bug in the application source code itself**.
+**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones.
 
-**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files and creates fresh ones.
-
-Here are the steps:
+**Here are the steps:**
 
 1.  **Stop the server** (if it's running).
 
