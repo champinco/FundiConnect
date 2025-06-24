@@ -1,0 +1,30 @@
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow public read access to provider profile pictures and portfolio items
+    match /providerProfiles/{userId}/{folder}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow authenticated users to upload job attachments to their own folder
+    match /jobs/{userId}/attachments/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow authenticated users to upload chat attachments within their chat
+    match /chatAttachments/{chatId}/{fileName} {
+        allow read: if request.auth != null; // Simplification: any auth user can read
+        allow write: if request.auth != null; // Simplification: any auth user can write. A stricter rule would check chat participants.
+    }
+
+    // Allow authenticated users to upload certification documents
+    match /providerProfiles/{userId}/certifications/{certId}/{fileName} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+    

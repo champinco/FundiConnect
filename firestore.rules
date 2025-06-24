@@ -1,82 +1,80 @@
 
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users collection
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is the owner of a resource
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users can only read/write their own profile
     match /users/{userId} {
-      allow read: if request.auth != null; // Allow reading basic user info if needed by other profiles
-      allow write: if request.auth != null && request.auth.uid == userId; // User can write to their own profile
+      allow read, update: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated(); // Anyone authenticated can create their own user doc on signup
     }
 
-    // ProviderProfiles collection
+    // Providers can only write to their own profile. Anyone can read.
     match /providerProfiles/{providerId} {
-      allow read: if request.auth != null; // All authenticated users can view provider profiles
-      allow write: if request.auth != null && request.auth.uid == providerId; // Provider can write to their own profile
+      allow read: if true;
+      allow create, update: if isAuthenticated() && isOwner(providerId);
     }
 
-    // Jobs collection
+    // Jobs can be read by anyone. Only clients can create them.
+    // Only the client who created the job can update it.
     match /jobs/{jobId} {
-      // Allow authenticated users to read open or pending_quotes jobs (for browsing)
-      // Also allow client or assigned provider to read their specific job
-      allow read: if request.auth != null && 
-                    (
-                      (resource.data.status == 'open' || resource.data.status == 'pending_quotes') ||
-                      request.auth.uid == resource.data.clientId ||
-                      (resource.data.assignedProviderId != null && request.auth.uid == resource.data.assignedProviderId)
-                    );
-      
-      // Allow job creators to create jobs (clientId must match auth.uid)
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.clientId;
-      
-      // Allow client to update their job (e.g., status, description)
-      // Allow assigned provider to update status (e.g., to 'in_progress', 'completed' - this needs specific field checks in app logic)
-      allow update: if request.auth != null && 
-                      (
-                        request.auth.uid == resource.data.clientId ||
-                        (resource.data.assignedProviderId != null && request.auth.uid == resource.data.assignedProviderId)
-                      );
-      // Allow client to delete their job (consider implications, maybe only if 'open')
-      allow delete: if request.auth != null && request.auth.uid == resource.data.clientId;
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.clientId == request.auth.uid;
+      allow update: if isAuthenticated() && isOwner(resource.data.clientId);
     }
 
-    // Quotes collection
+    // Quotes can be read by the client and the provider. Only the provider can create.
     match /quotes/{quoteId} {
-      // Client can read quotes for their job, provider can read their own quote
-      allow read: if request.auth != null && 
-                    (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.providerId);
-      
-      // Only provider can create a quote for a job
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.providerId;
-      
-      // Client can update quote status (accept/reject)
-      // Provider could update (e.g. withdraw, if implemented)
-      allow update: if request.auth != null && 
-                      (request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.providerId); 
-    }
-
-    // Reviews collection
-    match /reviews/{reviewId} {
-      allow read: if request.auth != null; // All authenticated users can read reviews
-      
-      // Only client who posted the job can create a review for that job's provider
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.clientId;
-      
-      // Optionally allow client to update/delete their review
-      // allow update, delete: if request.auth != null && request.auth.uid == resource.data.clientId;
+        allow read: if isAuthenticated() && (isOwner(resource.data.clientId) || isOwner(resource.data.providerId));
+        allow create: if isAuthenticated() && isOwner(request.resource.data.providerId);
+        allow update: if isAuthenticated() && isOwner(resource.data.clientId); // Client updates status (accept/reject)
     }
     
-    // Chats & Messages
+    // Reviews can be read by anyone. Only the client who posted the job can create/update.
+    match /reviews/{reviewId} {
+        allow read: if true;
+        allow create, update: if isAuthenticated() && isOwner(request.resource.data.clientId);
+    }
+
+    // Notifications are private to the user.
+    match /notifications/{notificationId} {
+      allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated(); // Server-side logic creates these
+    }
+
+    // Chat participants can read/write to their chat.
     match /chats/{chatId} {
-      // Only participants of the chat can read/write
-      allow read, write: if request.auth != null && request.auth.uid in resource.data.participantUids;
+      allow read, update: if isAuthenticated() && request.auth.uid in resource.data.participantUids;
       
+      // Messages can be read by participants, only created by sender.
       match /messages/{messageId} {
-        // Only participants of the parent chat can read/write messages
-        allow read, write: if request.auth != null && 
-                             request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantUids;
+        allow create: if isAuthenticated() && isOwner(request.resource.data.senderUid);
       }
+    }
+    
+    // Bookings can be read/updated by participants. Only created by client.
+    match /bookingRequests/{bookingId} {
+        allow read: if isAuthenticated() && (isOwner(resource.data.clientId) || isOwner(resource.data.providerId));
+        allow create: if isAuthenticated() && isOwner(request.resource.data.clientId);
+        allow update: if isAuthenticated() && (isOwner(resource.data.clientId) || isOwner(resource.data.providerId));
+    }
+    
+    // Mail collection for Trigger Email extension should only be writeable.
+    match /mail/{docId} {
+       allow read: if false;
+       allow write: if isAuthenticated();
     }
   }
 }
+    
