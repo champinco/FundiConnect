@@ -5,6 +5,9 @@
 import { adminDb } from '@/lib/firebaseAdmin'; 
 import { Timestamp, FieldValue, type UpdateData, type Query } from 'firebase-admin/firestore';
 import type { Job, JobStatus, JobUrgency } from '@/models/job';
+import type { PostJobFormValues } from '@/app/jobs/post/schemas';
+import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas';
+import type { ServiceCategory } from '@/components/service-category-icon';
 
 /**
  * Creates a new job document in Firestore using Admin SDK.
@@ -72,6 +75,52 @@ export async function createJobInFirestore(jobData: Omit<Job, 'id' | 'postedAt' 
     }
     throw new Error(message);
   }
+}
+
+/**
+ * Updates an existing job document in Firestore.
+ * @param jobId The ID of the job to update.
+ * @param jobData The data to update.
+ */
+export async function updateJob(jobId: string, jobData: Partial<PostJobFormValues> & { photosOrVideos?: string[] }): Promise<void> {
+  if (!adminDb) {
+    throw new Error('Server error: Database not initialized.');
+  }
+
+  const isKnownCategory = (serviceCategoriesForValidation as readonly string[]).includes(jobData.serviceCategory || '');
+  const finalServiceCategory = isKnownCategory ? jobData.serviceCategory as ServiceCategory : 'Other';
+  const finalOtherDescription = isKnownCategory ? null : jobData.serviceCategory;
+
+  const updatePayload: any = {
+    title: jobData.jobTitle,
+    description: jobData.jobDescription,
+    serviceCategory: finalServiceCategory,
+    otherCategoryDescription: finalOtherDescription,
+    location: jobData.location,
+    budget: jobData.budget ? Number(jobData.budget) : null,
+    urgency: jobData.urgency as JobUrgency,
+    deadline: jobData.deadline ? new Date(jobData.deadline) : null,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  
+  if (jobData.photosOrVideos) {
+    updatePayload.photosOrVideos = jobData.photosOrVideos;
+  }
+
+  const jobRef = adminDb.collection('jobs').doc(jobId);
+  await jobRef.update(updatePayload);
+}
+
+/**
+ * Deletes a job document from Firestore.
+ * @param jobId The ID of the job to delete.
+ */
+export async function deleteJob(jobId: string): Promise<void> {
+  if (!adminDb) {
+    throw new Error('Server error: Database not initialized.');
+  }
+  const jobRef = adminDb.collection('jobs').doc(jobId);
+  await jobRef.delete();
 }
 
 /**

@@ -3,15 +3,16 @@
 
 import { adminDb } from '@/lib/firebaseAdmin';
 import { submitQuoteForJob as submitQuoteForJobService, type SubmitQuoteData, updateQuoteStatus, getQuoteById, getQuotesForJob } from '@/services/quoteService';
-import { updateJobStatus, getJobByIdFromFirestore } from '@/services/jobService';
+import { updateJobStatus, getJobByIdFromFirestore, deleteJob as deleteJobService, updateJob as updateJobService } from '@/services/jobService';
 import type { Quote, QuoteStatus } from '@/models/quote';
-import type { Job, JobStatus } from '@/models/job';
+import type { Job, JobStatus, JobUrgency } from '@/models/job';
 import { submitReview as submitReviewService, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
 import type { User as AppUser } from '@/models/user';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import { createNotification } from '@/services/notificationService'; 
 import { getOrCreateChatAction } from '@/app/messages/actions'; 
 import { sendNewQuoteReceivedEmail, sendQuoteAcceptedEmail, sendQuoteRejectedEmail } from '@/services/emailService'; // Import email service
+import { revalidatePath } from 'next/cache';
 
 interface SubmitQuoteResult {
   success: boolean;
@@ -337,6 +338,36 @@ export async function fetchJobDetailsPageDataAction(jobId: string): Promise<JobD
   } catch (error: any) {
     console.error(`[fetchJobDetailsPageDataAction] Error fetching job details for Job ID: ${jobId}. Error:`, error.message, error.stack, error.code);
     return { job: null, quotes: [], error: `Failed to fetch job details: ${error.message}.` };
+  }
+}
+
+// Action to delete a job
+export async function deleteJobAction(jobId: string, currentUserId: string): Promise<{ success: boolean; message: string }> {
+  if (!adminDb) {
+    return { success: false, message: 'Server error: Database not initialized.' };
+  }
+
+  try {
+    const job = await getJobByIdFromFirestore(jobId);
+    if (!job) {
+      return { success: false, message: 'Job not found.' };
+    }
+
+    if (job.clientId !== currentUserId) {
+      return { success: false, message: 'Unauthorized: You can only delete your own jobs.' };
+    }
+
+    await deleteJobService(jobId);
+    
+    // Revalidate paths to reflect the change in the UI
+    revalidatePath('/jobs');
+    revalidatePath(`/jobs/${jobId}`);
+    revalidatePath('/jobs/my-jobs');
+    
+    return { success: true, message: 'Job successfully deleted.' };
+  } catch (error: any) {
+    console.error(`[deleteJobAction] Error deleting job ${jobId}:`, error);
+    return { success: false, message: `Failed to delete job: ${error.message}` };
   }
 }
     

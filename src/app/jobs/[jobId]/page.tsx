@@ -7,7 +7,7 @@ import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3, Loader2, Star } from 'lucide-react'; // Added Star
+import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3, Loader2, Star, Trash2 } from 'lucide-react'; // Added Star, Edit3, Trash2
 import { format } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import Link from 'next/link';
@@ -17,7 +17,7 @@ import SubmitQuoteForm from './components/submit-quote-form';
 import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
 import MarkAsCompletedButton from './components/mark-as-completed-button'; 
-import { fetchJobDetailsPageDataAction, type JobDetailsPageData } from './actions';
+import { fetchJobDetailsPageDataAction, deleteJobAction, type JobDetailsPageData } from './actions';
 import type { Job, JobStatus } from '@/models/job';
 import type { Quote } from '@/models/quote';
 import { Avatar as ShadCNAvatar, AvatarFallback as ShadCNAvatarFallback, AvatarImage as ShadCNAvatarImage } from '@/components/ui/avatar'; 
@@ -27,6 +27,17 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { getOrCreateChatAction } from '@/app/messages/actions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
 // Loader for Suspense boundary if JobDetails itself is not async
@@ -74,6 +85,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const reviewFormRef = useRef<HTMLDivElement>(null); 
@@ -153,6 +165,22 @@ function JobDetails({ jobId }: JobDetailsProps) {
     }
   };
 
+  const handleDeleteJob = async () => {
+    if (!currentUser || !job || job.clientId !== currentUser.uid) {
+      toast({ title: 'Error', description: 'You are not authorized to delete this job.', variant: 'destructive' });
+      return;
+    }
+    setIsDeleting(true);
+    const result = await deleteJobAction(job.id, currentUser.uid);
+    if (result.success) {
+      toast({ title: 'Job Deleted', description: result.message });
+      router.push('/jobs/my-jobs');
+    } else {
+      toast({ title: 'Error', description: result.message, variant: 'destructive' });
+      setIsDeleting(false);
+    }
+  };
+
 
   if (isLoading && !job) { 
     return <JobDetailLoader />;
@@ -187,6 +215,8 @@ function JobDetails({ jobId }: JobDetailsProps) {
     disputed: 'Disputed',
   };
 
+  const isJobOwner = currentUser?.uid === job.clientId;
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -208,18 +238,47 @@ function JobDetails({ jobId }: JobDetailsProps) {
                 <span>{job.serviceCategory === 'Other' && job.otherCategoryDescription ? job.otherCategoryDescription : job.serviceCategory}</span>
               </div>
             </div>
-            <Badge 
-              variant={job.status === 'open' ? 'secondary' : job.status === 'completed' ? 'default' : 'outline'}
-              className={`capitalize text-sm px-3 py-1 ${
-                job.status === 'open' || job.status === 'pending_quotes' ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-800/30 dark:text-blue-300 dark:border-blue-700' : 
-                job.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-800/30 dark:text-yellow-300 dark:border-yellow-700' :
-                job.status === 'completed' ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-800/30 dark:text-green-300 dark:border-green-700' :
-                job.status === 'assigned' ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-800/30 dark:text-purple-300 dark:border-purple-700' :
-                'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-700' 
-              }`}
-            >
-              {jobStatusDisplay[job.status] || job.status.replace('_', ' ')}
-            </Badge>
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+              <Badge 
+                variant={job.status === 'open' ? 'secondary' : job.status === 'completed' ? 'default' : 'outline'}
+                className={`capitalize text-sm px-3 py-1 ${
+                  job.status === 'open' || job.status === 'pending_quotes' ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-800/30 dark:text-blue-300 dark:border-blue-700' : 
+                  job.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-800/30 dark:text-yellow-300 dark:border-yellow-700' :
+                  job.status === 'completed' ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-800/30 dark:text-green-300 dark:border-green-700' :
+                  job.status === 'assigned' ? 'bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-800/30 dark:text-purple-300 dark:border-purple-700' :
+                  'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-700' 
+                }`}
+              >
+                {jobStatusDisplay[job.status] || job.status.replace('_', ' ')}
+              </Badge>
+              {isJobOwner && (
+                <div className="flex items-center gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/jobs/edit/${job.id}`}><Edit3 className="mr-2 h-4 w-4"/>Edit</Link>
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="destructive"><Trash2 className="mr-2 h-4 w-4"/>Delete</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to delete this job?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the job post and all related quotes.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteJob} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                          {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Delete Job
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-6 grid md:grid-cols-3 gap-6">
@@ -413,4 +472,3 @@ export default function JobDetailPageWrapper({ params: paramsPromise }: { params
         </Suspense>
     );
 }
-
