@@ -1,6 +1,65 @@
 # FundiConnect
 
 ---
+**🚀 Final Deployment Steps 🚀**
+---
+
+Your app's code is now production-ready! Before you deploy it to the world, complete these two final steps to ensure your application is secure and configured correctly.
+
+### **Step 1: Set Up Your Environment Variables**
+
+Your Firebase API keys are secrets and should not be stored directly in the code. We've created a template file at `src/.env` to hold them. You now need to create a local environment file and populate it with your actual keys.
+
+1.  **Create the local environment file:**
+    In your project's root directory, create a new file named `.env.local`.
+
+2.  **Copy and Paste the Content:**
+    Copy the entire contents of the `src/.env` file and paste it into your new `.env.local` file.
+
+3.  **Fill in Your Firebase Keys:**
+    Replace the placeholder values (like `your_api_key_here`) in `.env.local` with your actual Firebase project's "Web app" configuration keys. You can find these in your Firebase project settings:
+    *Project Settings* > *General* > *Your apps* > *Web app*.
+
+    Your final `.env.local` file should look like this, but with your real keys:
+    ```
+    NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSy...
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
+    NEXT_PUBLIC_FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+    NEXT_PUBLIC_FIREBASE_APP_ID=1:...:web:...
+    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-...
+    ```
+
+### **Step 2: Deploy Security Rules**
+
+We have created security rules to protect your Firestore database and Storage bucket. You must deploy them to Firebase.
+
+1.  **Open your terminal** in the project's root directory.
+
+2.  **Make sure you are logged into Firebase:**
+    ```bash
+    firebase login
+    ```
+
+3.  **Ensure you are using the correct project:**
+    ```bash
+    firebase use myfundi-10db8
+    ```
+    *(Replace `myfundi-10db8` with your project ID if it's different).*
+
+4.  **Deploy the rules:**
+    Run the following command to deploy *only* the Firestore and Storage rules:
+    ```bash
+    firebase deploy --only firestore,storage
+    ```
+
+---
+**Congratulations!** Once you've completed these steps, your app is fully configured, secure, and ready to be published to your hosting provider (like Firebase App Hosting or Vercel).
+---
+
+---
 **🛑 READ THIS FIRST: How to Fix "Cannot find module" Errors (e.g., './447.js') 🛑**
 ---
 
