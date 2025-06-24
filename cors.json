@@ -1,13 +1,12 @@
-
 [
   {
     "origin": [
       "https://3000-firebase-studio-1749269350607.cluster-axf5tvtfjjfekvhwxwkkkzsk2y.cloudworkstations.dev",
       "http://localhost:9002",
       "http://localhost:3000",
-      "https://*.cloudworkstations.dev",
-      "https://*.firebaseapp.com",
-      "https://*.web.app"
+      "https://myfundi108db--myfundi-10db8.us-central1.hosted.app",
+      "https://myfundi-10db8.firebaseapp.com",
+      "https://myfundi-10db8.web.app"
     ],
     "method": [
       "GET",
@@ -19,9 +18,8 @@
     ],
     "responseHeader": [
       "Content-Type",
-      "Authorization",
       "X-Goog-Resumable",
-      "Origin"
+      "Firebase-Storage-Resumable-Upload-Protocol"
     ],
     "maxAgeSeconds": 3600
   }
