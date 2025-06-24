@@ -1,3 +1,4 @@
+
 # FundiConnect
 
 ---
@@ -60,7 +61,7 @@ We have created security rules to protect your Firestore database and Storage bu
 ---
 
 ---
-**🛑 READ THIS FIRST: How to Fix "Cannot find module" Errors (e.g., './447.js') 🛑**
+**🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './447.js', './548.js') 🛑**
 ---
 
 If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.**
@@ -121,3 +122,4 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
     ```
 
 After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
+

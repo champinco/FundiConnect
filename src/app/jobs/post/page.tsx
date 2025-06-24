@@ -205,22 +205,14 @@ export default function PostJobPage() {
           <div className="px-6 pb-4 border-b">
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>File Upload Failed: CORS Configuration Needed</AlertTitle>
+              <AlertTitle>File Upload Blocked: Action Required</AlertTitle>
               <AlertDescription>
-                <p className="mb-2">
-                  This is a one-time setup issue. Your Firebase Storage needs to be configured to allow uploads from this website.
+                <p className="font-bold">This is a one-time Firebase configuration issue, not an app bug.</p>
+                <p className="mt-2">
+                  Your browser is blocking the upload for security reasons. To fix this, you must run a command in your terminal.
                 </p>
-                <p className="mb-2">
-                  Please run the following command in your terminal from the project's root directory:
-                </p>
-                <pre className="p-2 my-2 bg-background rounded-md text-destructive-foreground font-mono text-xs overflow-x-auto">
-                  <code>
-                    gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
-                  </code>
-                </pre>
-                <p className="mt-2 text-xs">
-                  If you get a permission error, you may need to authenticate first with `gcloud auth login`.
-                  After running the command, refresh this page and try submitting again.
+                <p className="mt-2">
+                  Please open the <code className="font-bold text-destructive-foreground">README.md</code> file for the complete, step-by-step instructions under the "How to Fix Firebase Storage CORS Errors" section.
                 </p>
               </AlertDescription>
             </Alert>
