@@ -117,6 +117,9 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
     ```
 
 5.  **Apply the CORS configuration to your storage bucket.** Because you are now in the correct directory, the command will find `cors.json`:
+    
+    **Important Note on Bucket Name:** The correct bucket name format for this command is `gs://<your-project-id>.appspot.com`. Do not use other formats like `firebasestorage.app`.
+    
     ```bash
     gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
     ```
