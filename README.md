@@ -2,6 +2,37 @@
 # FundiConnect
 
 ---
+**🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './447.js', './548.js') 🛑**
+---
+
+If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.** This is a common issue in development environments and does not indicate a regression in the app's functionality.
+
+**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones.
+
+**Here are the steps:**
+
+1.  **Stop the server** (if it's running).
+
+2.  **Delete the `.next` folder**:
+    ```bash
+    rm -rf .next
+    ```
+    *(On Windows, use `rd /s /q .next` in Command Prompt or `Remove-Item -Recurse -Force .next` in PowerShell).*
+
+3.  **Rebuild the app**:
+    ```bash
+    npm run build
+    ```
+    *Check the output of this command for any new errors. If the build itself fails, address those first.*
+
+4.  **Start the app again**:
+    ```bash
+    npm start
+    ```
+
+Following these steps should resolve the "Cannot find module" error.
+
+---
 **🚀 Final Deployment Steps 🚀**
 ---
 
@@ -61,37 +92,6 @@ We have created security rules to protect your Firestore database and Storage bu
 ---
 
 ---
-**🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './447.js', './548.js') 🛑**
----
-
-If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.**
-
-**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones.
-
-**Here are the steps:**
-
-1.  **Stop the server** (if it's running).
-
-2.  **Delete the `.next` folder**:
-    ```bash
-    rm -rf .next
-    ```
-    *(On Windows, use `rd /s /q .next` in Command Prompt or `Remove-Item -Recurse -Force .next` in PowerShell).*
-
-3.  **Rebuild the app**:
-    ```bash
-    npm run build
-    ```
-    *Check the output of this command for any new errors. If the build itself fails, address those first.*
-
-4.  **Start the app again**:
-    ```bash
-    npm start
-    ```
-
-Following these steps should resolve the "Cannot find module" error.
-
----
 
 ## How to Fix Firebase Storage CORS Errors (File Upload Failures)
 
@@ -122,4 +122,3 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
     ```
 
 After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
-
