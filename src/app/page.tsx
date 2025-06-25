@@ -10,13 +10,23 @@ import ProviderCard, { type Provider } from '@/components/provider-card';
 import { useState, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchFeaturedProvidersAction, fetchHomepageStatsAction, type HomepageStats } from '@/app/actions/home_page_actions';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const serviceCategories: ServiceCategory[] = [
-  'Plumbing',
-  'Electrical',
-  'Appliance Repair',
-  'Garbage Collection',
+const serviceGroups: { name: string; categories: ServiceCategory[] }[] = [
+  {
+    name: "Repairs & Maintenance",
+    categories: ['Plumbing', 'Electrical', 'Appliance Repair', 'HVAC', 'Pest Control', 'Locksmith'],
+  },
+  {
+    name: "Installation & Construction",
+    categories: ['Solar Installation', 'Painting & Decorating', 'Carpentry & Furniture', 'Tiling & Masonry'],
+  },
+  {
+    name: "General Services",
+    categories: ['Garbage Collection', 'Landscaping', 'Other'],
+  }
 ];
+
 
 export default function HomePage() {
   const router = useRouter();
@@ -149,15 +159,33 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold font-headline text-center mb-10">
             Browse Services
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
-            {serviceCategories.map((category) => (
-              <Link href={`/search?mode=providers&category=${encodeURIComponent(category)}`} key={category}>
-                <ServiceCategoryIcon category={category} />
-              </Link>
+          <Tabs defaultValue={serviceGroups[0].name} className="w-full">
+            <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 mx-auto max-w-2xl mb-8 bg-black/20 border border-white/20 text-white rounded-lg">
+              {serviceGroups.map((group) => (
+                <TabsTrigger
+                  key={group.name}
+                  value={group.name}
+                  className="data-[state=active]:bg-white/90 data-[state=active]:text-primary data-[state=active]:shadow-lg rounded-md"
+                >
+                  {group.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {serviceGroups.map((group) => (
+              <TabsContent key={group.name} value={group.name}>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 animate-in fade-in-50">
+                  {group.categories.map((category) => (
+                    <Link href={`/search?mode=providers&category=${encodeURIComponent(category)}`} key={category}>
+                      <ServiceCategoryIcon category={category} />
+                    </Link>
+                  ))}
+                </div>
+              </TabsContent>
             ))}
-          </div>
+          </Tabs>
         </div>
       </section>
+
 
       {/* Featured Providers Section */}
       <section className="py-12 md:py-16 bg-primary/5">
