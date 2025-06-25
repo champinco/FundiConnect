@@ -368,7 +368,7 @@ export default function SignupPage() {
                         type="file" 
                         {...register("newProfilePictureFile")}
                         onChange={handleProfilePictureChange} 
-                        accept="image/png, image/jpeg, image/webp" 
+                        accept="image/png, image/jpeg, image/jpg, image/webp" 
                         className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" 
                         disabled={isLoading}
                     />
@@ -387,7 +387,7 @@ export default function SignupPage() {
                         type="file" 
                         {...register("newBannerImageFile")}
                         onChange={handleBannerImageChange} 
-                        accept="image/png, image/jpeg, image/webp" 
+                        accept="image/png, image/jpeg, image/jpg, image/webp" 
                         className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" 
                         disabled={isLoading}
                     />

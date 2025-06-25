@@ -454,14 +454,14 @@ export default function EditProviderProfilePage() {
                 <div>
                     <Label htmlFor="newProfilePictureFile" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Profile Picture</Label>
                     {profilePicturePreview && <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="mt-2 h-24 w-24 rounded-full object-cover border" data-ai-hint="profile preview image" />}
-                    <Input id="newProfilePictureFile" type="file" onChange={handleProfilePictureChange} accept="image/png, image/jpeg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
+                    <Input id="newProfilePictureFile" type="file" onChange={handleProfilePictureChange} accept="image/png, image/jpeg, image/jpg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
                     <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Square image.</p>
                     {errors.newProfilePictureFile && <p className="text-sm text-destructive mt-1">{errors.newProfilePictureFile.message}</p>}
                 </div>
                  <div>
                     <Label htmlFor="newBannerImageFile" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Banner Image (Optional)</Label>
                     {bannerImagePreview && <Image src={bannerImagePreview} alt="Banner preview" width={300} height={100} className="mt-2 aspect-[3/1] w-full max-w-md rounded-md object-cover border" data-ai-hint="profile banner image"/>}
-                    <Input id="newBannerImageFile" type="file" onChange={handleBannerImageChange} accept="image/png, image/jpeg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
+                    <Input id="newBannerImageFile" type="file" onChange={handleBannerImageChange} accept="image/png, image/jpeg, image/jpg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
                     <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: 1200x400px.</p>
                     {errors.newBannerImageFile && <p className="text-sm text-destructive mt-1">{errors.newBannerImageFile.message}</p>}
                 </div>
@@ -634,7 +634,7 @@ export default function EditProviderProfilePage() {
                             id={`certDocument-${index}`} 
                             type="file" 
                             className="mt-1 bg-background file:text-primary file:bg-primary/10 hover:file:bg-primary/20"
-                            accept=".pdf,image/jpeg,image/png,image/webp"
+                            accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
                             onChange={(e) => {
                                 if (e.target.files && e.target.files[0]) {
                                     setValue(`certifications.${index}.newDocumentFile`, e.target.files[0], { shouldValidate: true });
@@ -724,7 +724,7 @@ export default function EditProviderProfilePage() {
                                     <Input
                                         id={`portfolioImage-${index}`}
                                         type="file"
-                                        accept="image/png, image/jpeg, image/webp"
+                                        accept="image/png, image/jpeg, image/jpg, image/webp"
                                         className="mt-1 bg-background file:text-primary file:bg-primary/10 hover:file:bg-primary/20"
                                         onChange={(e) => handlePortfolioItemImageChange(e, index)}
                                     />
