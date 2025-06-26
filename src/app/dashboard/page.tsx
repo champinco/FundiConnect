@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -23,7 +23,7 @@ import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone } from 'lucide-react';
+import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone, Share2 } from 'lucide-react';
 import { formatDynamicDate, formatSafeDate } from '@/lib/dateUtils'; 
 import { format } from 'date-fns';
 import { fetchDashboardDataAction, type DashboardPageData } from './actions';
@@ -120,6 +120,33 @@ export default function DashboardPage() {
     setBookingResponseAction(action);
     setProviderMessage(''); // Reset message
   };
+
+  const handleShare = useCallback(async () => {
+    const shareData = {
+      title: 'FundiConnect',
+      text: 'Find trusted local fundis for any job on FundiConnect!',
+      url: window.location.origin,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback for browsers that don't support the Web Share API
+        await navigator.clipboard.writeText(window.location.origin);
+        toast({
+          title: "Link Copied!",
+          description: "The link to FundiConnect has been copied to your clipboard.",
+        });
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      toast({
+        title: "Could not share",
+        description: "There was an error trying to share the link.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
   
   const clientData = useMemo(() => appUser?.accountType === 'client' && dashboardDisplayData && 'jobSummary' in dashboardDisplayData ? dashboardDisplayData as ClientDashboardDisplayData : null, [appUser, dashboardDisplayData]);
   const providerData = useMemo(() => appUser?.accountType === 'provider' && dashboardDisplayData && 'providerProfile' in dashboardDisplayData ? dashboardDisplayData as ProviderDashboardDisplayData : null, [appUser, dashboardDisplayData]);
@@ -216,9 +243,25 @@ export default function DashboardPage() {
         </CardHeader>
       </Card>
 
-      {appUser.accountType === 'client' && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          {!clientData ? <SummaryCardSkeleton /> : (
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+        <Card className="shadow-md hover:shadow-lg transition-shadow bg-accent/5 dark:bg-accent/10 md:col-span-1 lg:col-span-1">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center text-xl"><Share2 className="mr-3 h-7 w-7 text-accent" />Help Us Grow!</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-base text-foreground/80 mb-4">
+              Love using FundiConnect? Share it with friends, family, or colleagues who might need to find a trusted Fundi.
+            </p>
+          </CardContent>
+          <CardFooter className="pt-6">
+            <Button onClick={handleShare} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
+              Invite a Friend
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {appUser.accountType === 'client' && clientData && (
+          <>
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><ListChecks className="mr-3 h-7 w-7 text-primary" />Job Summary</CardTitle>
@@ -240,25 +283,22 @@ export default function DashboardPage() {
                 </Button>
               </CardFooter>
             </Card>
-          )}
-          
-           <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-1 lg:col-span-1 bg-primary/5 dark:bg-primary/10">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center text-xl"><Search className="mr-3 h-7 w-7 text-primary" />Find a Fundi</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-base text-foreground/80 mb-4">Ready to start your next project? Search for qualified Fundis now.</p>
-            </CardContent>
-            <CardFooter className="pt-6">
-                <Button asChild className="w-full bg-primary hover:bg-primary/90">
-                    <Link href="/search?mode=providers">Browse Fundis</Link>
-                </Button>
-            </CardFooter>
-          </Card>
 
-          {/* Client Booking Requests Card */}
-          {!clientData ? <SummaryCardSkeleton /> : (
-            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-1 lg:col-span-1 bg-primary/5 dark:bg-primary/10">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><Search className="mr-3 h-7 w-7 text-primary" />Find a Fundi</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-base text-foreground/80 mb-4">Ready to start your next project? Search for qualified Fundis now.</p>
+              </CardContent>
+              <CardFooter className="pt-6">
+                  <Button asChild className="w-full bg-primary hover:bg-primary/90">
+                      <Link href="/search?mode=providers">Browse Fundis</Link>
+                  </Button>
+              </CardFooter>
+            </Card>
+
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-3">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />My Booking Requests ({clientData.clientBookings.length})</CardTitle>
                 <CardDescription>Track the status of your booking requests with Fundis.</CardDescription>
@@ -298,13 +338,11 @@ export default function DashboardPage() {
                   </CardFooter>
               )}
             </Card>
-          )}
-        </div>
-      )}
+          </>
+        )}
 
-      {appUser.accountType === 'provider' && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-          {!providerData ? <SummaryCardSkeleton /> : (
+        {appUser.accountType === 'provider' && providerData && (
+          <>
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><Star className="mr-3 h-7 w-7 text-yellow-400 fill-yellow-400" />Your Rating</CardTitle>
@@ -451,9 +489,7 @@ export default function DashboardPage() {
                   </Dialog>
               </CardFooter>
             </Card>
-          )}
 
-          {!providerData ? <SummaryCardSkeleton /> : (
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><FileText className="mr-3 h-7 w-7 text-primary" />Quote Summary</CardTitle>
@@ -472,47 +508,8 @@ export default function DashboardPage() {
                   </Button>
               </CardFooter>
             </Card>
-          )}
-
-          {!providerData ? <SummaryCardSkeleton /> : (
-            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-1">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs ({providerData.assignedJobs.length})</CardTitle>
-                <CardDescription>Jobs currently assigned to you or in progress.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {providerData.assignedJobs.length > 0 ? (
-                  <ul className="space-y-4 max-h-60 overflow-y-auto">
-                    {providerData.assignedJobs.map(job => (
-                      <li key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
-                        <Link href={`/jobs/${job.id}`} className="block group">
-                          <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
-                          <p className="text-sm text-muted-foreground">Status: <span className="capitalize font-medium">{job.status.replace('_', ' ')}</span></p>
-                          <p className="text-xs text-muted-foreground">Updated: {formatDynamicDate(job.updatedAt)}</p>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="text-center py-8">
-                      <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
-                      <p className="text-muted-foreground">No active jobs assigned to you currently.</p>
-                  </div>
-                )}
-              </CardContent>
-              {providerData.assignedJobs.length > 0 && (
-                  <CardFooter className="pt-6">
-                      <Button asChild variant="outline" className="w-full">
-                          <Link href="/search?myJobs=true&status=assigned">View All My Active Jobs</Link>
-                      </Button>
-                  </CardFooter>
-              )}
-            </Card>
-          )}
-
-          {/* Provider Booking Requests Card */}
-          {!providerData ? <SummaryCardSkeleton /> : (
-            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-3">
+            
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-3">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />Incoming Booking Requests ({providerData.providerBookings.filter(b => b.status === 'pending').length} Pending)</CardTitle>
                 <CardDescription>Manage booking requests from clients.</CardDescription>
@@ -562,11 +559,46 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
-          )}
-        </div>
-      )}
+
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-3">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-xl"><Briefcase className="mr-3 h-7 w-7 text-primary" />Active Jobs ({providerData.assignedJobs.length})</CardTitle>
+                <CardDescription>Jobs currently assigned to you or in progress.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {providerData.assignedJobs.length > 0 ? (
+                  <ul className="space-y-4 max-h-60 overflow-y-auto">
+                    {providerData.assignedJobs.map(job => (
+                      <li key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
+                        <Link href={`/jobs/${job.id}`} className="block group">
+                          <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
+                          <p className="text-sm text-muted-foreground">Status: <span className="capitalize font-medium">{job.status.replace('_', ' ')}</span></p>
+                          <p className="text-xs text-muted-foreground">Updated: {formatDynamicDate(job.updatedAt)}</p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center py-8">
+                      <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground">No active jobs assigned to you currently.</p>
+                  </div>
+                )}
+              </CardContent>
+              {providerData.assignedJobs.length > 0 && (
+                  <CardFooter className="pt-6">
+                      <Button asChild variant="outline" className="w-full">
+                          <Link href="/search?myJobs=true&status=assigned">View All My Active Jobs</Link>
+                      </Button>
+                  </CardFooter>
+              )}
+            </Card>
+          </>
+        )}
+        
+        {((!clientData && appUser.accountType === 'client') || (!providerData && appUser.accountType === 'provider')) && [...Array(2)].map((_, i) => <SummaryCardSkeleton key={i} />)}
+      </div>
       
-      {/* Dialog for Provider to Respond to Booking */}
       <Dialog open={!!(selectedBooking && bookingResponseAction)} onOpenChange={(isOpen) => { if (!isOpen) { setSelectedBooking(null); setBookingResponseAction(null); setProviderMessage(''); } }}>
         <DialogContent>
           <DialogHeader>
