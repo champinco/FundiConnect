@@ -18,6 +18,10 @@ const mainNavLinksBase = [
     title: "Smart Match",
     href: "/smart-match",
   },
+  {
+    title: "AI Job Triage",
+    href: "/tools/job-triage",
+  },
 ];
 
 const mainNavLinksLoggedInExclusive = [
