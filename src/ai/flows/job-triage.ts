@@ -12,14 +12,14 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const AiJobTriageInputSchema = z.object({
+const AiJobTriageInputSchema = z.object({
   jobTitle: z.string().describe('The title of the job.'),
   jobDescription: z.string().describe('A detailed description of the job or problem.'),
   serviceCategory: z.string().describe('The general category of the job (e.g., Plumbing, Electrical).'),
 });
 export type AiJobTriageInput = z.infer<typeof AiJobTriageInputSchema>;
 
-export const AiJobTriageOutputSchema = z.object({
+const AiJobTriageOutputSchema = z.object({
   likelyCause: z.string().describe('A brief analysis of the most probable cause of the issue based on the description.'),
   suggestedParts: z.array(z.string()).describe('A list of specific parts that might be required to complete the job.'),
   suggestedTools: z.array(z.string()).describe('A list of tools likely needed for the job.'),
