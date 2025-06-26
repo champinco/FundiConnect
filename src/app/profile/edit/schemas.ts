@@ -51,7 +51,7 @@ export const portfolioItemSchema = z.object({
 
 export const providerProfileEditFormSchema = z.object({
   businessName: z.string().min(2, "Business name must be at least 2 characters."),
-  mainService: z.enum(serviceCategoriesForValidation, { errorMap: () => ({ message: "Please select your main service."})}),
+  mainService: z.string().min(3, { message: "Main service is required (min 3 characters)." }),
   otherMainServiceDescription: z.string().optional(),
   specialties: z.string().optional()
     .transform(val => val ? val.split(',').map(s => s.trim()).filter(s => s.length > 0) : []),
@@ -105,14 +105,6 @@ export const providerProfileEditFormSchema = z.object({
   portfolio: z.array(portfolioItemSchema).optional(), 
   unavailableDates: z.array(z.date()).optional().default([]),
   receivesEmergencyJobAlerts: z.boolean().optional().default(false),
-}).superRefine((data, ctx) => {
-  if (data.mainService === 'Other' && (!data.otherMainServiceDescription || data.otherMainServiceDescription.trim().length < 3)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Please provide a brief description for your 'Other' main service (min 3 characters).",
-      path: ['otherMainServiceDescription'],
-    });
-  }
 });
 
 export type ProviderProfileEditFormValues = z.infer<typeof providerProfileEditFormSchema>;

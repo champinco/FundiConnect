@@ -15,7 +15,7 @@ export interface Provider {
   reviewsCount: number;
   location: string;
   mainService: ServiceCategory;
-  otherMainServiceDescription?: string; // Added
+  otherMainServiceDescription?: string;
   isVerified: boolean;
   verificationAuthority?: string; // e.g., "NCA" or "EPRA"
   bioSummary: string;

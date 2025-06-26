@@ -8,6 +8,8 @@ import type { User, AccountType } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
 import type { SignupFormValues } from './schemas';
 import { sendWelcomeEmail } from '@/services/emailService'; 
+import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas';
+import type { ServiceCategory } from '@/components/service-category-icon';
 
 interface SignupResult {
   success: boolean;
@@ -39,14 +41,18 @@ export async function signupUserAction(values: SignupFormValues, firebaseUserId:
     console.log("[signupUserAction] Successfully created user profile in Firestore for UID:", firebaseUserId);
 
     if (values.accountType === 'provider') {
+      const formMainService = values.mainService || 'Other';
+      const isKnownCategory = (serviceCategoriesForValidation as readonly string[]).includes(formMainService);
+      
       const providerProfileData: Omit<ProviderProfile, 'createdAt' | 'updatedAt' | 'rating' | 'reviewsCount'> = {
         id: firebaseUserId,
         userId: firebaseUserId,
         businessName: values.businessName || values.fullName,
-        mainService: values.mainService || 'Other',
+        mainService: isKnownCategory ? formMainService as ServiceCategory : 'Other',
+        otherMainServiceDescription: isKnownCategory ? undefined : formMainService,
         specialties: [],
         skills: [], 
-        bio: values.bio || `Fundi specializing in ${values.mainService || 'various services'}. Profile for ${values.businessName || values.fullName}.`,
+        bio: values.bio || `Fundi specializing in ${formMainService}. Profile for ${values.businessName || values.fullName}.`,
         location: values.providerLocation || 'Nairobi',
         fullAddress: null, 
         yearsOfExperience: values.yearsOfExperience !== undefined ? Number(values.yearsOfExperience) : 0,

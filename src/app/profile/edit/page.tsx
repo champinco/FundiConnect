@@ -130,6 +130,7 @@ export default function EditProviderProfilePage() {
 
             reset({
               ...result.providerProfile,
+              mainService: result.providerProfile.mainService === 'Other' && result.providerProfile.otherMainServiceDescription ? result.providerProfile.otherMainServiceDescription : result.providerProfile.mainService,
               otherMainServiceDescription: result.providerProfile.otherMainServiceDescription || "",
               specialties: (result.providerProfile.specialties ?? []).join(', '),
               skills: (result.providerProfile.skills ?? []).join(', '),
@@ -381,38 +382,20 @@ export default function EditProviderProfilePage() {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="mainService" className="font-semibold flex items-center"><Briefcase className="mr-2 h-4 w-4" /> Main Service Category</Label>
-                  <Controller
-                    name="mainService"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <SelectTrigger id="mainService" className="mt-1">
-                          <SelectValue placeholder="Select your main service" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allServiceCategories.map(category => (
-                            <SelectItem key={category} value={category}>
-                              <div className="flex items-center"><ServiceCategoryIcon category={category} iconOnly className="mr-2 h-4 w-4" />{category}</div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                  <Input
+                    id="mainService"
+                    {...register("mainService")}
+                    list="edit-service-categories-datalist"
+                    placeholder="e.g., Plumbing, Electrical, or type a custom one"
+                    className="mt-1"
                   />
+                  <datalist id="edit-service-categories-datalist">
+                    {allServiceCategories.map(category => (
+                      <option key={category} value={category} />
+                    ))}
+                  </datalist>
                   {errors.mainService && <p className="text-sm text-destructive mt-1">{errors.mainService.message}</p>}
                 </div>
-                {mainServiceValue === 'Other' && (
-                  <div>
-                    <Label htmlFor="otherMainServiceDescription" className="font-semibold">Specify Your 'Other' Main Service</Label>
-                    <Input 
-                      id="otherMainServiceDescription" 
-                      {...register("otherMainServiceDescription")} 
-                      placeholder="e.g., Custom Metal Fabrication" 
-                      className="mt-1" 
-                    />
-                    {errors.otherMainServiceDescription && <p className="text-sm text-destructive mt-1">{errors.otherMainServiceDescription.message}</p>}
-                  </div>
-                )}
                 <div>
                   <Label htmlFor="specialties" className="font-semibold flex items-center"><Sparkles className="mr-2 h-4 w-4" /> Specialties (Comma-separated)</Label>
                   <Input id="specialties" {...register("specialties")} placeholder="e.g., Drain unclogging, Geyser installation" className="mt-1" />

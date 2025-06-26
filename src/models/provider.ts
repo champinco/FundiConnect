@@ -25,7 +25,7 @@ export interface ProviderProfile {
   userId: string;
   businessName: string;
   mainService: ServiceCategory;
-  otherMainServiceDescription?: string; // If mainService is 'Other'
+  otherMainServiceDescription?: string;
   specialties: string[];
   skills: string[];
   bio: string;
@@ -50,4 +50,3 @@ export interface ProviderProfile {
   createdAt: Date;
   updatedAt: Date;
 }
-

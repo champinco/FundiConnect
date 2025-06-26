@@ -48,8 +48,8 @@ export async function createProviderProfileInFirestore(profileData: Omit<Provide
 
     const dataToSave = {
       ...profileData,
+      otherMainServiceDescription: profileData.otherMainServiceDescription || null,
       bannerImageUrl: profileData.bannerImageUrl || null, // Ensure bannerImageUrl is handled
-      otherMainServiceDescription: profileData.mainService === 'Other' && profileData.otherMainServiceDescription ? profileData.otherMainServiceDescription.trim() : null,
       certifications: certificationsWithAdminTimestamps,
       portfolio: (Array.isArray(profileData.portfolio) ? profileData.portfolio : []).map(item => ({
           id: item.id || '',

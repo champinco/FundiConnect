@@ -47,6 +47,7 @@ export async function fetchFeaturedProvidersAction(): Promise<Provider[]> {
             reviewsCount: data.reviewsCount || 0,
             location: data.location || "N/A",
             mainService: data.mainService || 'Other' as ServiceCategory,
+            otherMainServiceDescription: data.otherMainServiceDescription,
             isVerified: data.isVerified || false,
             verificationAuthority: data.verificationAuthority || undefined,
             bioSummary: bio.substring(0, 100) + (bio.length > 100 ? '...' : ''),

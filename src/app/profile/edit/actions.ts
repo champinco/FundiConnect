@@ -12,6 +12,7 @@ import { getProviderProfileFromFirestore, createProviderProfileInFirestore } fro
 import type { User as AppUser } from '@/models/user';
 import type { ServiceCategory } from '@/components/service-category-icon';
 import { format } from 'date-fns';
+import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas';
 
 
 interface ProviderEditPageData {
@@ -154,10 +155,14 @@ export async function updateProviderProfileAction(
     if (data.facebookUrl) socialMediaLinks.facebook = data.facebookUrl;
     if (data.linkedinUrl) socialMediaLinks.linkedin = data.linkedinUrl;
 
+    const isKnownCategory = (serviceCategoriesForValidation as readonly string[]).includes(data.mainService);
+    const finalServiceCategory = isKnownCategory ? data.mainService as ServiceCategory : 'Other';
+    const finalOtherDescription = isKnownCategory ? null : data.mainService;
+
     const updatePayload: any = {
       businessName: data.businessName,
-      mainService: data.mainService,
-      otherMainServiceDescription: data.mainService === 'Other' && data.otherMainServiceDescription ? data.otherMainServiceDescription.trim() : null,
+      mainService: finalServiceCategory,
+      otherMainServiceDescription: finalOtherDescription,
       specialties: specialtiesArray,
       skills: skillsArray,
       bio: data.bio,

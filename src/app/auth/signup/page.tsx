@@ -64,7 +64,7 @@ export default function SignupPage() {
       confirmPassword: "",
       accountType: "client",
       businessName: "",
-      mainService: undefined,
+      mainService: "",
       providerLocation: "",
       contactPhoneNumber: "",
       yearsOfExperience: 0,
@@ -318,27 +318,19 @@ export default function SignupPage() {
                 </div>
                 <div>
                   <Label htmlFor="mainService" className="font-semibold flex items-center"><Briefcase className="mr-2 h-4 w-4" /> Main Service Category</Label>
-                  <Controller
-                    name="mainService"
-                    control={control}
-                    render={({ field }) => (
-                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
-                        <SelectTrigger id="mainService" className="mt-1">
-                          <SelectValue placeholder="Select your main service" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {providerServiceCategories.map(category => (
-                            <SelectItem key={category} value={category}>
-                              <div className="flex items-center">
-                                <ServiceCategoryIcon category={category} iconOnly className="mr-2 h-4 w-4" />
-                                {category}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
+                  <Input
+                    id="mainService"
+                    {...register("mainService")}
+                    list="service-categories-datalist"
+                    placeholder="e.g., Plumbing, Electrical, or type a custom one"
+                    className="mt-1"
+                    disabled={isLoading}
                   />
+                  <datalist id="service-categories-datalist">
+                    {providerServiceCategories.map(category => (
+                      <option key={category} value={category} />
+                    ))}
+                  </datalist>
                   {errors.mainService && <p className="text-sm text-destructive mt-1">{errors.mainService.message}</p>}
                 </div>
                 <div>

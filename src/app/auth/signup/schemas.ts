@@ -15,7 +15,7 @@ export const signupFormSchema = z.object({
   accountType: z.enum(['client', 'provider']),
   // Provider specific fields - conditionally required
   businessName: z.string().optional(),
-  mainService: z.enum(serviceCategoriesForValidation).optional(),
+  mainService: z.string().optional(),
   providerLocation: z.string().optional(), 
   contactPhoneNumber: z.string().optional(),
   yearsOfExperience: z.preprocess(
@@ -57,10 +57,10 @@ export const signupFormSchema = z.object({
         path: ["businessName"],
       });
     }
-    if (!data.mainService) {
+    if (!data.mainService || data.mainService.length < 3) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Main service category is required.",
+        message: "Main service category is required (min 3 characters).",
         path: ["mainService"],
       });
     }
