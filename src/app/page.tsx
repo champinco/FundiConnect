@@ -12,18 +12,39 @@ import { useRouter } from 'next/navigation';
 import { fetchFeaturedProvidersAction, fetchHomepageStatsAction, type HomepageStats } from '@/app/actions/home_page_actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const serviceGroups: { name: string; categories: ServiceCategory[] }[] = [
+interface ServiceInfo {
+  type: ServiceCategory;
+  name: string;
+}
+
+const serviceGroups: { name: string; categories: ServiceInfo[] }[] = [
   {
     name: "Repairs & Maintenance",
-    categories: ['Plumbing', 'Electrical', 'Appliance Repair', 'HVAC', 'Pest Control', 'Locksmith'],
+    categories: [
+      { type: 'Plumbing', name: 'Plumbing' },
+      { type: 'Electrical', name: 'Electrical' },
+      { type: 'Appliance Repair', name: 'Appliance Repair' },
+      { type: 'Locksmith', name: 'Locksmith' },
+    ],
   },
   {
-    name: "Installation & Construction",
-    categories: ['Solar Installation', 'Painting & Decorating', 'Carpentry & Furniture', 'Tiling & Masonry'],
+    name: "Home Improvement",
+    categories: [
+      { type: 'Painting & Decorating', name: 'Painting' },
+      { type: 'Carpentry & Furniture', name: 'Carpentry' },
+      { type: 'Tiling & Masonry', name: 'Tiling & Masonry' },
+      { type: 'Solar Installation', name: 'Solar' },
+      { type: 'HVAC', name: 'Heating & AC' },
+    ],
   },
   {
     name: "General Services",
-    categories: ['Garbage Collection', 'Landscaping', 'Other'],
+    categories: [
+      { type: 'Landscaping', name: 'Landscaping' },
+      { type: 'Garbage Collection', name: 'Garbage' },
+      { type: 'Pest Control', name: 'Pest Control' },
+      { type: 'Other', name: 'Other' },
+    ],
   }
 ];
 
@@ -174,9 +195,9 @@ export default function HomePage() {
             {serviceGroups.map((group) => (
               <TabsContent key={group.name} value={group.name}>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 animate-in fade-in-50">
-                  {group.categories.map((category) => (
-                    <Link href={`/search?mode=providers&category=${encodeURIComponent(category)}`} key={category}>
-                      <ServiceCategoryIcon category={category} />
+                  {group.categories.map((service) => (
+                    <Link href={`/search?mode=providers&category=${encodeURIComponent(service.type)}`} key={service.type}>
+                      <ServiceCategoryIcon category={service.type} displayName={service.name} />
                     </Link>
                   ))}
                 </div>

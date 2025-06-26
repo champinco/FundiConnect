@@ -22,6 +22,7 @@ export type ServiceCategory =
 interface ServiceCategoryIconProps extends LucideProps {
   category: ServiceCategory;
   iconOnly?: boolean;
+  displayName?: string;
 }
 
 const serviceIcons: Record<ServiceCategory, FC<LucideProps>> = {
@@ -40,7 +41,7 @@ const serviceIcons: Record<ServiceCategory, FC<LucideProps>> = {
   'Other': HelpCircle,
 };
 
-const ServiceCategoryIcon: FC<ServiceCategoryIconProps> = ({ category, className, iconOnly = false, ...props }) => {
+const ServiceCategoryIcon: FC<ServiceCategoryIconProps> = ({ category, displayName, className, iconOnly = false, ...props }) => {
   const IconComponent = serviceIcons[category] || HelpCircle;
 
   if (iconOnly) {
@@ -52,7 +53,7 @@ const ServiceCategoryIcon: FC<ServiceCategoryIconProps> = ({ category, className
       <div className="p-3 bg-primary/10 rounded-full">
          <IconComponent className={`h-8 w-8 text-primary ${className}`} {...props} />
       </div>
-      <span className="text-sm font-medium text-center">{category}</span>
+      <span className="text-sm font-medium text-center">{displayName || category}</span>
     </div>
   );
 };
