@@ -127,22 +127,32 @@ export default function DashboardPage() {
       text: 'Find trusted local fundis for any job on FundiConnect!',
       url: window.location.origin,
     };
-    try {
-      if (navigator.share) {
+
+    // Check if the share API is supported
+    if (navigator.share) {
+      try {
         await navigator.share(shareData);
-      } else {
-        // Fallback for browsers that don't support the Web Share API
-        await navigator.clipboard.writeText(window.location.origin);
-        toast({
-          title: "Link Copied!",
-          description: "The link to FundiConnect has been copied to your clipboard.",
-        });
+        // If successful, we're done.
+        return;
+      } catch (error: any) {
+        // The share API can be rejected by the user (AbortError) or fail for other reasons.
+        // We log the error but proceed to the clipboard fallback for a better user experience.
+        console.warn('Web Share API failed, falling back to clipboard. Error:', error.name, error.message);
       }
-    } catch (error) {
-      console.error('Error sharing:', error);
+    }
+    
+    // Fallback to clipboard if navigator.share is not available or if it failed.
+    try {
+      await navigator.clipboard.writeText(window.location.origin);
       toast({
-        title: "Could not share",
-        description: "There was an error trying to share the link.",
+        title: "Link Copied!",
+        description: "The link to FundiConnect has been copied to your clipboard. You can now paste it to share.",
+      });
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast({
+        title: "Could Not Share",
+        description: "Sharing is not supported or was blocked in your browser.",
         variant: "destructive",
       });
     }
