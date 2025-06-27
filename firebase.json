@@ -5,6 +5,7 @@
       "source": "functions",
       "codebase": "default",
       "runtime": "nodejs18",
+      "location": "us-east1",
       "ignore": [
         "node_modules",
         ".git",
