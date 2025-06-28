@@ -180,7 +180,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
     <div className="container mx-auto px-4 py-8">
       <Card className="overflow-hidden shadow-xl">
         <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 p-0 dark:from-primary/20 dark:to-accent/20">
-          <div className="relative h-64 md:h-80 w-full">
+          <div className="relative h-48 sm:h-64 md:h-80 w-full">
             <Image
               src={provider.bannerImageUrl || provider.profilePictureUrl || 'https://placehold.co/1200x400.png'}
               alt={`${provider.businessName} cover image`}
@@ -189,13 +189,13 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
               priority
               data-ai-hint={provider.bannerImageUrl ? "business cover" : "workshop tools"}
             />
-            <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-6 md:p-8">
+            <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-4 md:p-8">
                 <div className="flex items-start md:items-center space-x-4">
-                    <div className="relative w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-background shadow-lg overflow-hidden shrink-0">
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full border-4 border-background shadow-lg overflow-hidden shrink-0">
                         <Image src={provider.profilePictureUrl || 'https://placehold.co/300x300.png'} alt={provider.businessName} fill style={{ objectFit: 'cover' }} data-ai-hint="professional portrait"/>
                     </div>
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-bold font-headline text-white" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>{provider.businessName}</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold font-headline text-white" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>{provider.businessName}</h1>
                         <div className="flex items-center space-x-2 mt-1">
                             <Star className="h-5 w-5 text-yellow-400 fill-yellow-400" />
                             <span className="text-white font-semibold">{(provider.rating || 0).toFixed(1)} ({provider.reviewsCount || 0} reviews)</span>
@@ -211,7 +211,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
           </div>
         </CardHeader>
 
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6">
           <div className="grid md:grid-cols-3 gap-6 mb-6">
             <div className="md:col-span-2">
               <Tabs defaultValue="about" className="w-full">

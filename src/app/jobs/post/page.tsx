@@ -202,7 +202,7 @@ export default function PostJobPage() {
         </CardHeader>
         
         {showCorsError && (
-          <div className="px-6 pb-4 border-b">
+          <div className="px-4 sm:px-6 pb-4 border-b">
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>File Upload Blocked: Action Required</AlertTitle>
@@ -255,7 +255,7 @@ export default function PostJobPage() {
                 id="jobDescription"
                 {...register("jobDescription")}
                 placeholder="Provide as much detail as possible. What needs to be done? What is the problem? Any specific requirements?"
-                className="min-h-[150px] mt-1"
+                className="min-h-[120px] sm:min-h-[150px] mt-1"
               />
               {errors.jobDescription && <p className="text-sm text-destructive mt-1">{errors.jobDescription.message}</p>}
             </div>
@@ -350,7 +350,7 @@ export default function PostJobPage() {
             <div>
               <Label htmlFor="jobUpload" className="font-semibold">Upload Photos/Videos (Optional, up to 5)</Label>
               <div className="mt-1 flex items-center justify-center w-full">
-                  <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-card hover:bg-muted transition">
+                  <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-28 sm:h-32 border-2 border-dashed rounded-lg cursor-pointer bg-card hover:bg-muted transition">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
                           <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
                           <p className="mb-1 text-sm text-muted-foreground"><span className="font-semibold">Click to upload</span> or drag and drop</p>

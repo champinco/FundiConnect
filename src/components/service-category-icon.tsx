@@ -49,11 +49,11 @@ const ServiceCategoryIcon: FC<ServiceCategoryIconProps> = ({ category, displayNa
   }
 
   return (
-    <div className="flex flex-col items-center space-y-2 p-4 rounded-lg hover:bg-card transition-colors cursor-pointer">
-      <div className="p-3 bg-primary/10 rounded-full">
-         <IconComponent className={`h-8 w-8 text-primary ${className}`} {...props} />
+    <div className="flex flex-col items-center space-y-2 p-3 sm:p-4 rounded-lg hover:bg-card transition-colors cursor-pointer">
+      <div className="p-2 sm:p-3 bg-primary/10 rounded-full">
+         <IconComponent className={`h-7 w-7 sm:h-8 sm:w-8 text-primary ${className}`} {...props} />
       </div>
-      <span className="text-sm font-medium text-center">{displayName || category}</span>
+      <span className="text-xs sm:text-sm font-medium text-center">{displayName || category}</span>
     </div>
   );
 };
