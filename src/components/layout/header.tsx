@@ -376,4 +376,3 @@ export function SiteHeader() {
     </header>
   );
 }
-
