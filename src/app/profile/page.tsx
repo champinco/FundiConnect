@@ -30,7 +30,17 @@ export default function ProfilePage() {
       setCurrentUser(user);
       if (user) {
         console.log(`[ProfilePage] Auth state changed, user UID: ${user.uid}. Fetching profile data...`);
-        const result = await fetchUserProfilePageDataAction(user.uid, user);
+        
+        // Create a serializable plain object from the Firebase user object
+        const clientUser = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          phoneNumber: user.phoneNumber,
+        };
+
+        const result = await fetchUserProfilePageDataAction(user.uid, clientUser);
         if (result.error) {
           console.error(`[ProfilePage] Error fetching profile data: ${result.error}`);
           setError(result.error);

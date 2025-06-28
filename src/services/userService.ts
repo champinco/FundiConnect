@@ -5,9 +5,16 @@
 import { adminDb } from '@/lib/firebaseAdmin'; // Use Admin SDK
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { UpdateData } from 'firebase-admin/firestore';
-import type { User as FirebaseUser } from 'firebase/auth'; // Client-side Firebase User type
 import type { User, AccountType } from '@/models/user';
 
+// Define a serializable object type for client user data
+interface ClientFirebaseUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  phoneNumber: string | null;
+}
 
 interface UserDocumentForCreate {
   uid: string;
@@ -140,19 +147,19 @@ export async function getUserProfileFromFirestore(uid: string): Promise<User | n
 
 /**
  * Creates a default user profile document in Firestore if one doesn't exist, using Admin SDK.
- * @param firebaseUser - The Firebase Auth user object (client-side type).
+ * @param firebaseUser - A plain object with Firebase Auth user data.
  * @returns A promise that resolves with the created or existing User object.
  */
-export async function createDefaultAppUserProfile(firebaseUser: FirebaseUser): Promise<User> {
+export async function createDefaultAppUserProfile(firebaseUser: ClientFirebaseUser): Promise<User> {
   if (!adminDb) {
     console.error("Admin DB not initialized. Default user profile creation failed.");
     throw new Error("Server error: Admin DB not initialized.");
   }
 
   // Added robust check for firebaseUser and its essential properties
-  if (!firebaseUser || typeof firebaseUser.uid !== 'string' || !firebaseUser.uid || typeof firebaseUser.email !== 'string' || !firebaseUser.email) {
-    console.error("createDefaultAppUserProfile called with invalid or incomplete FirebaseUser object. UID or Email is missing.", firebaseUser);
-    throw new Error("Cannot create default profile: critical user data (UID, Email) is missing from the provided FirebaseUser object.");
+  if (!firebaseUser || !firebaseUser.uid || !firebaseUser.email) {
+    console.error("createDefaultAppUserProfile called with invalid or incomplete user data object. UID or Email is missing.", firebaseUser);
+    throw new Error("Cannot create default profile: critical user data (UID, Email) is missing from the provided user object.");
   }
 
   const userRef = adminDb.collection('users').doc(firebaseUser.uid);

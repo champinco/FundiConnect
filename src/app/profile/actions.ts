@@ -6,8 +6,15 @@ import { getUserProfileFromFirestore, createDefaultAppUserProfile } from '@/serv
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import type { User as AppUser, AccountType } from '@/models/user';
 import type { ProviderProfile } from '@/models/provider';
-import type { User as FirebaseUser } from 'firebase/auth'; // Client-side Firebase auth type
 
+// Define a serializable object type for client user data
+interface ClientFirebaseUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  phoneNumber: string | null;
+}
 
 export interface UserProfilePageData {
   appUser: AppUser | null;
@@ -15,7 +22,7 @@ export interface UserProfilePageData {
   error?: string;
 }
 
-export async function fetchUserProfilePageDataAction(userId: string, clientFirebaseUser: FirebaseUser | null): Promise<UserProfilePageData> {
+export async function fetchUserProfilePageDataAction(userId: string, clientFirebaseUser: ClientFirebaseUser | null): Promise<UserProfilePageData> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
     const errorMsg = "[fetchUserProfilePageDataAction] CRITICAL: Firebase Admin DB not initialized. Aborting.";
     console.error(errorMsg);
