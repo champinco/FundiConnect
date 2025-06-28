@@ -35,13 +35,13 @@ function LoginContent() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
-      if (user && !isLoading) {
+      if (user) {
         const redirectUrl = searchParams.get('redirect');
         router.push(redirectUrl || '/dashboard');
       }
     });
     return () => unsubscribe();
-  }, [router, searchParams, isLoading]);
+  }, [router, searchParams]);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
@@ -73,6 +73,7 @@ function LoginContent() {
       }
       
       toast({ title: "Login Error", description: errorMessage, variant: "destructive" });
+    } finally {
       setIsLoading(false);
     }
   };
