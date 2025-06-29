@@ -9,6 +9,7 @@ import type { Job, JobStatus, JobUrgency } from '@/models/job';
 import { submitReview as submitReviewService, type ReviewData, getReviewForJobByClient } from '@/services/reviewService';
 import type { User as AppUser } from '@/models/user';
 import { getUserProfileFromFirestore } from '@/services/userService';
+import { getProviderProfileFromFirestore } from '@/services/providerService'; // Correct import
 import { createNotification } from '@/services/notificationService'; 
 import { getOrCreateChatAction } from '@/app/messages/actions'; 
 import { sendNewQuoteReceivedEmail, sendQuoteAcceptedEmail, sendQuoteRejectedEmail } from '@/services/emailService'; // Import email service
@@ -41,14 +42,14 @@ export async function submitQuoteAction(
     const quoteId = await submitQuoteForJobService(quoteDataForService);
 
     const job = await getJobByIdFromFirestore(data.jobId);
-    const providerProfile = await getUserProfileFromFirestore(data.providerId); 
+    const providerProfile = await getProviderProfileFromFirestore(data.providerId); // Correctly fetch provider profile
     const clientProfile = await getUserProfileFromFirestore(data.clientId);
 
     if (job && providerProfile) {
       await createNotification({
         userId: job.clientId,
         type: 'new_quote_received',
-        message: `You received a new quote from ${providerProfile.fullName || providerProfile.businessName || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
+        message: `You received a new quote from ${providerProfile.businessName || 'a provider'} for your job: "${job.title.substring(0,30)}..."`,
         relatedEntityId: data.jobId, 
         link: `/jobs/${data.jobId}?tab=quotes` 
       });
@@ -57,7 +58,7 @@ export async function submitQuoteAction(
       if (clientProfile?.email) {
         await sendNewQuoteReceivedEmail(
           clientProfile.email,
-          providerProfile.fullName || providerProfile.businessName || "A Fundi",
+          providerProfile.businessName || "A Fundi",
           job.title,
           data.jobId
         );
@@ -103,11 +104,11 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
     await updateJobStatus(jobId, 'assigned', providerIdToAssign);
     
     const job = await getJobByIdFromFirestore(jobId);
-    const providerProfile = await getUserProfileFromFirestore(providerIdToAssign); // Fetch provider's main user profile
+    const providerProfile = await getProviderProfileFromFirestore(providerIdToAssign); // Correctly fetch provider profile
     const clientProfile = await getUserProfileFromFirestore(clientId); // Fetch client's profile
     let newChatId: string | null = null;
 
-    if (job) {
+    if (job && providerProfile) { // Check providerProfile exists
       await createNotification({
         userId: providerIdToAssign,
         type: 'quote_status_changed',
@@ -117,9 +118,10 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
       });
 
       // Send email to provider about accepted quote
-      if (providerProfile?.email) {
+      const providerUser = await getUserProfileFromFirestore(providerIdToAssign);
+      if (providerUser?.email) {
         await sendQuoteAcceptedEmail(
-          providerProfile.email,
+          providerUser.email,
           job.title,
           clientProfile?.fullName || "The Client",
           jobId
@@ -140,7 +142,7 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
           await createNotification({
             userId: clientId,
             type: 'new_message',
-            message: `Chat session started with ${providerProfile?.fullName || 'the provider'} for job: "${job.title.substring(0,30)}..."`,
+            message: `Chat session started with ${providerProfile.businessName || 'the provider'} for job: "${job.title.substring(0,30)}..."`,
             relatedEntityId: newChatId,
             link: `/messages/${newChatId}`
           });
@@ -175,7 +177,7 @@ export async function rejectQuoteAction(quoteId: string, clientId: string): Prom
     await updateQuoteStatus(quoteId, 'rejected');
 
     const job = await getJobByIdFromFirestore(quoteToReject.jobId);
-    const providerProfile = await getUserProfileFromFirestore(quoteToReject.providerId);
+    const providerUser = await getUserProfileFromFirestore(quoteToReject.providerId); // Fetch provider's user profile for email
 
     if (job) {
       await createNotification({
@@ -187,9 +189,9 @@ export async function rejectQuoteAction(quoteId: string, clientId: string): Prom
       });
 
       // Send email to provider about rejected quote
-      if (providerProfile?.email) {
+      if (providerUser?.email) {
         await sendQuoteRejectedEmail(
-          providerProfile.email,
+          providerUser.email,
           job.title,
           job.id
         );
@@ -223,7 +225,7 @@ export async function submitReviewAction(data: ReviewData): Promise<SubmitReview
        await createNotification({
         userId: data.providerId,
         type: 'new_review',
-        message: `You received a new ${data.rating}-star review from ${clientProfile.fullName || clientProfile.email || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
+        message: `You received a new ${data.rating}-star review from ${clientProfile.fullName || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
         relatedEntityId: data.jobId, 
         link: `/providers/${data.providerId}?tab=reviews` 
       });

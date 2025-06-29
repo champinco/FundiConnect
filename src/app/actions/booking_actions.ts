@@ -7,6 +7,7 @@ import type { BookingRequest, BookingStatus, CreateBookingRequestData } from '@/
 import { createNotification } from '@/services/notificationService';
 import { getJobByIdFromFirestore } from '@/services/jobService';
 import { getUserProfileFromFirestore } from '@/services/userService';
+import { getProviderProfileFromFirestore } from '@/services/providerService'; // Correct import
 import { format } from 'date-fns';
 import { Timestamp } from 'firebase-admin/firestore';
 import { sendBookingConfirmedEmail, sendBookingRejectedEmail } from '@/services/emailService'; // Import email service
@@ -66,7 +67,7 @@ export async function providerRespondToBookingAction(
 
     // Notify client
     const clientProfile = await getUserProfileFromFirestore(serviceBookingData.clientId);
-    const providerProfile = await getUserProfileFromFirestore(providerId); // Re-fetch for current details
+    const providerProfile = await getProviderProfileFromFirestore(providerId); // Correctly fetch provider profile
     const statusText = newStatus === 'confirmed' ? 'confirmed' : 'not accepted';
     
     let jobTitleSegment = "";
@@ -80,7 +81,7 @@ export async function providerRespondToBookingAction(
     await createNotification({
       userId: serviceBookingData.clientId,
       type: 'booking_status_changed',
-      message: `Your booking request with ${providerProfile?.businessName || providerProfile?.fullName || 'Provider'} for ${format(serviceBookingData.requestedDate, 'PPP')}${jobTitleSegment} has been ${statusText}. ${providerMessage ? 'Provider message: ' + providerMessage.substring(0,50) + '...' : ''}`,
+      message: `Your booking request with ${providerProfile?.businessName || 'Provider'} has been ${statusText}. ${providerMessage ? 'Provider message: ' + providerMessage.substring(0,50) + '...' : ''}`,
       relatedEntityId: bookingId,
       link: `/dashboard` 
     });
@@ -90,14 +91,14 @@ export async function providerRespondToBookingAction(
       if (newStatus === 'confirmed') {
         await sendBookingConfirmedEmail(
           clientProfile.email,
-          providerProfile?.businessName || providerProfile?.fullName || "The Provider",
+          providerProfile?.businessName || "The Provider",
           clientProfile.fullName || "Valued Client",
           serviceBookingData.requestedDate
         );
       } else if (newStatus === 'rejected') {
         await sendBookingRejectedEmail(
           clientProfile.email,
-          providerProfile?.businessName || providerProfile?.fullName || "The Provider",
+          providerProfile?.businessName || "The Provider",
           serviceBookingData.requestedDate
         );
       }

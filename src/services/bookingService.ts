@@ -34,7 +34,7 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
     const now = FieldValue.serverTimestamp();
 
     const clientProfile = await getUserProfileFromFirestore(data.clientId);
-    const providerProfile = await getProviderProfileFromFirestore(data.providerId);
+    const providerProfile = await getProviderProfileFromFirestore(data.providerId); // Correctly fetch provider profile
 
     const bookingPayload: Omit<BookingRequest, 'id' | 'createdAt' | 'updatedAt' | 'providerResponseMessage' | 'clientResponseMessage'> & { createdAt: FieldValue, updatedAt: FieldValue, requestedDate: Timestamp, providerResponseMessage: null, clientResponseMessage: null } = {
       providerId: data.providerId,
@@ -64,16 +64,14 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
     console.log(`[BookingService] Successfully created booking request ${newBookingRef.id} for provider ${data.providerId} from client ${data.clientId}.`);
     
     // Send email notification to provider
-    if (providerProfile?.contactPhoneNumber) { // Using contactPhoneNumber as a proxy for having contact info. Ideally, use provider's user email.
-        const providerUserEmail = (await getUserProfileFromFirestore(data.providerId))?.email;
-        if (providerUserEmail) {
-            await sendBookingRequestProviderEmail(
-                providerUserEmail,
-                clientProfile?.fullName || "A Client",
-                data.requestedDate,
-                data.messageToProvider
-            );
-        }
+    const providerUserEmail = (await getUserProfileFromFirestore(data.providerId))?.email;
+    if (providerUserEmail) {
+        await sendBookingRequestProviderEmail(
+            providerUserEmail,
+            clientProfile?.fullName || "A Client",
+            data.requestedDate,
+            data.messageToProvider
+        );
     }
     
     return newBookingRef.id;
