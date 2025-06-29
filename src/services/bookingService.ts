@@ -8,6 +8,8 @@ import type { BookingRequest, BookingStatus } from '@/models/booking';
 import { getUserProfileFromFirestore } from '@/services/userService';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { sendBookingRequestProviderEmail } from '@/services/emailService'; // Import email service
+import { createNotification } from '@/services/notificationService';
+import { format } from 'date-fns';
 
 export interface CreateBookingRequestData {
   providerId: string;
@@ -63,6 +65,15 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
     await newBookingRef.set(bookingPayload);
     console.log(`[BookingService] Successfully created booking request ${newBookingRef.id} for provider ${data.providerId} from client ${data.clientId}.`);
     
+    // Create in-app notification for the provider
+    await createNotification({
+      userId: data.providerId,
+      type: 'new_booking_request',
+      message: `You have a new booking request from ${clientProfile?.fullName || 'a client'} for ${format(data.requestedDate, 'PPP')}.`,
+      relatedEntityId: newBookingRef.id,
+      link: `/dashboard` 
+    });
+
     // Send email notification to provider
     const providerUserEmail = (await getUserProfileFromFirestore(data.providerId))?.email;
     if (providerUserEmail) {
