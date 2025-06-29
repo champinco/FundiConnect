@@ -43,9 +43,7 @@ export default function EditProviderProfilePage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isClientAccount, setIsClientAccount] = useState(false);
 
-  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
-  const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
   const [bannerImagePreview, setBannerImagePreview] = useState<string | null>(null);
 
 
@@ -176,9 +174,11 @@ export default function EditProviderProfilePage() {
         toast({ title: "File too large", description: "Profile picture should be less than 5MB.", variant: "destructive" });
         return;
       }
-      setProfilePictureFile(file);
       setProfilePicturePreview(URL.createObjectURL(file));
       setValue('newProfilePictureFile', file, { shouldValidate: true });
+    } else {
+      setProfilePicturePreview(watch('profilePictureUrl')); // Revert to original URL
+      setValue('newProfilePictureFile', undefined, { shouldValidate: true });
     }
   };
   
@@ -189,9 +189,11 @@ export default function EditProviderProfilePage() {
         toast({ title: "File too large", description: "Banner image should be less than 5MB.", variant: "destructive" });
         return;
       }
-      setBannerImageFile(file);
       setBannerImagePreview(URL.createObjectURL(file));
       setValue('newBannerImageFile', file, { shouldValidate: true });
+    } else {
+      setBannerImagePreview(watch('bannerImageUrl')); // Revert to original URL
+      setValue('newBannerImageFile', undefined, { shouldValidate: true });
     }
   };
 
@@ -202,6 +204,10 @@ export default function EditProviderProfilePage() {
       return;
     }
     setIsSubmitting(true);
+    
+    // Use form data as the single source of truth
+    const newProfilePictureToUpload = data.newProfilePictureFile;
+    const newBannerImageToUpload = data.newBannerImageFile;
     let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl;
     let uploadedBannerImgUrl: string | null | undefined = data.bannerImageUrl;
     
@@ -209,12 +215,12 @@ export default function EditProviderProfilePage() {
     const portfolioItemsToSubmit: PortfolioItem[] = [];
 
     try {
-      if (profilePictureFile) {
-        uploadedProfilePicUrl = await uploadFileToStorage(profilePictureFile, `providerProfiles/${currentUser.uid}/profilePictures`);
+      if (newProfilePictureToUpload) {
+        uploadedProfilePicUrl = await uploadFileToStorage(newProfilePictureToUpload, `providerProfiles/${currentUser.uid}/profilePictures`);
       }
 
-      if (bannerImageFile) {
-        uploadedBannerImgUrl = await uploadFileToStorage(bannerImageFile, `providerProfiles/${currentUser.uid}/bannerImages`);
+      if (newBannerImageToUpload) {
+        uploadedBannerImgUrl = await uploadFileToStorage(newBannerImageToUpload, `providerProfiles/${currentUser.uid}/bannerImages`);
       }
 
       if (data.certifications) {
@@ -279,6 +285,13 @@ export default function EditProviderProfilePage() {
         if(result.updatedProfile?.unavailableDates) {
             setValue('unavailableDates', result.updatedProfile.unavailableDates.map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())));
         }
+        
+        // Update form state with new URLs and clear file inputs
+        setValue('profilePictureUrl', uploadedProfilePicUrl);
+        setValue('bannerImageUrl', uploadedBannerImgUrl);
+        setValue('newProfilePictureFile', undefined);
+        setValue('newBannerImageFile', undefined);
+
         if (uploadedProfilePicUrl) setProfilePicturePreview(uploadedProfilePicUrl);
         if (uploadedBannerImgUrl) setBannerImagePreview(uploadedBannerImgUrl);
         
@@ -438,14 +451,14 @@ export default function EditProviderProfilePage() {
                     <Label htmlFor="newProfilePictureFile" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Profile Picture</Label>
                     {profilePicturePreview && <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="mt-2 h-24 w-24 rounded-full object-cover border" data-ai-hint="profile preview image" />}
                     <Input id="newProfilePictureFile" type="file" onChange={handleProfilePictureChange} accept="image/png, image/jpeg, image/jpg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
-                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Square image.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB.</p>
                     {errors.newProfilePictureFile && <p className="text-sm text-destructive mt-1">{errors.newProfilePictureFile.message}</p>}
                 </div>
                  <div>
                     <Label htmlFor="newBannerImageFile" className="font-semibold flex items-center"><Upload className="mr-2 h-4 w-4" /> Banner Image (Optional)</Label>
                     {bannerImagePreview && <Image src={bannerImagePreview} alt="Banner preview" width={300} height={100} className="mt-2 aspect-[3/1] w-full max-w-md rounded-md object-cover border" data-ai-hint="profile banner image"/>}
                     <Input id="newBannerImageFile" type="file" onChange={handleBannerImageChange} accept="image/png, image/jpeg, image/jpg, image/webp" className="mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
-                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: 1200x400px.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB.</p>
                     {errors.newBannerImageFile && <p className="text-sm text-destructive mt-1">{errors.newBannerImageFile.message}</p>}
                 </div>
               </div>
