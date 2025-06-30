@@ -221,7 +221,7 @@ export async function updateJobStatus(jobId: string, newStatus: JobStatus, assig
   try {
     await jobRef.update(updateData);
   } catch (error) {
-    console.error(`[updateJobStatus] Error updating job ${jobId} to status ${newStatus} (Admin SDK):`, error);
+    console.error(`Error updating job ${jobId} to status ${newStatus} (Admin SDK):`, error);
     throw new Error(`Could not update job status.`);
   }
 }
@@ -311,6 +311,43 @@ export async function getAssignedJobsForProvider(providerId: string, limitCount:
     return [];
   }
 }
+
+/**
+ * Retrieves recently updated jobs for a specific client.
+ * @param clientId The UID of the client.
+ * @param limitCount The maximum number of jobs to fetch.
+ * @returns A promise that resolves with an array of Job objects.
+ */
+export async function getRecentJobsForClient(clientId: string, limitCount: number = 3): Promise<Job[]> {
+  if (!adminDb) {
+    console.error("[getRecentJobsForClient] Admin DB not initialized.");
+    return [];
+  }
+  try {
+    const jobsRef = adminDb.collection('jobs');
+    const q = jobsRef
+      .where('clientId', '==', clientId)
+      .orderBy('updatedAt', 'desc')
+      .limit(limitCount);
+    const querySnapshot = await q.get();
+    const jobs: Job[] = [];
+    querySnapshot.forEach((docSnap) => {
+      const jobData = docSnap.data();
+      jobs.push({
+        ...jobData,
+        id: docSnap.id,
+        postedAt: (jobData.postedAt as Timestamp)?.toDate(),
+        updatedAt: (jobData.updatedAt as Timestamp)?.toDate(),
+        deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
+      } as Job);
+    });
+    return jobs;
+  } catch (error) {
+    console.error(`[getRecentJobsForClient] Error fetching recent jobs for client ${clientId}:`, error);
+    return [];
+  }
+}
+
 
 /**
  * Retrieves all jobs from Firestore, intended for general browsing, using Admin SDK.

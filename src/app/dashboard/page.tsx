@@ -7,7 +7,7 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { User as AppUser } from '@/models/user';
 import type { ProviderProfile, Certification, PortfolioItem } from '@/models/provider';
-import type { Job } from '@/models/job';
+import type { Job, JobStatus } from '@/models/job';
 import type { BookingRequest, BookingStatus } from '@/models/booking';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone, Share2 } from 'lucide-react';
+import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone, Share2, Activity } from 'lucide-react';
 import { formatDynamicDate, formatSafeDate } from '@/lib/dateUtils'; 
 import { format } from 'date-fns';
 import { fetchDashboardDataAction, type DashboardPageData } from './actions';
@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 interface ClientDashboardDisplayData {
   jobSummary: ClientJobSummary;
   clientBookings: BookingRequest[];
+  recentJobs: Job[];
 }
 
 interface ProviderDashboardDisplayData {
@@ -218,6 +219,17 @@ export default function DashboardPage() {
     );
   }
 
+  const renderJobStatusBadge = (status: JobStatus) => {
+    let colorClasses = "bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-700";
+    if (status === 'open' || status === 'pending_quotes') colorClasses = "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-800/30 dark:text-blue-300 dark:border-blue-700";
+    else if (status === 'assigned') colorClasses = "bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-800/30 dark:text-purple-300 dark:border-purple-700";
+    else if (status === 'in_progress') colorClasses = "bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-800/30 dark:text-yellow-300 dark:border-yellow-700";
+    else if (status === 'completed') colorClasses = "bg-green-100 text-green-700 border-green-300 dark:bg-green-800/30 dark:text-green-300 dark:border-green-700";
+    else if (status === 'cancelled') colorClasses = "bg-red-100 text-red-700 border-red-300 dark:bg-red-800/30 dark:text-red-300 dark:border-red-700";
+    
+    return <span className={`px-2 py-0.5 text-xs font-medium rounded-full border capitalize whitespace-nowrap ${colorClasses}`}>{status.replace('_', ' ')}</span>;
+  };
+
   const renderBookingStatusBadge = (status: BookingStatus) => {
     let colorClasses = "bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-700";
     if (status === 'pending') colorClasses = "bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-800/30 dark:text-yellow-300 dark:border-yellow-700";
@@ -254,24 +266,43 @@ export default function DashboardPage() {
       </Card>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-        <Card className="shadow-md hover:shadow-lg transition-shadow bg-accent/5 dark:bg-accent/10 md:col-span-1 lg:col-span-1">
-          <CardHeader className="pb-4">
-            <CardTitle className="flex items-center text-xl"><Share2 className="mr-3 h-7 w-7 text-accent" />Help Us Grow!</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-base text-foreground/80 mb-4">
-              Love using FundiConnect? Share it with friends, family, or colleagues who might need to find a trusted Fundi.
-            </p>
-          </CardContent>
-          <CardFooter className="pt-6">
-            <Button onClick={handleShare} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground">
-              Invite a Friend
-            </Button>
-          </CardFooter>
-        </Card>
-
+        
         {appUser.accountType === 'client' && clientData && (
           <>
+            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-3">
+              <CardHeader>
+                <CardTitle className="flex items-center text-xl"><Activity className="mr-3 h-7 w-7 text-primary" />Recent Job Activity</CardTitle>
+                <CardDescription>Track the status of your most recent jobs. This is your "Track Orders" hub.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clientData.recentJobs.length > 0 ? (
+                  <ul className="space-y-4">
+                    {clientData.recentJobs.map(job => (
+                      <li key={job.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors shadow-sm">
+                        <Link href={`/jobs/${job.id}`} className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 group">
+                            <div>
+                                <h4 className="font-semibold truncate group-hover:text-primary text-md">{job.title}</h4>
+                                <p className="text-sm text-muted-foreground">Updated: {formatDynamicDate(job.updatedAt)}</p>
+                            </div>
+                            {renderJobStatusBadge(job.status)}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-center py-8">
+                      <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground">You haven't posted any jobs yet. Post a job to start tracking!</p>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="pt-6">
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/jobs/my-jobs">View All My Jobs</Link>
+                </Button>
+              </CardFooter>
+            </Card>
+
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><ListChecks className="mr-3 h-7 w-7 text-primary" />Job Summary</CardTitle>
@@ -280,16 +311,11 @@ export default function DashboardPage() {
                 <p>Open Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.open}</span></p>
                 <p>Assigned/In Progress: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.assigned + clientData.jobSummary.inProgress}</span></p>
                 <p>Completed Jobs: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.completed}</span></p>
-                <Link href="/search?myJobs=true&status=all_my" className="hover:text-primary hover:underline block">
-                  Total Jobs Posted: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.total}</span>
-                </Link>
+                <p>Total Jobs Posted: <span className="font-semibold text-lg text-primary">{clientData.jobSummary.total}</span></p>
               </CardContent>
               <CardFooter className="flex flex-col sm:flex-row gap-3 pt-6">
                 <Button asChild className="w-full sm:flex-1 bg-accent hover:bg-accent/90 text-accent-foreground">
                   <Link href="/jobs/post"><PlusCircle className="mr-2" /> Post New Job</Link>
-                </Button>
-                <Button asChild variant="outline" className="w-full sm:flex-1">
-                  <Link href="/search?myJobs=true&status=all_my"><Briefcase className="mr-2" /> View My Jobs</Link>
                 </Button>
               </CardFooter>
             </Card>
@@ -308,7 +334,7 @@ export default function DashboardPage() {
               </CardFooter>
             </Card>
 
-            <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2 lg:col-span-3">
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />My Booking Requests ({clientData.clientBookings.length})</CardTitle>
                 <CardDescription>Track the status of your booking requests with Fundis.</CardDescription>
