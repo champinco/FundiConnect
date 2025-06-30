@@ -165,7 +165,7 @@ export default function EditProviderProfilePage() {
       }
     });
     return () => unsubscribe();
-  }, [router, reset, toast, watch, setValue]);
+  }, [router, reset, toast]);
 
   const handleProfilePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -205,24 +205,18 @@ export default function EditProviderProfilePage() {
     }
     setIsSubmitting(true);
     
-    // Use form data as the single source of truth
-    const newProfilePictureToUpload = data.newProfilePictureFile;
-    const newBannerImageToUpload = data.newBannerImageFile;
-    let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl;
-    let uploadedBannerImgUrl: string | null | undefined = data.bannerImageUrl;
-    
-    const uploadedCertificationDocuments: Array<{ index: number; url: string | null }> = [];
-    const portfolioItemsToSubmit: PortfolioItem[] = [];
-
     try {
-      if (newProfilePictureToUpload) {
-        uploadedProfilePicUrl = await uploadFileToStorage(newProfilePictureToUpload, `providerProfiles/${currentUser.uid}/profilePictures`);
+      let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl;
+      if (data.newProfilePictureFile) {
+        uploadedProfilePicUrl = await uploadFileToStorage(data.newProfilePictureFile, `providerProfiles/${currentUser.uid}/profilePictures`);
       }
 
-      if (newBannerImageToUpload) {
-        uploadedBannerImgUrl = await uploadFileToStorage(newBannerImageToUpload, `providerProfiles/${currentUser.uid}/bannerImages`);
+      let uploadedBannerImgUrl: string | null | undefined = data.bannerImageUrl;
+      if (data.newBannerImageFile) {
+        uploadedBannerImgUrl = await uploadFileToStorage(data.newBannerImageFile, `providerProfiles/${currentUser.uid}/bannerImages`);
       }
 
+      const uploadedCertificationDocuments: Array<{ index: number; url: string | null }> = [];
       if (data.certifications) {
         for (let i = 0; i < data.certifications.length; i++) {
           const cert = data.certifications[i];
@@ -235,6 +229,7 @@ export default function EditProviderProfilePage() {
         }
       }
 
+      const portfolioItemsToSubmit: PortfolioItem[] = [];
       if (data.portfolio) {
         for (let i = 0; i < data.portfolio.length; i++) {
             const item = data.portfolio[i];
@@ -259,49 +254,44 @@ export default function EditProviderProfilePage() {
         uploadedCertificationDocuments
       );
 
-      if (result.success) {
+      if (result.success && result.updatedProfile) {
         toast({ title: "Profile Updated", description: result.message });
-        const updatedPreviews: Record<string, string | null> = {};
-        (result.updatedProfile?.portfolio || []).forEach(item => {
-            if(item.imageUrl) updatedPreviews[item.id] = item.imageUrl;
-        });
-        setPortfolioItemPreviews(updatedPreviews);
 
-        if(result.updatedProfile?.certifications) {
-             setValue('certifications', result.updatedProfile.certifications.map(cert => ({
+        const profileForReset = {
+            ...result.updatedProfile,
+            specialties: (result.updatedProfile.specialties ?? []).join(', '),
+            skills: (result.updatedProfile.skills ?? []).join(', '),
+            serviceAreas: (result.updatedProfile.serviceAreas ?? []).join(', '),
+            mainService: result.updatedProfile.mainService === 'Other' && result.updatedProfile.otherMainServiceDescription ? result.updatedProfile.otherMainServiceDescription : result.updatedProfile.mainService,
+            twitterUrl: result.updatedProfile.socialMediaLinks?.twitter || "",
+            instagramUrl: result.updatedProfile.socialMediaLinks?.instagram || "",
+            facebookUrl: result.updatedProfile.socialMediaLinks?.facebook || "",
+            linkedinUrl: result.updatedProfile.socialMediaLinks?.linkedin || "",
+            certifications: (result.updatedProfile.certifications ?? []).map(cert => ({
                 ...cert,
                 issueDate: cert.issueDate ? new Date(cert.issueDate) : undefined,
                 expiryDate: cert.expiryDate ? new Date(cert.expiryDate) : undefined,
-                newDocumentFile: undefined,
-            })));
-        }
-         if(result.updatedProfile?.portfolio) {
-             setValue('portfolio', result.updatedProfile.portfolio.map(item => ({
+                newDocumentFile: undefined, 
+            })),
+            portfolio: (result.updatedProfile.portfolio ?? []).map(item => ({
                 ...item,
-                id: item.id || uuidv4(),
                 newImageFile: undefined,
-            })));
-        }
-        if(result.updatedProfile?.unavailableDates) {
-            setValue('unavailableDates', result.updatedProfile.unavailableDates.map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())));
-        }
+            })),
+            unavailableDates: (result.updatedProfile.unavailableDates ?? []).map(dateStr => parse(dateStr, 'yyyy-MM-dd', new Date())),
+            newProfilePictureFile: undefined,
+            newBannerImageFile: undefined,
+        };
+
+        reset(profileForReset);
+
+        setProfilePicturePreview(result.updatedProfile.profilePictureUrl || null);
+        setBannerImagePreview(result.updatedProfile.bannerImageUrl || null);
         
-        // Update form state with new URLs and clear file inputs
-        setValue('profilePictureUrl', uploadedProfilePicUrl);
-        setValue('bannerImageUrl', uploadedBannerImgUrl);
-        setValue('newProfilePictureFile', undefined);
-        setValue('newBannerImageFile', undefined);
-
-        if (uploadedProfilePicUrl) setProfilePicturePreview(uploadedProfilePicUrl);
-        if (uploadedBannerImgUrl) setBannerImagePreview(uploadedBannerImgUrl);
-        
-        setValue('twitterUrl', result.updatedProfile?.socialMediaLinks?.twitter || "");
-        setValue('instagramUrl', result.updatedProfile?.socialMediaLinks?.instagram || "");
-        setValue('facebookUrl', result.updatedProfile?.socialMediaLinks?.facebook || "");
-        setValue('linkedinUrl', result.updatedProfile?.socialMediaLinks?.linkedin || "");
-        setValue('otherMainServiceDescription', result.updatedProfile?.otherMainServiceDescription || "");
-
-
+        const newPortfolioPreviews: Record<string, string | null> = {};
+        (result.updatedProfile.portfolio || []).forEach(item => {
+            if (item.imageUrl) newPortfolioPreviews[item.id] = item.imageUrl;
+        });
+        setPortfolioItemPreviews(newPortfolioPreviews);
       } else {
         toast({ title: "Update Failed", description: result.message, variant: "destructive" });
       }

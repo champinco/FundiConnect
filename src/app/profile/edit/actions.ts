@@ -97,7 +97,7 @@ export async function fetchProviderEditPageDataAction(userId: string): Promise<P
 interface UpdateProviderProfileResult {
   success: boolean;
   message: string;
-  updatedProfile?: Partial<ProviderProfile>;
+  updatedProfile?: ProviderProfile;
 }
 
 export async function updateProviderProfileAction(
@@ -197,24 +197,16 @@ export async function updateProviderProfileAction(
     revalidatePath(`/providers/${providerId}`);
     revalidatePath(`/profile/edit`);
 
-    // Create a serializable version of the profile to return to the client.
-    // Omit the 'updatedAt' field which contains a non-serializable serverTimestamp.
-    const { updatedAt, ...serializablePayload } = updatePayload;
-
-    const updatedProfileForClient: Partial<ProviderProfile> = {
-      ...serializablePayload,
-      certifications: (serializablePayload.certifications || []).map((cert:any) => ({
-        ...cert,
-        issueDate: cert.issueDate ? cert.issueDate.toDate() : null,
-        expiryDate: cert.expiryDate ? cert.expiryDate.toDate() : null,
-      })),
-      portfolio: serializablePayload.portfolio,
-    };
+    // Re-fetch the full profile to ensure consistency and return it
+    const updatedFullProfile = await getProviderProfileFromFirestore(providerId);
+    if (!updatedFullProfile) {
+      throw new Error("Failed to re-fetch profile after update.");
+    }
     
     return {
       success: true,
       message: "Profile updated successfully!",
-      updatedProfile: updatedProfileForClient
+      updatedProfile: updatedFullProfile,
     };
 
   } catch (error: any) {
