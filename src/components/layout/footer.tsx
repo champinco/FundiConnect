@@ -18,7 +18,7 @@ export default function Footer() {
   const fundiLinks = [
     { name: 'Join as Fundi', href: '/auth/signup' },
     { name: 'Fundi App', href: '/dashboard' },
-    { name: 'Resources', href: '#' }, 
+    { name: 'Resources', href: '/resources' }, 
     { name: 'Support', href: '#' },
   ];
 
