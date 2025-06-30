@@ -11,14 +11,14 @@ export default function Footer() {
   const customerLinks = [
     { name: 'Find a Fundi', href: '/search?mode=providers' },
     { name: 'Book Services', href: '/search?mode=providers' },
-    { name: 'My Jobs', href: '/jobs/my-jobs' }, 
-    { name: 'Help Center', href: '/help-center', external: false }, 
+    { name: 'My Jobs', href: '/jobs/my-jobs' },
+    { name: 'Help Center', href: '/help-center' },
   ];
 
   const fundiLinks = [
     { name: 'Join as Fundi', href: '/auth/signup' },
     { name: 'Fundi App', href: '/dashboard' },
-    { name: 'Resources', href: '/resources' }, 
+    { name: 'Resources', href: '/resources' },
     { name: 'Support', href: '/help-center' },
   ];
 
@@ -88,7 +88,7 @@ export default function Footer() {
             <Link href="/terms-of-service" className="hover:text-white">
               Terms of Service
             </Link>
-            <a href="#" className="hover:text-white">
+            <a href="mailto:support@fundiconnect.com" className="hover:text-white">
               Contact
             </a>
           </div>
