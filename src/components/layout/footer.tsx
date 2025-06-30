@@ -12,7 +12,7 @@ export default function Footer() {
     { name: 'Find a Fundi', href: '/search?mode=providers' },
     { name: 'Book Services', href: '/search?mode=providers' },
     { name: 'Track Orders', href: '#' }, 
-    { name: 'Help Center', href: '#' }, 
+    { name: 'Help Center', href: '/help-center', external: false }, 
   ];
 
   const fundiLinks = [
