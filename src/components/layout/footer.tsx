@@ -11,7 +11,7 @@ export default function Footer() {
   const customerLinks = [
     { name: 'Find a Fundi', href: '/search?mode=providers' },
     { name: 'Book Services', href: '/search?mode=providers' },
-    { name: 'Track Orders', href: '/dashboard' }, 
+    { name: 'My Jobs', href: '/jobs/my-jobs' }, 
     { name: 'Help Center', href: '/help-center', external: false }, 
   ];
 
