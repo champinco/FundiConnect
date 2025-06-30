@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { LifeBuoy, User, Wrench } from 'lucide-react';
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 const clientFaqs = [
   {
