@@ -19,7 +19,7 @@ export default function Footer() {
     { name: 'Join as Fundi', href: '/auth/signup' },
     { name: 'Fundi App', href: '/dashboard' },
     { name: 'Resources', href: '/resources' }, 
-    { name: 'Support', href: '#' },
+    { name: 'Support', href: '/help-center' },
   ];
 
   return (
