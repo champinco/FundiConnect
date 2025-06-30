@@ -62,12 +62,13 @@ export async function requestBookingAction(
   providerId: string,
   clientId: string,
   requestedDate: Date,
+  requestedTimeSlot: string,
   messageToProvider?: string | null
 ): Promise<RequestBookingResult> {
   if (!adminDb || typeof adminDb.collection !== 'function') {
     return { success: false, message: "Server error: Core database service unavailable." };
   }
-  if (!providerId || !clientId || !requestedDate) {
+  if (!providerId || !clientId || !requestedDate || !requestedTimeSlot) {
     return { success: false, message: "Missing required fields for booking request." };
   }
 
@@ -87,13 +88,14 @@ export async function requestBookingAction(
       providerId,
       clientId,
       requestedDate,
+      requestedTimeSlot,
       messageToProvider,
     });
 
     await createNotification({
       userId: providerId,
       type: 'new_booking_request',
-      message: `You have a new booking request from client ${clientId.substring(0,6)}... for ${format(requestedDate, 'PPP')}.`,
+      message: `You have a new booking request from client ${clientId.substring(0,6)}... for ${format(requestedDate, 'PPP')} at ${requestedTimeSlot}.`,
       relatedEntityId: bookingId,
       link: `/dashboard` 
     });

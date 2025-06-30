@@ -93,7 +93,8 @@ export async function providerRespondToBookingAction(
           clientProfile.email,
           providerProfile?.businessName || "The Provider",
           clientProfile.fullName || "Valued Client",
-          serviceBookingData.requestedDate
+          serviceBookingData.requestedDate,
+          serviceBookingData.requestedTimeSlot || ''
         );
       } else if (newStatus === 'rejected') {
         await sendBookingRejectedEmail(

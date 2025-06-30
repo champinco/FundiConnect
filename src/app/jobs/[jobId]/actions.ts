@@ -225,7 +225,7 @@ export async function submitReviewAction(data: ReviewData): Promise<SubmitReview
        await createNotification({
         userId: data.providerId,
         type: 'new_review',
-        message: `You received a new ${data.rating}-star review from ${clientProfile.fullName || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
+        message: `You received a new ${data.rating.toFixed(1)}-star review from ${clientProfile.fullName || 'a client'} for the job: "${job.title.substring(0,30)}..."`,
         relatedEntityId: data.jobId, 
         link: `/providers/${data.providerId}?tab=reviews` 
       });
@@ -372,4 +372,3 @@ export async function deleteJobAction(jobId: string, currentUserId: string): Pro
     return { success: false, message: `Failed to delete job: ${error.message}` };
   }
 }
-    

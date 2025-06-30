@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useForm } from "react-hook-form";
+import React, { useState, useEffect } from 'react';
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from 'zod';
 import { Button } from "@/components/ui/button";
@@ -10,15 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, Star, Send, ThumbsUp } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { submitReviewAction, checkExistingReviewAction } from '../actions'; // Added checkExistingReviewAction
+import { submitReviewAction, checkExistingReviewAction } from '../actions';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import type { JobStatus } from '@/models/job';
-// Removed direct import: getReviewForJobByClient
 import { useRouter } from 'next/navigation';
 
 const reviewFormSchema = z.object({
-  rating: z.number().min(1, "Rating is required (1-5 stars).").max(5, "Rating cannot exceed 5 stars."),
+  qualityRating: z.number().min(1, "Quality rating is required.").max(5),
+  timelinessRating: z.number().min(1, "Timeliness rating is required.").max(5),
+  professionalismRating: z.number().min(1, "Professionalism rating is required.").max(5),
   comment: z.string().min(10, "Comment must be at least 10 characters.").max(1000, "Comment cannot exceed 1000 characters."),
 });
 
@@ -31,26 +32,49 @@ interface SubmitReviewFormProps {
   currentJobStatus: JobStatus;
 }
 
+interface StarRatingInputProps {
+  rating: number;
+  onRatingChange: (rating: number) => void;
+}
+
+const StarRatingInput: React.FC<StarRatingInputProps> = ({ rating, onRatingChange }) => {
+  const [hoverRating, setHoverRating] = useState(0);
+  return (
+    <div className="flex space-x-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`h-8 w-8 cursor-pointer transition-colors
+            ${(hoverRating || rating) >= star ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground hover:text-yellow-300'}
+          `}
+          onMouseEnter={() => setHoverRating(star)}
+          onMouseLeave={() => setHoverRating(0)}
+          onClick={() => onRatingChange(star)}
+        />
+      ))}
+    </div>
+  );
+};
+
+
 export default function SubmitReviewForm({ jobId, providerId, clientId, currentJobStatus }: SubmitReviewFormProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingReview, setIsCheckingReview] = useState(true);
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [currentRating, setCurrentRating] = useState(0);
   const [hasAlreadyReviewed, setHasAlreadyReviewed] = useState<boolean | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<ReviewFormValues>({
+  const { control, handleSubmit, formState: { errors }, reset } = useForm<ReviewFormValues>({
     resolver: zodResolver(reviewFormSchema),
     defaultValues: {
-      rating: 0,
+      qualityRating: 0,
+      timelinessRating: 0,
+      professionalismRating: 0,
       comment: ""
     }
   });
   
-  const ratingValue = watch("rating"); 
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -91,10 +115,6 @@ export default function SubmitReviewForm({ jobId, providerId, clientId, currentJ
       toast({ title: "Already Reviewed", description: "You have already submitted a review for this job.", variant: "destructive" });
       return;
     }
-    if (data.rating === 0) {
-      toast({ title: "Rating Required", description: "Please select a star rating.", variant: "destructive" });
-      return;
-    }
 
     setIsLoading(true);
     try {
@@ -108,8 +128,7 @@ export default function SubmitReviewForm({ jobId, providerId, clientId, currentJ
       if (result.success) {
         toast({ title: "Review Submitted!", description: "Thank you for your feedback." });
         setHasAlreadyReviewed(true); 
-        reset({ rating: 0, comment: ""}); 
-        setCurrentRating(0); 
+        reset({ qualityRating: 0, timelinessRating: 0, professionalismRating: 0, comment: ""});
       } else {
         toast({ title: "Failed to Submit Review", description: result.message, variant: "destructive" });
       }
@@ -147,34 +166,49 @@ export default function SubmitReviewForm({ jobId, providerId, clientId, currentJ
   return (
     <div className="mt-8 p-6 border-t rounded-lg shadow-md bg-background">
       <h3 className="text-xl font-semibold mb-4 font-headline">Leave a Review for the Fundi</h3>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <Label className="font-semibold mb-2 block">Your Rating</Label>
-          <div className="flex space-x-1">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <Star
-                key={star}
-                className={`h-8 w-8 cursor-pointer transition-colors
-                  ${(hoverRating || currentRating) >= star ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground hover:text-yellow-300'}
-                `}
-                onMouseEnter={() => setHoverRating(star)}
-                onMouseLeave={() => setHoverRating(0)}
-                onClick={() => {
-                  setCurrentRating(star);
-                  setValue("rating", star, { shouldValidate: true });
-                }}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid md:grid-cols-3 gap-6">
+            <div>
+              <Label className="font-semibold mb-2 block">Quality of Work</Label>
+              <Controller
+                name="qualityRating"
+                control={control}
+                render={({ field }) => <StarRatingInput rating={field.value} onRatingChange={field.onChange} />}
               />
-            ))}
-          </div>
-          {errors.rating && <p className="text-sm text-destructive mt-1">{errors.rating.message}</p>}
+              {errors.qualityRating && <p className="text-sm text-destructive mt-1">{errors.qualityRating.message}</p>}
+            </div>
+            <div>
+              <Label className="font-semibold mb-2 block">Timeliness</Label>
+              <Controller
+                name="timelinessRating"
+                control={control}
+                render={({ field }) => <StarRatingInput rating={field.value} onRatingChange={field.onChange} />}
+              />
+              {errors.timelinessRating && <p className="text-sm text-destructive mt-1">{errors.timelinessRating.message}</p>}
+            </div>
+            <div>
+              <Label className="font-semibold mb-2 block">Professionalism</Label>
+              <Controller
+                name="professionalismRating"
+                control={control}
+                render={({ field }) => <StarRatingInput rating={field.value} onRatingChange={field.onChange} />}
+              />
+              {errors.professionalismRating && <p className="text-sm text-destructive mt-1">{errors.professionalismRating.message}</p>}
+            </div>
         </div>
         <div>
           <Label htmlFor="comment" className="font-semibold">Your Comment</Label>
-          <Textarea
-            id="comment"
-            {...register("comment")}
-            placeholder="Share your experience with this Fundi. Was the job done well? Were they professional? (Min. 10 characters)"
-            className="min-h-[120px] mt-1"
+          <Controller
+            name="comment"
+            control={control}
+            render={({ field }) => (
+                <Textarea
+                id="comment"
+                {...field}
+                placeholder="Share your experience with this Fundi. Was the job done well? Were they professional? (Min. 10 characters)"
+                className="min-h-[120px] mt-1"
+                />
+            )}
           />
           {errors.comment && <p className="text-sm text-destructive mt-1">{errors.comment.message}</p>}
         </div>

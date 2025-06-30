@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 // Ensure 'use' is imported correctly from React
 import { use, useEffect, useState } from 'react';
-import { Award, Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
+import { Award, Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin, UserCheck } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Calendar } from '@/components/ui/calendar';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
@@ -27,7 +28,7 @@ import { auth } from '@/lib/firebase';
 import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
 import Link from 'next/link';
-import { format, parseISO, isSameDay } from 'date-fns';
+import { format, parseISO, isSameDay, addHours, format as formatTime } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions';
 import { getOrCreateChatAction } from '@/app/messages/actions';
@@ -48,8 +49,20 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
 
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
   const [selectedBookingDate, setSelectedBookingDate] = useState<Date | undefined>(undefined);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
   const [bookingMessage, setBookingMessage] = useState("");
   const [isRequestingBooking, setIsRequestingBooking] = useState(false);
+
+  const generateTimeSlots = (start: number, end: number, interval: number): string[] => {
+    const slots = [];
+    for (let hour = start; hour < end; hour++) {
+        const startTime = formatTime(new Date().setHours(hour, 0, 0), 'HH:mm');
+        const endTime = formatTime(new Date().setHours(hour + (interval/60), 0, 0), 'HH:mm');
+        slots.push(`${startTime} - ${endTime}`);
+    }
+    return slots;
+  };
+  const availableTimeSlots = generateTimeSlots(8, 17, 60); // 8am to 5pm, 1-hour slots
 
 
   useEffect(() => {
@@ -118,14 +131,19 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
       toast({ title: "Missing Information", description: "Please select a date for your booking.", variant: "destructive" });
       return;
     }
+    if (!selectedTimeSlot) {
+        toast({ title: "Missing Information", description: "Please select a time slot.", variant: "destructive" });
+        return;
+    }
 
     setIsRequestingBooking(true);
     try {
-      const result = await requestBookingAction(provider.id, currentUser.uid, selectedBookingDate, bookingMessage);
+      const result = await requestBookingAction(provider.id, currentUser.uid, selectedBookingDate, selectedTimeSlot, bookingMessage);
       if (result.success) {
         toast({ title: "Booking Request Sent!", description: "The provider has been notified. You can track the status in your dashboard." });
         setIsBookingDialogOpen(false);
         setSelectedBookingDate(undefined);
+        setSelectedTimeSlot('');
         setBookingMessage("");
       } else {
         toast({ title: "Booking Failed", description: result.message, variant: "destructive" });
@@ -342,7 +360,6 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                               <Avatar className="h-10 w-10 opacity-50"><AvatarFallback>C</AvatarFallback></Avatar>
                               <div className="flex-1 space-y-1.5">
                                 <div className="flex justify-between items-center">
-                                   {/* Using div as Skeleton is not available here directly, implying placeholder */}
                                    <div className="h-4 bg-muted rounded w-1/3 animate-pulse"></div>
                                    <div className="h-3 bg-muted rounded w-1/4 animate-pulse"></div>
                                 </div>
@@ -361,18 +378,30 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                                 <AvatarFallback>{review.clientDetails?.name ? review.clientDetails.name.substring(0,1).toUpperCase() : "C"}</AvatarFallback>
                             </Avatar>
                             <div className="flex-1">
-                                <div className="flex items-center justify-between mb-1">
+                                <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-1">
                                     <h4 className="font-semibold text-sm">{review.clientDetails?.name || "Anonymous Client"}</h4>
-                                    <div className="flex items-center">
-                                    {[...Array(5)].map((_, i) => (
-                                        <Star key={i} className={`h-4 w-4 ${i < (review.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/50'}`} />
-                                    ))}
+                                    <div className="flex items-center mt-1 sm:mt-0">
+                                      {[...Array(5)].map((_, i) => (
+                                          <Star key={i} className={`h-4 w-4 ${i < (review.rating || 0) ? 'text-yellow-400 fill-yellow-400' : 'text-muted-foreground/50'}`} />
+                                      ))}
                                     </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground mb-1.5">
-                                    {review.reviewDate ? formatDynamicDate(review.reviewDate) : 'Date N/A'}
-                                </p>
-                                <p className="text-sm text-foreground/90 whitespace-pre-line">{review.comment}</p>
+                                <div className="flex items-center space-x-2">
+                                  <p className="text-xs text-muted-foreground">
+                                      {review.reviewDate ? formatDynamicDate(review.reviewDate) : 'Date N/A'}
+                                  </p>
+                                  {review.isVerifiedJob && (
+                                    <div className="inline-flex items-center text-xs text-teal-600 font-medium">
+                                      <UserCheck className="h-3.5 w-3.5 mr-1" /> Verified Job
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-sm text-foreground/90 whitespace-pre-line mt-2">{review.comment}</p>
+                                <div className="text-xs text-muted-foreground mt-2 grid grid-cols-3 gap-x-2">
+                                  <span>Qual: {review.qualityRating?.toFixed(1)}</span>
+                                  <span>Time: {review.timelinessRating?.toFixed(1)}</span>
+                                  <span>Prof: {review.professionalismRating?.toFixed(1)}</span>
+                                </div>
                             </div>
                           </div>
                         </div>
@@ -477,7 +506,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                         <DialogHeader>
                             <DialogTitle>Request Booking with {provider.businessName}</DialogTitle>
                             <DialogDescription>
-                            Select your preferred date and add a message for the provider.
+                            Select your preferred date and time, and add a message for the provider.
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
@@ -491,6 +520,21 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                                 disabled={isDateDisabled}
                             />
                             </div>
+                            {selectedBookingDate && (
+                                <div className="grid gap-2">
+                                <Label htmlFor="time-slot">Preferred Time Slot</Label>
+                                <Select onValueChange={setSelectedTimeSlot} value={selectedTimeSlot}>
+                                    <SelectTrigger id="time-slot">
+                                        <SelectValue placeholder="Select a time..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {availableTimeSlots.map(slot => (
+                                            <SelectItem key={slot} value={slot}>{slot}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                </div>
+                            )}
                             <div className="grid gap-2">
                             <Label htmlFor="booking-message">Message (Optional)</Label>
                             <Textarea
@@ -504,7 +548,7 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                         </div>
                         <DialogFooter>
                             <Button variant="outline" onClick={() => setIsBookingDialogOpen(false)}>Cancel</Button>
-                            <Button type="submit" onClick={handleRequestBookingSubmit} disabled={isRequestingBooking || !selectedBookingDate}>
+                            <Button type="submit" onClick={handleRequestBookingSubmit} disabled={isRequestingBooking || !selectedBookingDate || !selectedTimeSlot}>
                             {isRequestingBooking && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Send Request
                             </Button>

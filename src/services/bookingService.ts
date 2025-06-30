@@ -15,6 +15,7 @@ export interface CreateBookingRequestData {
   providerId: string;
   clientId: string;
   requestedDate: Date; // JS Date object
+  requestedTimeSlot?: string | null;
   messageToProvider?: string | null;
   jobId?: string | null;
   serviceDescription?: string | null;
@@ -42,6 +43,7 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
       providerId: data.providerId,
       clientId: data.clientId,
       requestedDate: Timestamp.fromDate(data.requestedDate),
+      requestedTimeSlot: data.requestedTimeSlot || null,
       messageToProvider: data.messageToProvider || null,
       jobId: data.jobId || null,
       serviceDescription: data.serviceDescription || null,
@@ -69,7 +71,7 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
     await createNotification({
       userId: data.providerId,
       type: 'new_booking_request',
-      message: `You have a new booking request from ${clientProfile?.fullName || 'a client'} for ${format(data.requestedDate, 'PPP')}.`,
+      message: `You have a new booking request from ${clientProfile?.fullName || 'a client'} for ${format(data.requestedDate, 'PPP')} at ${data.requestedTimeSlot}.`,
       relatedEntityId: newBookingRef.id,
       link: `/dashboard` 
     });
@@ -81,7 +83,8 @@ export async function createBookingRequest(data: CreateBookingRequestData): Prom
             providerUserEmail,
             clientProfile?.fullName || "A Client",
             data.requestedDate,
-            data.messageToProvider
+            data.messageToProvider,
+            data.requestedTimeSlot
         );
     }
     
@@ -185,8 +188,7 @@ export async function updateBookingRequestStatus(
       if (byUserType === 'provider') {
         updatePayload.providerResponseMessage = message;
       } else {
-        // For future use if clients can add messages when cancelling, etc.
-        // updatePayload.clientResponseMessage = message;
+        updatePayload.cancellationReason = message;
       }
     }
     await bookingRef.update(updatePayload);

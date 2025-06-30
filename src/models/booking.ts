@@ -7,9 +7,11 @@ export interface BookingRequest {
   clientId: string; // UID of the Client
   jobId?: string | null; // Optional: if booking is related to a specific job post
   requestedDate: Date; // The specific date requested by the client
+  requestedTimeSlot?: string | null; // e.g., "09:00 - 10:00"
   messageToProvider?: string | null; // Optional message from client during request
   providerResponseMessage?: string | null; // Optional message from provider when confirming/rejecting
   clientResponseMessage?: string | null; // Optional message from client when cancelling (for future use)
+  cancellationReason?: string | null; // Reason for cancellation
   status: BookingStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -27,4 +29,3 @@ export interface BookingRequest {
     businessName?: string | null; // Added business name
   };
 }
-

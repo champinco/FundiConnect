@@ -68,12 +68,12 @@ export async function sendNewMessageAlert(to: string, senderName: string, chatId
   await sendEmail(to, subject, html, { chatId });
 }
 
-export async function sendBookingConfirmedEmail(to: string, providerName: string, clientName: string, bookingDate: Date): Promise<void> {
+export async function sendBookingConfirmedEmail(to: string, providerName: string, clientName: string, bookingDate: Date, timeSlot: string): Promise<void> {
   const subject = `Booking Confirmed with ${providerName}`;
-  const formattedDate = format(bookingDate, 'PPP p');
+  const formattedDate = format(bookingDate, 'PPP');
   const html = `
     <p>Hi ${clientName},</p>
-    <p>Your booking request with <strong>${providerName}</strong> for <strong>${formattedDate}</strong> has been CONFIRMED.</p>
+    <p>Your booking request with <strong>${providerName}</strong> for <strong>${formattedDate} at ${timeSlot}</strong> has been CONFIRMED.</p>
     <p>Please coordinate any further details directly with the provider through the in-app messaging.</p>
     <p>Thanks,<br/>The FundiConnect Team</p>
   `;
@@ -92,11 +92,11 @@ export async function sendBookingRejectedEmail(to: string, providerName: string,
   await sendEmail(to, subject, html);
 }
 
-export async function sendBookingRequestProviderEmail(to: string, clientName: string, bookingDate: Date, messageFromClient?: string | null): Promise<void> {
+export async function sendBookingRequestProviderEmail(to: string, clientName: string, bookingDate: Date, messageFromClient?: string | null, timeSlot?: string | null): Promise<void> {
   const subject = `New Booking Request for ${format(bookingDate, 'PPP')}`;
   const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:9002";
   const dashboardLink = `${appBaseUrl}/dashboard`;
-  let messageBody = `<p>Hi there,</p><p>You have a new booking request from <strong>${clientName}</strong> for <strong>${format(bookingDate, 'PPP')}</strong>.</p>`;
+  let messageBody = `<p>Hi there,</p><p>You have a new booking request from <strong>${clientName}</strong> for <strong>${format(bookingDate, 'PPP')} at ${timeSlot || 'any time'}</strong>.</p>`;
   if (messageFromClient) {
     messageBody += `<p>Client's message:</p><blockquote style="border-left: 2px solid #ccc; padding-left: 1em; margin-left: 1em;">${messageFromClient}</blockquote>`;
   }

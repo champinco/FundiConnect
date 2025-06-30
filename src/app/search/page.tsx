@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Filter, Star, MapPin, Search as SearchIcon, Loader2, Info, Briefcase, PackageOpen } from 'lucide-react';
+import { Filter, Star, MapPin, Search as SearchIcon, Loader2, Info, Briefcase, PackageOpen, CalendarDays } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import type { ServiceCategory } from '@/components/service-category-icon';
 import { searchProvidersAction, type SearchParams as ProviderSearchParams, searchJobsAction, type JobSearchParams, type JobSearchResult } from './actions';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -23,6 +25,7 @@ import { auth } from '@/lib/firebase';
 import type { JobStatus } from '@/models/job';
 import { fetchCurrentAppUserTypeAction } from '@/app/profile/actions';
 import type { User as AppUser } from '@/models/user';
+import { format } from 'date-fns';
 
 
 const allServiceCategoriesList: (ServiceCategory | 'All')[] = [
@@ -51,6 +54,7 @@ function SearchPageContent() {
   const [selectedProviderCategory, setSelectedProviderCategory] = useState<ServiceCategory | 'All'>('All');
   const [minRating, setMinRating] = useState<number | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [availabilityDate, setAvailabilityDate] = useState<Date | null>(null);
 
   const [jobKeywordsQuery, setJobKeywordsQuery] = useState('');
   const [jobLocationQuery, setJobLocationQuery] = useState(''); // User's input for job location
@@ -98,6 +102,7 @@ function SearchPageContent() {
         category: (paramsFromUrl.get('category') as ServiceCategory | 'All') || 'All',
         minRating: paramsFromUrl.has('minRating') ? parseFloat(paramsFromUrl.get('minRating')!) : null,
         verifiedOnly: paramsFromUrl.get('verifiedOnly') === 'true',
+        availabilityDate: paramsFromUrl.get('availabilityDate') || null,
       };
       try {
         console.log('[executeSearch] Calling searchProvidersAction with:', apiParams);
@@ -167,6 +172,8 @@ function SearchPageContent() {
       const ratingFromUrl = currentUrlParams.get('minRating');
       setMinRating(ratingFromUrl ? parseFloat(ratingFromUrl) : null);
       setVerifiedOnly(currentUrlParams.get('verifiedOnly') === 'true');
+      const dateFromUrl = currentUrlParams.get('availabilityDate');
+      setAvailabilityDate(dateFromUrl ? new Date(dateFromUrl) : null);
     } else { 
       setJobKeywordsQuery(currentUrlParams.get('keywords') || '');
       setJobLocationQuery(currentUrlParams.get('jobLocation') || ''); // Reflects what's in URL or user typed
@@ -241,6 +248,7 @@ function SearchPageContent() {
       paramsToUpdate.category = selectedProviderCategory === 'All' ? null : selectedProviderCategory;
       paramsToUpdate.minRating = minRating === null || minRating === 0 ? null : minRating.toString();
       paramsToUpdate.verifiedOnly = verifiedOnly ? 'true' : null;
+      paramsToUpdate.availabilityDate = availabilityDate ? format(availabilityDate, 'yyyy-MM-dd') : null;
 
     } else { 
       paramsToUpdate.keywords = jobKeywordsQuery || null;
@@ -262,6 +270,7 @@ function SearchPageContent() {
       paramsToUpdate.category = selectedProviderCategory === 'All' ? null : selectedProviderCategory;
       paramsToUpdate.minRating = minRating === null || minRating === 0 ? null : minRating.toString();
       paramsToUpdate.verifiedOnly = verifiedOnly ? 'true' : null;
+      paramsToUpdate.availabilityDate = availabilityDate ? format(availabilityDate, 'yyyy-MM-dd') : null;
     } else { 
       paramsToUpdate.keywords = jobKeywordsQuery || null;
       paramsToUpdate.jobLocation = jobLocationQuery || null; // User's explicit input
@@ -453,6 +462,20 @@ function SearchPageContent() {
 
               {searchMode === 'providers' && (
                 <>
+                  <div>
+                    <h3 className="font-medium mb-2 text-sm">Availability</h3>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                        <Button variant={"outline"} className={`w-full justify-start text-left font-normal ${!availabilityDate && "text-muted-foreground"}`}>
+                            <CalendarDays className="mr-2 h-4 w-4" />
+                            {availabilityDate ? format(availabilityDate, "PPP") : <span>Any Date</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={availabilityDate || undefined} onSelect={setAvailabilityDate} initialFocus/>
+                        </PopoverContent>
+                    </Popover>
+                  </div>
                   <div>
                     <h3 className="font-medium mb-2 text-sm">Minimum Rating</h3>
                     <Select

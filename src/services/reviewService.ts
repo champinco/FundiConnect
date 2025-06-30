@@ -7,12 +7,15 @@ import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type { Review } from '@/models/review';
 import type { ProviderProfile } from '@/models/provider';
 import { getUserProfileFromFirestore } from './userService';
+import { getJobByIdFromFirestore } from './jobService';
 
 export interface ReviewData {
   jobId: string;
   providerId: string;
   clientId: string;
-  rating: number;
+  qualityRating: number;
+  timelinessRating: number;
+  professionalismRating: number;
   comment: string;
 }
 
@@ -46,11 +49,11 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
     console.error("Admin DB not initialized. Review submission failed.");
     throw new Error("Server error: Admin DB not initialized.");
   }
-  if (!reviewData.jobId || !reviewData.providerId || !reviewData.clientId || reviewData.rating == null || !reviewData.comment) {
+  if (!reviewData.jobId || !reviewData.providerId || !reviewData.clientId || !reviewData.comment) {
     throw new Error('Missing required fields for submitting a review.');
   }
-  if (reviewData.rating < 1 || reviewData.rating > 5) {
-    throw new Error('Rating must be between 1 and 5.');
+  if (reviewData.qualityRating < 1 || reviewData.qualityRating > 5 || reviewData.timelinessRating < 1 || reviewData.timelinessRating > 5 || reviewData.professionalismRating < 1 || reviewData.professionalismRating > 5) {
+      throw new Error('Ratings must be between 1 and 5.');
   }
 
   const providerRef = adminDb.collection('providerProfiles').doc(reviewData.providerId);
@@ -71,16 +74,23 @@ export async function submitReview(reviewData: ReviewData): Promise<string> {
         throw new Error("Provider profile not found. Cannot submit review.");
       }
       const providerData = providerSnap.data() as ProviderProfile;
+      const job = await getJobByIdFromFirestore(reviewData.jobId);
+
+      const averageRating = (reviewData.qualityRating + reviewData.timelinessRating + reviewData.professionalismRating) / 3;
 
       const newReviewsCount = (providerData.reviewsCount || 0) + 1;
       const oldRatingTotal = (providerData.rating || 0) * (providerData.reviewsCount || 0);
-      const newAverageRating = (oldRatingTotal + reviewData.rating) / newReviewsCount;
+      const newAverageRating = (oldRatingTotal + averageRating) / newReviewsCount;
 
       transaction.set(newReviewRef, {
         jobId: reviewData.jobId,
         providerId: reviewData.providerId,
         clientId: reviewData.clientId,
-        rating: reviewData.rating,
+        rating: averageRating,
+        qualityRating: reviewData.qualityRating,
+        timelinessRating: reviewData.timelinessRating,
+        professionalismRating: reviewData.professionalismRating,
+        isVerifiedJob: job?.status === 'completed',
         comment: reviewData.comment,
         reviewDate: FieldValue.serverTimestamp(),
         clientDetails: {
@@ -129,15 +139,9 @@ export async function getReviewForJobByClient(jobId: string, clientId: string): 
       const data = docSnap.data()!;
       return {
         id: docSnap.id,
-        jobId: data.jobId,
-        providerId: data.providerId,
-        clientId: data.clientId,
-        rating: typeof data.rating === 'number' ? data.rating : 0,
-        comment: data.comment || '',
+        ...data,
         reviewDate: robustTimestampToDate(data.reviewDate, new Date())!,
-        isEdited: !!data.isEdited,
         editedAt: robustTimestampToDate(data.editedAt, undefined),
-        clientDetails: data.clientDetails || { name: "Anonymous", photoURL: null },
       } as Review;
     }
     return null;
@@ -166,15 +170,9 @@ export async function getReviewsForProvider(providerId: string): Promise<Review[
       const data = docSnap.data()!;
       reviews.push({
         id: docSnap.id,
-        jobId: data.jobId,
-        providerId: data.providerId,
-        clientId: data.clientId,
-        rating: typeof data.rating === 'number' ? data.rating : 0,
-        comment: data.comment || '',
+        ...data,
         reviewDate: robustTimestampToDate(data.reviewDate, new Date())!,
-        isEdited: !!data.isEdited,
         editedAt: robustTimestampToDate(data.editedAt, undefined),
-        clientDetails: data.clientDetails || { name: "Anonymous", photoURL: null },
       } as Review);
     });
     return reviews;

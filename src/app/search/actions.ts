@@ -10,6 +10,7 @@ import type { Job, JobStatus } from '@/models/job';
 import type { JobCardProps } from '@/components/job-card';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { getUserProfileFromFirestore } from '@/services/userService';
+import { isSameDay, parseISO } from 'date-fns';
 
 
 export interface SearchParams {
@@ -18,6 +19,7 @@ export interface SearchParams {
   category?: ServiceCategory | 'All' | null;
   minRating?: number | null;
   verifiedOnly?: boolean | null;
+  availabilityDate?: string | null; // YYYY-MM-DD format
 }
 
 export async function searchProvidersAction(params: SearchParams): Promise<Provider[]> {
@@ -67,8 +69,26 @@ export async function searchProvidersAction(params: SearchParams): Promise<Provi
     const querySnapshot = await providerQuery.get();
     let providersData: Provider[] = [];
 
+    const availabilityDate = params.availabilityDate ? parseISO(params.availabilityDate) : null;
+
     querySnapshot.forEach((doc) => {
       const data = doc.data() as ProviderProfile;
+
+      // Filter by availability date if provided
+      if (availabilityDate && data.unavailableDates?.length) {
+          const isUnavailable = data.unavailableDates.some(unavailableDateStr => {
+              try {
+                  return isSameDay(parseISO(unavailableDateStr), availabilityDate);
+              } catch (e) {
+                  console.warn(`Could not parse date ${unavailableDateStr} for provider ${data.id}`);
+                  return false;
+              }
+          });
+          if (isUnavailable) {
+              return; // Skip this provider
+          }
+      }
+
       providersData.push({
         id: doc.id,
         name: data.businessName,
