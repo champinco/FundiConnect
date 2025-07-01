@@ -9,7 +9,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next",
+    "rebuild": "npm run clean && npm run build"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",

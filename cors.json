@@ -3,11 +3,15 @@
   {
     "origin": [
       "https://3000-firebase-studio-1749269350607.cluster-axf5tvtfjjfekvhwxwkkkzsk2y.cloudworkstations.dev",
-      "http://localhost:9002",
       "http://localhost:3000",
-      "https://myfundi108db--myfundi-10db8.us-central1.hosted.app",
+      "https://localhost:3000",
+      "http://localhost:9002",
       "https://myfundi-10db8.firebaseapp.com",
-      "https://myfundi-10db8.web.app"
+      "https://myfundi-10db8.web.app",
+      "https://myfundi108db--myfundi-10db8.us-central1.hosted.app",
+      "https://*.cloudworkstations.dev",
+      "https://*.vercel.app",
+      "https://*.netlify.app"
     ],
     "method": [
       "GET",
@@ -19,6 +23,22 @@
     ],
     "responseHeader": [
       "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+      "Access-Control-Request-Method",
+      "Access-Control-Request-Headers",
+      "X-Firebase-Storage-Version",
+      "X-Goog-Upload-Command",
+      "X-Goog-Upload-Content-Length",
+      "X-Goog-Upload-Content-Type",
+      "X-Goog-Upload-File-Name",
+      "X-Goog-Upload-Header-Content-Length",
+      "X-Goog-Upload-Header-Content-Type",
+      "X-Goog-Upload-Header-Transfer-Encoding",
+      "X-Goog-Upload-Offset",
+      "X-Goog-Upload-Protocol",
       "X-Goog-Resumable",
       "Firebase-Storage-Resumable-Upload-Protocol"
     ],

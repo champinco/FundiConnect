@@ -7,25 +7,20 @@
 
 If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.** This is a common issue in development environments and does not indicate a regression in the app's functionality.
 
-**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones.
+**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones. We've added a helper script to make this easy.
 
 **Here are the steps:**
 
 1.  **Stop the server** (if it's running).
 
-2.  **Delete the `.next` folder**:
+2.  **Run the clean rebuild command from your terminal**:
     ```bash
-    rm -rf .next
+    npm run rebuild
     ```
-    *(On Windows, use `rd /s /q .next` in Command Prompt or `Remove-Item -Recurse -Force .next` in PowerShell).*
-
-3.  **Rebuild the app**:
-    ```bash
-    npm run build
-    ```
+    *This command will automatically delete the `.next` folder and then run a fresh `npm run build`.*
     *Check the output of this command for any new errors. If the build itself fails, address those first.*
 
-4.  **Start the app again**:
+3.  **Start the app again**:
     ```bash
     npm start
     ```
@@ -107,7 +102,7 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
 
 3.  **Make sure you are authenticated with Google Cloud:**
     ```bash
-    gcloud auth login
+   cloud auth login g
     ```
     *A browser window will open for you to log in.*
 
