@@ -53,10 +53,10 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
 
 5.  **Apply the CORS configuration to your storage bucket.** Because you are now in the correct directory, the command will find `cors.json`:
     
-    > **⚠️ Important Note on Bucket Name:** The correct bucket name format for this command is `gs://<your-project-id>.appspot.com`. The Firebase SDKs are configured to use this specific address. Using other formats like `.firebasestorage.app` in the command or in your app's configuration will not work and will break file uploads.
+    > **⚠️ Important Note on Bucket Name:** The correct bucket name format for this command is `gs://<your-project-id>.firebasestorage.app`. The Firebase SDKs are configured to use this specific address. Using other formats like `.app` in the command or in your app's configuration will not work and will break file uploads.
     
     ```bash
-    gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
+    gcloud storage buckets update gs://myfundi-10db8.firebasestorage.app --cors-file=cors.json
     ```
 
 After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later if you deploy to a new URL.
@@ -87,7 +87,7 @@ Your Firebase API keys are secrets and should not be stored directly in the code
     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project-id.firebaseapp.com
     NEXT_PUBLIC_FIREBASE_DATABASE_URL=https://your-project-id-default-rtdb.firebaseio.com
     NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
-    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.appspot.com
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project-id.firebasestorage.app
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
     NEXT_PUBLIC_FIREBASE_APP_ID=1:...:web:...
     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-...
