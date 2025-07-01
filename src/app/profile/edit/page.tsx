@@ -16,7 +16,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen, BellRing, Images, Twitter, Instagram, Facebook, Linkedin } from 'lucide-react';
+import { Loader2, User, Briefcase, Building, MapPinIcon, Phone, Award, FileText, Upload, Save, PlusCircle, Trash2, CalendarIcon, LinkIcon, ExternalLink, Pin, Sparkles, Tag, BookOpen, BellRing, Images, Twitter, Instagram, Facebook, Linkedin, AlertTriangle } from 'lucide-react';
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import ProviderProfileSkeleton from '@/components/skeletons/provider-profile-skeleton';
 
@@ -42,6 +42,7 @@ export default function EditProviderProfilePage() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [isClientAccount, setIsClientAccount] = useState(false);
+  const [showCorsError, setShowCorsError] = useState(false);
 
   const [profilePicturePreview, setProfilePicturePreview] = useState<string | null>(null);
   const [bannerImagePreview, setBannerImagePreview] = useState<string | null>(null);
@@ -204,6 +205,7 @@ export default function EditProviderProfilePage() {
       return;
     }
     setIsSubmitting(true);
+    setShowCorsError(false);
     
     try {
       let uploadedProfilePicUrl: string | null | undefined = data.profilePictureUrl;
@@ -296,7 +298,17 @@ export default function EditProviderProfilePage() {
         toast({ title: "Update Failed", description: result.message, variant: "destructive" });
       }
     } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Could not update profile.", variant: "destructive" });
+      if ((error.code === 'storage/unknown' || error.code === 'storage/unauthorized') && error.message.toLowerCase().includes('cors')) {
+        setShowCorsError(true);
+        toast({
+          title: "File Upload Blocked: Action Required",
+          description: "Your storage security settings are blocking uploads. Please see the alert on the page for instructions to fix this.",
+          variant: "destructive",
+          duration: 10000,
+        });
+      } else {
+        toast({ title: "Error", description: error.message || "Could not update profile.", variant: "destructive" });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -347,7 +359,23 @@ export default function EditProviderProfilePage() {
               Keep your professional information up-to-date to attract more clients.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-8">
+          
+          {showCorsError && (
+            <div className="px-4 sm:px-6 pb-4">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>File Upload Blocked: Action Required</AlertTitle>
+                <AlertDescription>
+                  <p>Your storage security settings are blocking uploads. This is a one-time setup.</p>
+                  <p className="mt-2">
+                    Please open the <code className="font-bold text-destructive-foreground">README.md</code> file for instructions under "How to Fix Firebase Storage CORS Errors". After fixing, please save your profile again to upload the files.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          <CardContent className="space-y-8 pt-6">
             
             <section>
               <h3 className="text-xl font-semibold mb-4 text-primary border-b pb-2">Basic Information</h3>

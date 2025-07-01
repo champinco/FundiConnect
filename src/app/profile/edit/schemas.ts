@@ -83,7 +83,7 @@ export const providerProfileEditFormSchema = z.object({
     .custom<File | null | undefined>()
     .refine(
       (file) => !file || file.size <= MAX_FILE_SIZE_BYTES,
-      `Max file size for profile picture is ${MAX_FILE_SIZE_MB}MB.`
+      `Max file size is ${MAX_FILE_SIZE_MB}MB.`
     )
     .refine(
       (file) => !file || ACCEPTED_IMAGE_TYPES.includes(file.type),
@@ -94,7 +94,7 @@ export const providerProfileEditFormSchema = z.object({
     .custom<File | null | undefined>()
     .refine(
       (file) => !file || file.size <= MAX_FILE_SIZE_BYTES,
-      `Max file size for banner image is ${MAX_FILE_SIZE_MB}MB.`
+      `Max file size is ${MAX_FILE_SIZE_MB}MB.`
     )
     .refine(
       (file) => !file || ACCEPTED_IMAGE_TYPES.includes(file.type),

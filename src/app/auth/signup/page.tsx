@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload, Image as ImageIcon, Eye, EyeOff } from 'lucide-react'; // Added Eye, EyeOff
+import { UserPlus, User, Briefcase, Loader2, Mail, KeyRound, Building, MapPinIcon, Phone, Award, FileText, Upload, Image as ImageIcon, Eye, EyeOff, AlertTriangle } from 'lucide-react'; // Added Eye, EyeOff, AlertTriangle
 import ServiceCategoryIcon, { type ServiceCategory } from '@/components/service-category-icon';
 import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas';
 import Image from 'next/image';
@@ -25,6 +25,8 @@ import { signupUserAction } from './actions';
 import { signupFormSchema, type SignupFormValues as ServerSignupFormValues } from './schemas';
 import type { z } from 'zod';
 import { uploadFileToStorage } from '@/services/storageService';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 type ClientSignupFormValues = z.infer<typeof signupFormSchema>;
 
@@ -43,6 +45,7 @@ export default function SignupPage() {
 
   const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const [showConfirmPassword, setShowConfirmPassword] = useState(false); // State for confirm password visibility
+  const [showCorsError, setShowCorsError] = useState(false);
 
 
   useEffect(() => {
@@ -108,6 +111,7 @@ export default function SignupPage() {
 
   const onSubmit = async (data: ClientSignupFormValues) => {
     setIsLoading(true);
+    setShowCorsError(false); // Reset on new submission
     let profilePictureUrl: string | null = null;
     let bannerImageUrl: string | null = null;
 
@@ -119,27 +123,29 @@ export default function SignupPage() {
       await signOut(auth); // Sign out user to force email verification before login
 
       if (data.accountType === 'provider') {
-        if (profilePictureFile) {
-          try {
+        try {
+          if (profilePictureFile) {
             profilePictureUrl = await uploadFileToStorage(profilePictureFile, `providerProfiles/${firebaseUser.uid}/profilePictures`);
-          } catch (uploadError: any) {
-            toast({
-              title: "Profile Picture Upload Failed",
-              description: uploadError.message || "Could not upload profile picture. You can add it later via Edit Profile.",
-              variant: "destructive",
-            });
           }
-        }
-        if (bannerImageFile) {
-          try {
+          if (bannerImageFile) {
             bannerImageUrl = await uploadFileToStorage(bannerImageFile, `providerProfiles/${firebaseUser.uid}/bannerImages`);
-          } catch (uploadError: any) {
-            toast({
-              title: "Banner Image Upload Failed",
-              description: uploadError.message || "Could not upload banner image. You can add it later via Edit Profile.",
-              variant: "destructive",
-            });
           }
+        } catch (uploadError: any) {
+           if ((uploadError.code === 'storage/unknown' || uploadError.code === 'storage/unauthorized') && uploadError.message.toLowerCase().includes('cors')) {
+              setShowCorsError(true);
+              toast({
+                  title: "File Upload Failed: Action Required",
+                  description: "Your storage security settings are blocking uploads. Please see the alert on the page for instructions to fix this. You can add images later via 'Edit Profile'.",
+                  variant: "destructive",
+                  duration: 10000,
+              });
+            } else {
+                toast({
+                  title: "File Upload Failed",
+                  description: `${uploadError.message || "Could not upload one or more files."} You can add images later via 'Edit Profile'.`,
+                  variant: "destructive",
+                });
+            }
         }
       }
       
@@ -215,8 +221,24 @@ export default function SignupPage() {
             Join FundiConnect. Select your account type and fill in your details.
           </CardDescription>
         </CardHeader>
+        
+        {showCorsError && (
+          <div className="px-4 sm:px-6 pb-4 border-b">
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Image Upload Blocked: Action Required</AlertTitle>
+              <AlertDescription>
+                <p>Your storage security settings are blocking image uploads. This is a one-time setup.</p>
+                <p className="mt-2">
+                  Please open the <code className="font-bold text-destructive-foreground">README.md</code> file for instructions under "How to Fix Firebase Storage CORS Errors". Your account will still be created, and you can upload images from your profile page after fixing this.
+                </p>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)}>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pt-6">
             <div>
               <Label htmlFor="fullName" className="font-semibold flex items-center"><User className="mr-2 h-4 w-4" /> Full Name</Label>
               <Input id="fullName" {...register("fullName")} placeholder="e.g., Juma Otieno" className="mt-1" disabled={isLoading} />
@@ -369,7 +391,7 @@ export default function SignupPage() {
                             <Image src={profilePicturePreview} alt="Profile preview" width={96} height={96} className="h-24 w-24 rounded-full object-cover border" data-ai-hint="profile image preview"/>
                         </div>
                     )}
-                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Square image.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB.</p>
                     {errors.newProfilePictureFile && <p className="text-sm text-destructive mt-1">{errors.newProfilePictureFile.message}</p>}
                 </div>
                  <div>
@@ -388,7 +410,7 @@ export default function SignupPage() {
                             <Image src={bannerImagePreview} alt="Banner preview" width={200} height={100} className="h-24 w-48 rounded-md object-cover border" data-ai-hint="profile banner image"/>
                         </div>
                     )}
-                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. Recommended: Landscape image (e.g., 1200x400px).</p>
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB.</p>
                     {errors.newBannerImageFile && <p className="text-sm text-destructive mt-1">{errors.newBannerImageFile.message}</p>}
                 </div>
               </>
