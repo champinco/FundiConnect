@@ -248,9 +248,19 @@ export default function EditProviderProfilePage() {
         }
       }
       
+      // Sanitize the data payload for the server action by removing File objects.
+      const { newProfilePictureFile, newBannerImageFile, ...restData } = data;
+      const finalDataForAction = {
+        ...restData,
+        certifications: restData.certifications?.map(
+          ({ newDocumentFile, ...cert }) => cert
+        ),
+        portfolio: portfolioItemsToSubmit, // This already correctly overwrites the portfolio from `restData`
+      };
+
       const result = await updateProviderProfileAction(
         currentUser.uid,
-        {...data, portfolio: portfolioItemsToSubmit}, 
+        finalDataForAction, 
         uploadedProfilePicUrl,
         uploadedBannerImgUrl,
         uploadedCertificationDocuments
