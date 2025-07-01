@@ -119,5 +119,3 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
     ```
 
 After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later if you deploy to a new URL.
-
-
