@@ -1,6 +1,39 @@
 
 # FundiConnect
 
+## How to Fix Firebase Storage CORS Errors (File Upload Failures)
+
+If you see a `CORS policy` error in your browser's developer console when trying to upload files (e.g., when posting a job), it means your Firebase Storage bucket needs to be configured to accept requests from your web app's domain.
+
+This is a one-time setup. This project now includes a `cors.json` file with the necessary configuration.
+
+**To fix this, run the following `gcloud` command in your terminal from the project's root directory:**
+
+1.  **Open your terminal (like Command Prompt or PowerShell on Windows).**
+
+2.  **Navigate to your project's root directory.** This is the main folder containing the `package.json` file. You can use the `cd` (change directory) command. For example: `cd path\to\your\project\folder`.
+
+3.  **Make sure you are authenticated with Google Cloud:**
+    ```bash
+   gcloud auth login
+    ```
+    *A browser window will open for you to log in.*
+
+4.  **Set your project context:**
+    ```bash
+    gcloud config set project myfundi-10db8
+    ```
+
+5.  **Apply the CORS configuration to your storage bucket.** Because you are now in the correct directory, the command will find `cors.json`:
+    
+    **Important Note on Bucket Name:** The correct bucket name format for this command is `gs://<your-project-id>.appspot.com`. Do not use other formats like `firebasestorage.app`.
+    
+    ```bash
+    gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
+    ```
+
+After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
+
 ---
 **🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './447.js', './548.js') 🛑**
 ---
@@ -85,38 +118,3 @@ We have created security rules to protect your Firestore database and Storage bu
 ---
 **Congratulations!** Once you've completed these steps, your app is fully configured, secure, and ready to be published to your hosting provider (like Firebase App Hosting or Vercel).
 ---
-
----
-
-## How to Fix Firebase Storage CORS Errors (File Upload Failures)
-
-If you see a `CORS policy` error in your browser's developer console when trying to upload files (e.g., when posting a job), it means your Firebase Storage bucket needs to be configured to accept requests from your web app's domain.
-
-This is a one-time setup. This project now includes a `cors.json` file with the necessary configuration.
-
-**To fix this, run the following `gcloud` command in your terminal from the project's root directory:**
-
-1.  **Open your terminal (like Command Prompt or PowerShell on Windows).**
-
-2.  **Navigate to your project's root directory.** This is the main folder containing the `package.json` file. You can use the `cd` (change directory) command. For example: `cd path\to\your\project\folder`.
-
-3.  **Make sure you are authenticated with Google Cloud:**
-    ```bash
-   cloud auth login g
-    ```
-    *A browser window will open for you to log in.*
-
-4.  **Set your project context:**
-    ```bash
-    gcloud config set project myfundi-10db8
-    ```
-
-5.  **Apply the CORS configuration to your storage bucket.** Because you are now in the correct directory, the command will find `cors.json`:
-    
-    **Important Note on Bucket Name:** The correct bucket name format for this command is `gs://<your-project-id>.appspot.com`. Do not use other formats like `firebasestorage.app`.
-    
-    ```bash
-    gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
-    ```
-
-After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
