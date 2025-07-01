@@ -142,6 +142,7 @@ export async function getReviewForJobByClient(jobId: string, clientId: string): 
         ...data,
         reviewDate: robustTimestampToDate(data.reviewDate, new Date())!,
         editedAt: robustTimestampToDate(data.editedAt, undefined),
+        providerResponseDate: robustTimestampToDate(data.providerResponseDate, undefined),
       } as Review;
     }
     return null;
@@ -173,11 +174,49 @@ export async function getReviewsForProvider(providerId: string): Promise<Review[
         ...data,
         reviewDate: robustTimestampToDate(data.reviewDate, new Date())!,
         editedAt: robustTimestampToDate(data.editedAt, undefined),
+        providerResponseDate: robustTimestampToDate(data.providerResponseDate, undefined),
       } as Review);
     });
     return reviews;
   } catch (error) {
     console.error('Error fetching reviews for provider (Admin SDK):', error);
     throw new Error('Could not fetch provider reviews.');
+  }
+}
+
+
+/**
+ * Adds a response from a provider to a review.
+ * @param reviewId The ID of the review to respond to.
+ * @param providerId The UID of the provider responding (for verification).
+ * @param response The text of the response.
+ * @returns A promise that resolves when the operation is complete.
+ */
+export async function addProviderResponseToReview(reviewId: string, providerId: string, response: string): Promise<void> {
+  if (!adminDb) {
+    throw new Error("Server error: Admin DB not initialized.");
+  }
+  const reviewRef = adminDb.collection('reviews').doc(reviewId);
+
+  try {
+    const reviewSnap = await reviewRef.get();
+    if (!reviewSnap.exists) {
+      throw new Error("Review not found.");
+    }
+    const reviewData = reviewSnap.data() as Review;
+    if (reviewData.providerId !== providerId) {
+      throw new Error("You are not authorized to respond to this review.");
+    }
+    if (reviewData.providerResponse) {
+      throw new Error("A response has already been submitted for this review.");
+    }
+
+    await reviewRef.update({
+      providerResponse: response,
+      providerResponseDate: FieldValue.serverTimestamp()
+    });
+  } catch (error: any) {
+    console.error(`Error adding provider response to review ${reviewId}:`, error);
+    throw new Error(error.message || 'Could not add response to review.');
   }
 }

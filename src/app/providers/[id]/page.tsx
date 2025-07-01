@@ -4,8 +4,8 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 // Ensure 'use' is imported correctly from React
-import { use, useEffect, useState } from 'react';
-import { Award, Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin, UserCheck } from 'lucide-react';
+import { use, useEffect, useState, type FormEvent } from 'react';
+import { Award, Star, MapPin, CheckCircle2, Briefcase, MessageSquare, Phone, Upload, Loader2, Clock, Images, MessageCircle, ThumbsUp, ExternalLink, Tag, BookOpen, CalendarDays, Sparkles, Edit3, BellRing, Twitter, Instagram, Facebook, Linkedin, UserCheck, CornerDownRight } from 'lucide-react';
 import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ import type { Review } from '@/models/review';
 import Link from 'next/link';
 import { format, parseISO, isSameDay, addHours, format as formatTime } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
-import { fetchPublicProviderProfileDataAction, requestBookingAction } from './actions';
+import { fetchPublicProviderProfileDataAction, requestBookingAction, addProviderResponseAction } from './actions';
 import { getOrCreateChatAction } from '@/app/messages/actions';
 
 // Props for the Page component now expect params to be a Promise
@@ -53,6 +53,12 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
   const [bookingMessage, setBookingMessage] = useState("");
   const [isRequestingBooking, setIsRequestingBooking] = useState(false);
 
+  // State for provider response form
+  const [respondingToReviewId, setRespondingToReviewId] = useState<string | null>(null);
+  const [responseText, setResponseText] = useState("");
+  const [isSubmittingResponse, setIsSubmittingResponse] = useState(false);
+
+
   const generateTimeSlots = (start: number, end: number, interval: number): string[] => {
     const slots = [];
     for (let hour = start; hour < end; hour++) {
@@ -64,37 +70,38 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
   };
   const availableTimeSlots = generateTimeSlots(8, 17, 60); // 8am to 5pm, 1-hour slots
 
+  const fetchData = async () => {
+     if (providerId) {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const data = await fetchPublicProviderProfileDataAction(providerId);
+        if (data.error) {
+          setError(data.error);
+          setProvider(null);
+          setReviews([]);
+        } else {
+          setProvider(data.provider);
+          setReviews(data.reviews || []);
+        }
+      } catch (err: any) {
+        const errorMessage = err.message || "An unexpected error occurred while loading provider data.";
+        setError(errorMessage);
+        setProvider(null);
+        setReviews([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
     });
+    fetchData(); // Initial data fetch
     return () => unsubscribeAuth();
-  }, []);
-
-  useEffect(() => {
-    if (providerId) {
-      setIsLoading(true);
-      setError(null);
-      fetchPublicProviderProfileDataAction(providerId)
-        .then((data) => {
-          if (data.error) {
-            setError(data.error);
-            setProvider(null);
-            setReviews([]);
-          } else {
-            setProvider(data.provider);
-            setReviews(data.reviews || []);
-          }
-        })
-        .catch(err => {
-          const errorMessage = err.message || "An unexpected error occurred while loading provider data.";
-          setError(errorMessage);
-          setProvider(null);
-          setReviews([]);
-        })
-        .finally(() => setIsLoading(false));
-    }
   }, [providerId]);
 
   const handleInitiateChat = async () => {
@@ -152,6 +159,28 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
       toast({ title: "Error", description: error.message || "Could not send booking request.", variant: "destructive" });
     } finally {
       setIsRequestingBooking(false);
+    }
+  };
+
+  const handleResponseSubmit = async (e: FormEvent, reviewId: string) => {
+    e.preventDefault();
+    if (!currentUser || !provider || !responseText) return;
+    
+    setIsSubmittingResponse(true);
+    try {
+      const result = await addProviderResponseAction(reviewId, provider.id, responseText, currentUser.uid);
+      if (result.success) {
+        toast({ title: "Response Added", description: result.message });
+        setRespondingToReviewId(null);
+        setResponseText("");
+        await fetchData(); // Re-fetch all data to show new response
+      } else {
+        toast({ title: "Error", description: result.message, variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Submit Error", description: err.message || "Failed to submit response.", variant: "destructive" });
+    } finally {
+      setIsSubmittingResponse(false);
     }
   };
 
@@ -404,6 +433,42 @@ export default function ProviderProfilePage({ params: paramsPromise }: { params:
                                 </div>
                             </div>
                           </div>
+                          {review.providerResponse && (
+                            <div className="mt-4 ml-4 pl-4 py-2 border-l-2 border-muted bg-muted/50 rounded-r-lg">
+                                <h5 className="text-sm font-semibold text-foreground flex items-center"><CornerDownRight className="inline-block mr-2 h-4 w-4"/>Provider's Response</h5>
+                                <p className="text-sm text-muted-foreground italic whitespace-pre-line mt-1">{review.providerResponse}</p>
+                                {review.providerResponseDate && (
+                                    <p className="text-xs text-muted-foreground/80 mt-1">{formatDynamicDate(review.providerResponseDate)}</p>
+                                )}
+                            </div>
+                          )}
+                           {currentUser?.uid === provider.id && !review.providerResponse && (
+                            <div className="mt-4 ml-4 pl-4">
+                              {respondingToReviewId === review.id ? (
+                                <form onSubmit={(e) => handleResponseSubmit(e, review.id)} className="space-y-2">
+                                  <Label htmlFor={`response-${review.id}`} className="font-semibold text-sm">Your Response</Label>
+                                  <Textarea 
+                                    id={`response-${review.id}`}
+                                    placeholder="Write your public response..."
+                                    value={responseText}
+                                    onChange={(e) => setResponseText(e.target.value)}
+                                    className="min-h-[100px]"
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => { setRespondingToReviewId(null); setResponseText(''); }} disabled={isSubmittingResponse}>Cancel</Button>
+                                    <Button type="submit" size="sm" disabled={isSubmittingResponse}>
+                                      {isSubmittingResponse && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                      Submit Response
+                                    </Button>
+                                  </div>
+                                </form>
+                              ) : (
+                                <Button variant="outline" size="sm" onClick={() => setRespondingToReviewId(review.id)}>
+                                  Respond to Review
+                                </Button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )) : (
                         <div className="text-center py-10 text-muted-foreground">

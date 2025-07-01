@@ -3,12 +3,13 @@
 
 import { adminDb } from '@/lib/firebaseAdmin';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
-import { getReviewsForProvider } from '@/services/reviewService';
+import { getReviewsForProvider, addProviderResponseToReview as addProviderResponseToReviewService } from '@/services/reviewService';
 import { createBookingRequest as createBookingRequestService } from '@/services/bookingService'; 
 import { createNotification } from '@/services/notificationService';
 import type { ProviderProfile } from '@/models/provider';
 import type { Review } from '@/models/review';
 import { format, parseISO, isSameDay } from 'date-fns'; 
+import { revalidatePath } from 'next/cache';
 
 
 interface PublicProviderProfilePageData {
@@ -104,5 +105,35 @@ export async function requestBookingAction(
   } catch (error: any) {
     console.error(`[requestBookingAction] Error. ProviderID: ${providerId}, ClientID: ${clientId}. Error:`, error.message);
     return { success: false, message: `Failed to send booking request: ${error.message}.` };
+  }
+}
+
+interface AddResponseResult {
+  success: boolean;
+  message: string;
+}
+
+export async function addProviderResponseAction(
+  reviewId: string,
+  providerId: string,
+  response: string,
+  currentUserId: string | null
+): Promise<AddResponseResult> {
+  if (!currentUserId) {
+    return { success: false, message: "You must be logged in to respond." };
+  }
+  if (currentUserId !== providerId) {
+    return { success: false, message: "Unauthorized action." };
+  }
+  if (!response || response.trim().length < 10) {
+    return { success: false, message: "Response must be at least 10 characters." };
+  }
+
+  try {
+    await addProviderResponseToReviewService(reviewId, providerId, response);
+    revalidatePath(`/providers/${providerId}`); // Revalidate the profile page
+    return { success: true, message: "Your response has been added." };
+  } catch (error: any) {
+    return { success: false, message: error.message || "Failed to add response." };
   }
 }
