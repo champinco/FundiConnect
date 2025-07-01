@@ -351,7 +351,7 @@ export default function DashboardPage() {
                               </Avatar>
                               <div>
                                   <h4 className="font-semibold truncate text-md">{booking.providerDetails?.businessName || 'Provider'}</h4>
-                                  <p className="text-xs text-muted-foreground">Requested: {format(new Date(booking.requestedDate), 'PPP')}</p>
+                                  <p className="text-xs text-muted-foreground">Requested: {format(new Date(booking.requestedDate), 'PPP')} at {booking.requestedTimeSlot || 'Any time'}</p>
                               </div>
                           </div>
                           {renderBookingStatusBadge(booking.status)}
@@ -564,7 +564,7 @@ export default function DashboardPage() {
                             <div>
                                 <h4 className="font-semibold text-md">{booking.clientDetails?.name || 'Client'}</h4>
                                 {booking.clientDetails?.email && <p className="text-xs text-muted-foreground">{booking.clientDetails.email}</p>}
-                                <p className="text-sm text-muted-foreground">Requested: <span className="font-medium text-foreground">{format(new Date(booking.requestedDate), 'PPP')}</span></p>
+                                <p className="text-sm text-muted-foreground">Requested: <span className="font-medium text-foreground">{format(new Date(booking.requestedDate), 'PPP')} at {booking.requestedTimeSlot || 'any time'}</span></p>
                             </div>
                           </div>
                           <div className="flex-shrink-0">{renderBookingStatusBadge(booking.status)}</div>

@@ -78,10 +78,14 @@ export async function providerRespondToBookingAction(
         jobTitleSegment = ` for "${serviceBookingData.serviceDescription.substring(0,20)}..."`;
     }
 
+    const requestedDateFormatted = format(serviceBookingData.requestedDate, 'PPP');
+    const timeSlotInfo = serviceBookingData.requestedTimeSlot ? ` at ${serviceBookingData.requestedTimeSlot}` : '';
+
+
     await createNotification({
       userId: serviceBookingData.clientId,
       type: 'booking_status_changed',
-      message: `Your booking request with ${providerProfile?.businessName || 'Provider'} has been ${statusText}. ${providerMessage ? 'Provider message: ' + providerMessage.substring(0,50) + '...' : ''}`,
+      message: `Your booking for ${requestedDateFormatted}${timeSlotInfo} with ${providerProfile?.businessName || 'Provider'} has been ${statusText}.`,
       relatedEntityId: bookingId,
       link: `/dashboard` 
     });
