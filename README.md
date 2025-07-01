@@ -1,6 +1,33 @@
 
 # FundiConnect
 
+---
+**🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './447.js', './548.js') 🛑**
+---
+
+If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.** This is a common issue in development environments and does not indicate a regression in the app's functionality.
+
+**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones. We've added a helper script to make this easy.
+
+**Here are the steps:**
+
+1.  **Stop the server** (if it's running).
+
+2.  **Run the clean rebuild command from your terminal**:
+    ```bash
+    npm run rebuild
+    ```
+    *This command will automatically delete the `.next` folder and then run a fresh `npm run build`.*
+    *Check the output of this command for any new errors. If the build itself fails, address those first.*
+
+3.  **Start the app again**:
+    ```bash
+    npm start
+    ```
+
+Following these steps should resolve the "Cannot find module" error.
+
+---
 ## How to Fix Firebase Storage CORS Errors (File Upload Failures)
 
 If you see a `CORS policy` error in your browser's developer console when trying to upload files (e.g., when posting a job), it means your Firebase Storage bucket needs to be configured to accept requests from your web app's domain.
@@ -33,32 +60,6 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
     ```
 
 After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
-
----
-**🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './447.js', './548.js') 🛑**
----
-
-If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.** This is a common issue in development environments and does not indicate a regression in the app's functionality.
-
-**To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones. We've added a helper script to make this easy.
-
-**Here are the steps:**
-
-1.  **Stop the server** (if it's running).
-
-2.  **Run the clean rebuild command from your terminal**:
-    ```bash
-    npm run rebuild
-    ```
-    *This command will automatically delete the `.next` folder and then run a fresh `npm run build`.*
-    *Check the output of this command for any new errors. If the build itself fails, address those first.*
-
-3.  **Start the app again**:
-    ```bash
-    npm start
-    ```
-
-Following these steps should resolve the "Cannot find module" error.
 
 ---
 **🚀 Final Deployment Steps 🚀**
