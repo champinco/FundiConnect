@@ -30,7 +30,7 @@ Following these steps should resolve the "Cannot find module" error.
 ---
 ## How to Fix Firebase Storage CORS Errors (File Upload Failures)
 
-If you see a `CORS policy` error in your browser's developer console when trying to upload files (e.g., when posting a job), it means your Firebase Storage bucket needs to be configured to accept requests from your web app's domain.
+If you see a `CORS policy` error in your browser's developer console when trying to upload files (e.g., when posting a job), it means your Firebase Storage bucket needs to be configured to accept requests from your web app's domain. **This is a server-side permission issue, not a bug in the client-side code.**
 
 This is a one-time setup. This project now includes a `cors.json` file with the necessary configuration.
 
@@ -53,13 +53,13 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
 
 5.  **Apply the CORS configuration to your storage bucket.** Because you are now in the correct directory, the command will find `cors.json`:
     
-    **Important Note on Bucket Name:** The correct bucket name format for this command is `gs://<your-project-id>.appspot.com`. Do not use other formats like `firebasestorage.app`.
+    > **⚠️ Important Note on Bucket Name:** The correct bucket name format for this command is `gs://<your-project-id>.appspot.com`. The Firebase SDKs are configured to use this specific address. Using other formats like `.firebasestorage.app` in the command or in your app's configuration will not work and will break file uploads.
     
     ```bash
     gcloud storage buckets update gs://myfundi-10db8.appspot.com --cors-file=cors.json
     ```
 
-After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later.
+After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later if you deploy to a new URL.
 
 ---
 **🚀 Final Deployment Steps 🚀**
