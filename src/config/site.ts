@@ -1,7 +1,8 @@
+import type { NavItem } from "@/types";
 
 export type SiteConfig = typeof siteConfig;
 
-const mainNavLinksBase = [
+const mainNavLinksBase: NavItem[] = [
   {
     title: "Home",
     href: "/",
@@ -24,17 +25,21 @@ const mainNavLinksBase = [
   },
 ];
 
-const mainNavLinksLoggedInExclusive = [
+const mainNavLinksLoggedInExclusive: NavItem[] = [
   {
-    title: "Post a Job", // Moved from base for logged-in client context
+    title: "Post a Job",
     href: "/jobs/post",
-    // Add a condition if you want to show this only for 'client' type users,
-    // This would require accountType to be available in Header
+    accountType: 'client'
   },
   {
-    title: "My Jobs", // Added for clients
+    title: "My Jobs",
     href: "/jobs/my-jobs",
-    // Add a condition if you want to show this only for 'client' type users
+    accountType: 'client'
+  },
+  {
+    title: "Resources",
+    href: "/resources",
+    accountType: 'provider'
   },
   {
     title: "Dashboard",
@@ -48,15 +53,9 @@ const mainNavLinksLoggedInExclusive = [
     title: "My Profile", // Generic profile link
     href: "/profile",
   },
-  // Example: Provider specific link
-  // {
-  //   title: "My Provider Dashboard", // If different from general dashboard
-  //   href: "/provider/dashboard", 
-  //   accountType: "provider" // Custom property to help Header filter
-  // },
 ];
 
-const mainNavLinksLoggedOutExclusive = [
+const mainNavLinksLoggedOutExclusive: NavItem[] = [
   // Example: { title: "Pricing", href: "/pricing" }
 ];
 

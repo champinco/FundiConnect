@@ -8,6 +8,7 @@ export interface NavItem {
   icon?: React.ComponentType<{ className?: string }>;
   label?: string;
   description?: string;
+  accountType?: 'client' | 'provider';
 }
 
 // You can add other shared types here, e.g.:

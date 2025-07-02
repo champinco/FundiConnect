@@ -13,7 +13,7 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings, Briefcase, ListChecks, Edit3, Bell } from "lucide-react";
+import { Menu, Wrench, LogOut, UserCircle, LogIn, UserPlus, LayoutDashboard, MessageSquare, Settings, Briefcase, ListChecks, Edit3, Bell, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -106,10 +106,12 @@ export function SiteHeader() {
   let userSpecificNavItems: NavItem[] = [];
   if (currentUser) {
     userSpecificNavItems = siteConfig.mainNavLoggedIn.filter(item => {
-      if (item.title === "Post a Job" || item.title === "My Jobs") {
-        return accountType === 'client';
+      // If item has an accountType, it's role-specific
+      if (item.accountType) {
+        return item.accountType === accountType;
       }
-      return true; 
+      // If item has no accountType, it's for everyone (who is logged in)
+      return true;
     });
   }
 
@@ -199,6 +201,7 @@ export function SiteHeader() {
                                     {item.title === "My Profile" && <UserCircle className="mr-2 h-4 w-4" />}
                                     {item.title === "Post a Job" && <Edit3 className="mr-2 h-4 w-4" />}
                                     {item.title === "My Jobs" && <ListChecks className="mr-2 h-4 w-4" />}
+                                    {item.title === "Resources" && <BookOpen className="mr-2 h-4 w-4" />}
                                     {item.title}
                                 </span>
                                 {item.title === "Messages" && unreadMessageCount > 0 && (
@@ -328,6 +331,7 @@ export function SiteHeader() {
                                 {item.title === "My Profile" && <UserCircle className="mr-2 h-5 w-5" />}
                                 {item.title === "Post a Job" && <Edit3 className="mr-2 h-5 w-5" />}
                                 {item.title === "My Jobs" && <ListChecks className="mr-2 h-5 w-5" />}
+                                {item.title === "Resources" && <BookOpen className="mr-2 h-5 w-5" />}
                                 {item.title}
                             </span>
                              {item.title === "Messages" && unreadMessageCount > 0 && (
