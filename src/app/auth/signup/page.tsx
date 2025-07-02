@@ -330,7 +330,7 @@ export default function SignupPage() {
                 <div className="pt-4 border-t mt-6">
                   <h3 className="text-lg font-semibold mb-4 text-primary">Provider Details (Basic Information)</h3>
                    <p className="text-sm text-muted-foreground mb-4">
-                    After verifying your email and logging in, you&apos;ll be guided to complete your detailed profile (certifications, portfolio, etc.) to get verified and start attracting clients.
+                    After verifying your email and logging in, you'll be guided to complete your detailed profile (certifications, portfolio, etc.) to get verified and start attracting clients.
                   </p>
                 </div>
                 <div>

@@ -2,7 +2,6 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -19,7 +18,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'i.imgur.com',
+        hostname: 'firebasestorage.googleapis.com',
         port: '',
         pathname: '/**',
       },
@@ -40,6 +39,17 @@ const nextConfig: NextConfig = {
         // You can add other Node.js core modules here if they cause issues
       };
     }
+
+    // Ignore the dataconnect-generated directory to prevent file-watching loops
+    // that cause the server to restart constantly.
+    const ignored = Array.isArray(config.watchOptions.ignored)
+      ? config.watchOptions.ignored
+      : [];
+    config.watchOptions.ignored = [
+        ...ignored,
+        '**/dataconnect-generated/**',
+    ];
+    
     // Important: return the modified config
     return config;
   },
