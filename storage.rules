@@ -1,57 +1,39 @@
-
 rules_version = '2';
-
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // Helper function to check if a user is authenticated
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    // Helper function to check if the user ID from the path matches the authenticated user's UID
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    // PUBLIC ASSETS (e.g., placeholder images, logos if stored here)
-    // Allow anyone to read files from a 'public' directory.
-    match /public/{allPaths=**} {
-      allow read: if true;
-      allow write: if false; // Only admin should write here
-    }
-    
-    // JOB ATTACHMENTS
-    // Allow anyone to read job attachments (e.g., photos in job listings).
-    // Allow authenticated users to write to a path corresponding to their own user ID.
-    // This prevents a user from uploading files into another user's job folder.
-    match /jobs/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() && isOwner(userId);
-    }
-    
-    // PROVIDER PROFILE PICTURES & PORTFOLIO
-    // Allow anyone to read images (for public profiles).
-    // Allow the provider to write to their own directory.
-    match /providerProfiles/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if isSignedIn() && isOwner(userId);
+    // Users can only write to their own profile picture folder
+    match /profilePictures/{userId}/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null; // Allow any authenticated user to read profile pics
     }
 
-    // CHAT ATTACHMENTS
-    // Only authenticated users can upload chat images.
-    // Reading should ideally be restricted to chat participants, but that requires
-    // cross-service rules which are complex. A simpler, secure approach is to use
-    // unguessable download URLs, which Firebase Storage does by default.
-    // We will restrict write access to authenticated users.
-    match /chatAttachments/{chatId}/{allPaths=**} {
-        allow read: if isSignedIn(); // Should have more specific rules if download URLs are not used
-        allow write: if isSignedIn(); // Anyone signed in can upload to a chat path, could be refined
+    // Any authenticated user can upload job attachments
+    match /jobs/{userId}/{jobId}/attachments/{fileName} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
     }
     
-    // Fallback rule: Deny all other reads and writes by default
-    match /{allPaths=**} {
-      allow read, write: if false;
+    // Allow providers to upload to their own portfolio
+    match /providerProfiles/{userId}/portfolio/{itemId}/{fileName} {
+       allow write: if request.auth != null && request.auth.uid == userId;
+       allow read;
+    }
+
+    // Allow providers to upload to their own certifications
+     match /providerProfiles/{userId}/certifications/{certId}/{fileName} {
+       allow write: if request.auth != null && request.auth.uid == userId;
+       allow read;
+    }
+
+    // Allow providers to upload banner and profile pictures
+    match /providerProfiles/{userId}/{imageType}/{fileName} {
+       allow write: if request.auth != null && request.auth.uid == userId && imageType in ['profilePictures', 'bannerImages'];
+       allow read;
+    }
+
+     // Allow users to upload chat images
+    match /chatAttachments/{chatId}/{fileName} {
+        allow read, write: if request.auth != null;
     }
   }
 }
