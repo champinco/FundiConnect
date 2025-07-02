@@ -18,6 +18,13 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
+// Add a check for the API key to provide a more helpful error message.
+if (!firebaseConfig.apiKey) {
+    throw new Error(
+      "CRITICAL: Firebase API Key is missing. Please create a .env.local file in the project's root directory and add your Firebase project's configuration. See the README.md file for detailed instructions, then RESTART your server."
+    );
+}
+
 
 // Initialize Firebase
 let app: FirebaseApp;

@@ -33,7 +33,14 @@ Your Firebase API keys are secrets and should not be stored directly in the code
     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-...
     ```
 
-### **Step 2: Deploy Security Rules**
+### **Step 2: Restart Your Development Server**
+
+**This is a critical step.** Next.js only loads the `.env.local` file when the server starts.
+
+1.  **Stop the server** if it's currently running (usually with `Ctrl+C` in the terminal).
+2.  **Restart the server** by running `npm run dev` again.
+
+### **Step 3: Deploy Security Rules**
 
 We have created security rules to protect your Firestore database and Storage bucket. You must deploy them to Firebase before the app can read or write data.
 
@@ -119,3 +126,4 @@ This is a one-time setup. This project now includes a `cors.json` file with the 
     ```
 
 After running this command successfully, refresh your browser page and try uploading the file again. The error should be resolved. You may need to add your final production domain to the `cors.json` file later if you deploy to a new URL.
+
