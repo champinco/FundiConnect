@@ -42,13 +42,10 @@ const nextConfig: NextConfig = {
 
     // Ignore the dataconnect-generated directory to prevent file-watching loops
     // that cause the server to restart constantly.
-    const ignored = Array.isArray(config.watchOptions.ignored)
-      ? config.watchOptions.ignored
-      : [];
-    config.watchOptions.ignored = [
-        ...ignored,
-        '**/dataconnect-generated/**',
-    ];
+    // The `ignored` property is read-only, so we must push to the array instead of re-assigning it.
+    if (Array.isArray(config.watchOptions.ignored)) {
+      config.watchOptions.ignored.push('**/dataconnect-generated/**');
+    }
     
     // Important: return the modified config
     return config;
