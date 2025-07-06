@@ -68,10 +68,10 @@ We have created security rules to protect your Firestore database and Storage bu
 ---
 
 ---
-**🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './447.js', './548.js') 🛑**
+**🛑 URGENT: How to Fix "Cannot find module" Errors (e.g., './vendor-chunks/@firebase.js') 🛑**
 ---
 
-If your application fails to start and you see an error like `Error: Cannot find module './<some_number>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.** This is a common issue in development environments and does not indicate a regression in the app's functionality.
+If your application fails to start and you see an error like `Error: Cannot find module './<some_file>.js'`, it means your Next.js build cache is out of sync. **This is not a bug in the application source code itself.** This is a common issue in development environments and does not indicate a regression in the app's functionality.
 
 **To fix this, you must perform a clean rebuild from your terminal.** This process deletes the temporary build files (`.next` folder) and creates fresh ones. We've added a helper script to make this easy.
 
