@@ -52,7 +52,7 @@ export async function postJobAction(
       status: 'open', 
       photosOrVideos: photoUrls || [],
       budget: values.budget,
-      urgency: values.urgency as JobUrgency, 
+      urgency: values.urgency, 
       deadline: values.deadline ? new Date(values.deadline) : null
     };
 

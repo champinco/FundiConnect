@@ -23,9 +23,8 @@ export interface Job {
     max?: number;
     currency?: string; 
   };
-  urgency: JobUrgency | null; // Made non-optional, defaults to 'medium' or a chosen default in form/service
+  urgency: JobUrgency;
   deadline?: Date | null; 
   quotesReceived?: number; 
   acceptedQuoteId?: string | null;
 }
-

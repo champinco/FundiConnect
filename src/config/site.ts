@@ -1,3 +1,4 @@
+
 import type { NavItem } from "@/types";
 
 export type SiteConfig = typeof siteConfig;
