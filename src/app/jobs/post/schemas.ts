@@ -7,6 +7,7 @@ export const serviceCategoriesForValidation: [ServiceCategory, ...ServiceCategor
   'Plumbing',
   'Electrical',
   'Appliance Repair',
+  'Vehicle Mechanics',
   'Garbage Collection',
   'HVAC',
   'Solar Installation',

@@ -1,4 +1,4 @@
-import { Wrench, Zap, Wind, Sun, Trash2, Sprout, LucideProps, HelpCircle, Settings, PaintRoller, Hammer, Layers, Bug, KeyRound } from 'lucide-react';
+import { Wrench, Zap, Wind, Sun, Trash2, Sprout, LucideProps, HelpCircle, Settings, PaintRoller, Hammer, Layers, Bug, KeyRound, Car } from 'lucide-react';
 import type { FC } from 'react';
 
 export type ServiceCategory =
@@ -6,6 +6,7 @@ export type ServiceCategory =
   | 'Electrical'
   | 'Appliance Repair'
   | 'Garbage Collection'
+  | 'Vehicle Mechanics'
   // Tier 2
   | 'HVAC'
   | 'Solar Installation'
@@ -28,16 +29,17 @@ interface ServiceCategoryIconProps extends LucideProps {
 const serviceIcons: Record<ServiceCategory, FC<LucideProps>> = {
   'Plumbing': Wrench,
   'Electrical': Zap,
-  'Appliance Repair': Settings, // Core Tier 1
-  'Garbage Collection': Trash2, // Core Tier 1
-  'HVAC': Wind, // Tier 2
-  'Solar Installation': Sun, // Tier 2
-  'Painting & Decorating': PaintRoller, // Tier 2
-  'Carpentry & Furniture': Hammer, // Tier 2
-  'Landscaping': Sprout, // Tier 3
-  'Tiling & Masonry': Layers, // Tier 3
-  'Pest Control': Bug, // Tier 3
-  'Locksmith': KeyRound, // Tier 3
+  'Appliance Repair': Settings,
+  'Garbage Collection': Trash2,
+  'Vehicle Mechanics': Car,
+  'HVAC': Wind,
+  'Solar Installation': Sun,
+  'Painting & Decorating': PaintRoller,
+  'Carpentry & Furniture': Hammer,
+  'Landscaping': Sprout,
+  'Tiling & Masonry': Layers,
+  'Pest Control': Bug,
+  'Locksmith': KeyRound,
   'Other': HelpCircle,
 };
 

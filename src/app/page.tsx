@@ -24,6 +24,7 @@ const serviceGroups: { name: string; categories: ServiceInfo[] }[] = [
       { type: 'Plumbing', name: 'Plumbing' },
       { type: 'Electrical', name: 'Electrical' },
       { type: 'Appliance Repair', name: 'Appliance Repair' },
+      { type: 'Vehicle Mechanics', name: 'Mechanics' },
       { type: 'Locksmith', name: 'Locksmith' },
     ],
   },

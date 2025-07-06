@@ -29,7 +29,7 @@ import { format } from 'date-fns';
 
 
 const allServiceCategoriesList: (ServiceCategory | 'All')[] = [
-  'All', 'Plumbing', 'Electrical', 'Appliance Repair', 'Garbage Collection', 'HVAC',
+  'All', 'Plumbing', 'Electrical', 'Appliance Repair', 'Vehicle Mechanics', 'Garbage Collection', 'HVAC',
   'Solar Installation', 'Painting & Decorating', 'Carpentry & Furniture',
   'Landscaping', 'Tiling & Masonry', 'Pest Control', 'Locksmith', 'Other'
 ];
