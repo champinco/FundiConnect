@@ -1,7 +1,8 @@
+
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, ShieldCheck, Briefcase, BarChart3, TrendingUp, Handshake, ExternalLink } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { BookOpen, ShieldCheck, TrendingUp, Handshake, ExternalLink, BarChart3 } from 'lucide-react';
 import Link from "next/link";
 
 const resources = [
@@ -52,15 +53,15 @@ export default function ResourcesPage() {
     <div className="container mx-auto px-4 py-12">
       <div className="text-center mb-12">
         <BookOpen className="h-16 w-16 text-primary mx-auto mb-4" />
-        <h1 className="text-4xl font-bold font-headline">Fundi Resources</h1>
+        <h1 className="text-4xl font-bold font-headline">The Knowledge Hub</h1>
         <p className="text-lg text-muted-foreground mt-2 max-w-2xl mx-auto">
-          A collection of guides, tips, and links to help you succeed as a professional Fundi.
+          Expert articles, guides, and resources to help you grow your business and master your craft.
         </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-8">
         {resources.map((category) => (
-          <Card key={category.title} className="shadow-lg hover:shadow-xl transition-shadow">
+          <Card key={category.title} className="shadow-lg hover:shadow-xl transition-shadow flex flex-col">
             <CardHeader>
               <div className="flex items-center space-x-3">
                 <div className="p-3 bg-primary/10 rounded-full">
@@ -72,7 +73,7 @@ export default function ResourcesPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-grow">
               <ul className="space-y-3">
                 {category.items.map((item) => (
                   <li key={item.name}>

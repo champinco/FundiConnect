@@ -37,6 +37,11 @@ const mainNavLinksLoggedInExclusive: NavItem[] = [
     href: "/jobs/my-jobs",
     accountType: 'client'
   },
+   {
+    title: "Smart Leads",
+    href: "/tools/smart-leads",
+    accountType: 'provider',
+  },
   {
     title: "Resources",
     href: "/resources",

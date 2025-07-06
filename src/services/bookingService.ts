@@ -9,7 +9,7 @@ import { getUserProfileFromFirestore } from '@/services/userService';
 import { getProviderProfileFromFirestore } from '@/services/providerService';
 import { sendBookingRequestProviderEmail } from '@/services/emailService'; // Import email service
 import { createNotification } from '@/services/notificationService';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 
 export interface CreateBookingRequestData {
   providerId: string;
@@ -197,4 +197,40 @@ export async function updateBookingRequestStatus(
     console.error(`[BookingService] Error updating booking request ${bookingId} status. Error:`, error.message, error.stack);
     throw new Error('Could not update booking request status.');
   }
+}
+
+/**
+ * Retrieves confirmed bookings for a provider within a specified number of upcoming days.
+ * @param providerId The UID of the provider.
+ * @param daysAhead The number of days to look ahead for confirmed bookings.
+ * @returns A promise that resolves with an array of confirmed BookingRequest objects.
+ */
+export async function getConfirmedBookingsForProvider(providerId: string, daysAhead: number): Promise<BookingRequest[]> {
+  if (!adminDb) {
+    console.error("[BookingService] Admin DB not initialized. Cannot fetch confirmed bookings.");
+    return [];
+  }
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const futureDate = addDays(today, daysAhead);
+
+  const bookingsRef = adminDb.collection('bookingRequests');
+  const q = bookingsRef
+    .where('providerId', '==', providerId)
+    .where('status', '==', 'confirmed')
+    .where('requestedDate', '>=', today)
+    .where('requestedDate', '<=', futureDate)
+    .orderBy('requestedDate', 'asc');
+
+  const snapshot = await q.get();
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      ...data,
+      id: doc.id,
+      requestedDate: robustTimestampToDate(data.requestedDate),
+      createdAt: robustTimestampToDate(data.createdAt),
+      updatedAt: robustTimestampToDate(data.updatedAt),
+    } as BookingRequest;
+  });
 }

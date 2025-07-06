@@ -1,4 +1,5 @@
 
+
 // This is a basic definition. Expand as needed.
 export interface NavItem {
   title: string;
