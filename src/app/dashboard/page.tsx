@@ -23,7 +23,7 @@ import VerifiedBadge from '@/components/verified-badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone, Share2, Activity } from 'lucide-react';
+import { Loader2, Briefcase, Edit, Search, PlusCircle, LayoutDashboard, ListChecks, FileText, Star, Users, AlertCircle, CalendarClock, Check, X, MessageSquare, MapPin, Award, Clock, LinkIcon, Building, ExternalLink, BookOpen, Images, Twitter, Instagram, Facebook, Linkedin, Phone, Share2, Activity, CheckCircle2 } from 'lucide-react';
 import { formatDynamicDate, formatSafeDate } from '@/lib/dateUtils'; 
 import { format } from 'date-fns';
 import { fetchDashboardDataAction, type DashboardPageData } from './actions';
@@ -31,6 +31,7 @@ import { providerRespondToBookingAction } from '@/app/actions/booking_actions';
 import type { ClientJobSummary } from '@/services/jobService';
 import type { ProviderQuoteSummary } from '@/services/quoteService';
 import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 
 interface ClientDashboardDisplayData {
@@ -169,6 +170,82 @@ export default function DashboardPage() {
     { key: 'facebook', Icon: Facebook, color: 'text-blue-700', name: 'Facebook' },
     { key: 'linkedin', Icon: Linkedin, color: 'text-sky-700', name: 'LinkedIn' },
   ];
+  
+  const ProviderVerificationChecklist = ({ profile }: { profile: ProviderProfile }) => {
+    const checks = {
+      hasBusinessName: profile.businessName && profile.businessName.length > 2,
+      hasValidPhone: profile.contactPhoneNumber && /^\+?[0-9\s-()]{7,20}$/.test(profile.contactPhoneNumber),
+      hasDetailedBio: profile.bio && profile.bio.length >= 100,
+      hasProfilePicture: profile.profilePictureUrl && !profile.profilePictureUrl.includes('placehold.co'),
+      hasServiceAreas: profile.serviceAreas && profile.serviceAreas.length > 0,
+      hasExperience: profile.yearsOfExperience && profile.yearsOfExperience > 0,
+      hasSpecialties: profile.specialties && profile.specialties.length > 0,
+      hasSkills: profile.skills && profile.skills.length > 0,
+      hasPortfolio: profile.portfolio && profile.portfolio.filter(p => p.imageUrl).length >= 2,
+      hasCertifications: profile.certifications && profile.certifications.length >= 1,
+    };
+    
+    const completedChecks = Object.values(checks).filter(Boolean).length;
+    const totalChecks = Object.keys(checks).length;
+    const completionPercentage = (completedChecks / totalChecks) * 100;
+  
+    const checklistItems = [
+      { label: "Add business name", completed: checks.hasBusinessName },
+      { label: "Add contact phone", completed: checks.hasValidPhone },
+      { label: "Write a detailed bio (min. 100 chars)", completed: checks.hasDetailedBio },
+      { label: "Upload a profile picture", completed: checks.hasProfilePicture },
+      { label: "Define service areas", completed: checks.hasServiceAreas },
+      { label: "Set years of experience", completed: checks.hasExperience },
+      { label: "List specialties", completed: checks.hasSpecialties },
+      { label: "List skills/keywords", completed: checks.hasSkills },
+      { label: "Add at least 2 portfolio items with images", completed: checks.hasPortfolio },
+      { label: "Add at least 1 certification", completed: checks.hasCertifications },
+    ];
+  
+    if (profile.isVerified) {
+      return (
+        <Card className="bg-teal-50 border-teal-200 dark:bg-teal-900/30 dark:border-teal-700 md:col-span-2 lg:col-span-3">
+          <CardHeader className="flex-row items-center gap-4">
+            <CheckCircle2 className="h-10 w-10 text-teal-600" />
+            <div>
+              <CardTitle className="text-teal-700 dark:text-teal-200">You're Verified!</CardTitle>
+              <CardDescription className="text-teal-600 dark:text-teal-300">Your profile is complete and you have the verified badge.</CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+      );
+    }
+  
+    return (
+      <Card className="md:col-span-2 lg:col-span-3 shadow-md">
+        <CardHeader>
+          <CardTitle>Complete Your Profile to Get Verified</CardTitle>
+          <CardDescription>
+            Our automated system will grant you a "Verified" badge once your profile is complete. This builds client trust and helps you get more jobs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Progress value={completionPercentage} className="w-full mb-4 h-3" />
+          <p className="text-center text-sm text-muted-foreground mb-4">{completedChecks} of {totalChecks} tasks completed</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+            {checklistItems.map(item => (
+              <div key={item.label} className="flex items-center">
+                <Check className={`h-5 w-5 mr-2 rounded-full p-0.5 ${item.completed ? 'bg-green-600 text-white' : 'bg-muted text-muted-foreground'}`} />
+                <span className={`text-sm ${item.completed ? 'text-muted-foreground line-through' : 'font-medium'}`}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button asChild className="w-full">
+            <Link href="/profile/edit"><Edit className="mr-2" /> Complete Profile Now</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  };
+  
+  
 
   if (isLoading && !appUser) { // Main initial loading state
     return (
@@ -380,6 +457,8 @@ export default function DashboardPage() {
 
         {appUser.accountType === 'provider' && providerData && (
           <>
+            {providerData.providerProfile && <ProviderVerificationChecklist profile={providerData.providerProfile} />}
+            
             <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-xl"><Star className="mr-3 h-7 w-7 text-yellow-400 fill-yellow-400" />Your Rating</CardTitle>
