@@ -44,6 +44,7 @@ interface ProviderDashboardDisplayData {
   quoteSummary: ProviderQuoteSummary;
   assignedJobs: Job[];
   providerBookings: BookingRequest[];
+  confirmedBookings: BookingRequest[];
 }
 
 type DashboardDisplayData = ClientDashboardDisplayData | ProviderDashboardDisplayData | null;
@@ -76,7 +77,7 @@ export default function DashboardPage() {
       setAppUser(result.appUser);
       if (result.appUser?.accountType === 'client' && result.dashboardData && 'jobSummary' in result.dashboardData && 'clientBookings' in result.dashboardData) {
         setDashboardDisplayData(result.dashboardData as ClientDashboardDisplayData);
-      } else if (result.appUser?.accountType === 'provider' && result.dashboardData && 'providerProfile' in result.dashboardData && 'providerBookings' in result.dashboardData) {
+      } else if (result.appUser?.accountType === 'provider' && result.dashboardData && 'providerProfile' in result.dashboardData && 'providerBookings' in result.dashboardData && 'confirmedBookings' in result.dashboardData) {
          setDashboardDisplayData(result.dashboardData as ProviderDashboardDisplayData);
       } else {
         setDashboardDisplayData(null); 
@@ -160,7 +161,7 @@ export default function DashboardPage() {
   }, [toast]);
   
   const clientData = useMemo(() => appUser?.accountType === 'client' && dashboardDisplayData && 'jobSummary' in dashboardDisplayData ? dashboardDisplayData as ClientDashboardDisplayData : null, [appUser, dashboardDisplayData]);
-  const providerData = useMemo(() => appUser?.accountType === 'provider' && dashboardDisplayData && 'providerProfile' in dashboardDisplayData ? dashboardDisplayData as ProviderDashboardDisplayData : null, [appUser, dashboardDisplayData]);
+  const providerData = useMemo(() => appUser?.accountType === 'provider' && dashboardDisplayData && 'providerProfile' in dashboardDisplayData && 'confirmedBookings' in dashboardDisplayData ? dashboardDisplayData as ProviderDashboardDisplayData : null, [appUser, dashboardDisplayData]);
 
   const socialMediaPlatforms = [
     { key: 'twitter', Icon: Twitter, color: 'text-sky-500', name: 'Twitter' },
@@ -629,6 +630,33 @@ export default function DashboardPage() {
                   </CardFooter>
               )}
             </Card>
+             <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-3">
+                <CardHeader className="pb-4">
+                    <CardTitle className="flex items-center text-xl"><CalendarClock className="mr-3 h-7 w-7 text-primary" />Upcoming Schedule (Next 7 Days)</CardTitle>
+                    <CardDescription>Your confirmed bookings for the upcoming week.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {providerData.confirmedBookings.length > 0 ? (
+                        <ul className="space-y-4 max-h-60 overflow-y-auto">
+                            {providerData.confirmedBookings.map(booking => (
+                                <li key={booking.id} className="p-4 border rounded-lg shadow-sm">
+                                    <h4 className="font-semibold text-md">
+                                        {format(new Date(booking.requestedDate), 'EEEE, PPP')}
+                                        <span className="font-normal text-sm text-muted-foreground ml-2">{booking.requestedTimeSlot}</span>
+                                    </h4>
+                                    <p className="text-sm text-muted-foreground">With: {booking.clientDetails?.name || 'Client'}</p>
+                                    <p className="text-xs text-muted-foreground mt-1 italic">Note: "{booking.messageToProvider || 'No message provided'}"</p>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="text-center py-8">
+                            <CalendarClock className="mx-auto h-12 w-12 text-muted-foreground mb-3 opacity-60" />
+                            <p className="text-muted-foreground">You have no confirmed bookings in the next 7 days.</p>
+                        </div>
+                    )}
+                </CardContent>
+             </Card>
           </>
         )}
         

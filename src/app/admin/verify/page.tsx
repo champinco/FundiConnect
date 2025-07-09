@@ -15,11 +15,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, UserCheck, ShieldCheck, AlertCircle, ExternalLink, KeyRound, Building, Mail, FileText, CalendarDays, Edit3 } from 'lucide-react';
+import { Loader2, UserCheck, ShieldCheck, AlertCircle, ExternalLink, KeyRound, Building, Mail, FileText, CalendarDays, Edit3, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { ProviderProfile, Certification } from '@/models/provider';
 import { fetchAllProvidersForAdminAction, setProviderVerificationStatusAction, updateCertificationStatusAction } from '../actions';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 interface AdminProviderProfile extends ProviderProfile {
   email?: string;
