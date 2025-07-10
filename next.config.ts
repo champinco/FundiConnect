@@ -1,4 +1,3 @@
-
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -34,7 +33,7 @@ const nextConfig: NextConfig = {
         net: false,
         tls: false,
         dns: false,
-        http2: false, 
+        http2: false,
         '@opentelemetry/exporter-jaeger': false, // Added fallback for Jaeger exporter
         // You can add other Node.js core modules here if they cause issues
       };
@@ -42,14 +41,13 @@ const nextConfig: NextConfig = {
 
     // Ignore the dataconnect-generated directory to prevent file-watching loops
     // that cause the server to restart constantly.
-    const ignored = Array.isArray(config.watchOptions.ignored)
-      ? config.watchOptions.ignored
-      : [];
-    config.watchOptions.ignored = [
-        ...ignored,
-        '**/dataconnect-generated/**',
-    ];
-    
+    // Safely add to the ignored array
+    if (Array.isArray(config.watchOptions.ignored)) {
+      config.watchOptions.ignored.push('**/dataconnect-generated/**');
+    } else {
+      config.watchOptions.ignored = ['**/dataconnect-generated/**'];
+    }
+
     // Important: return the modified config
     return config;
   },
