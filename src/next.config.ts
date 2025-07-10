@@ -45,10 +45,11 @@ const nextConfig: NextConfig = {
     const ignored = Array.isArray(config.watchOptions.ignored)
       ? config.watchOptions.ignored
       : [];
-    config.watchOptions.ignored = [
-        ...ignored,
-        '**/dataconnect-generated/**',
-    ];
+      
+    // FIX: Push to the existing array instead of reassigning a read-only property.
+    if (Array.isArray(config.watchOptions.ignored)) {
+        config.watchOptions.ignored.push('**/dataconnect-generated/**');
+    }
     
     // Important: return the modified config
     return config;
