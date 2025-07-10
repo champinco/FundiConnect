@@ -49,7 +49,10 @@ export async function submitQuoteForJob(quoteData: SubmitQuoteData): Promise<str
     status: 'pending' as QuoteStatus,
     providerDetails: providerProfile ? {
         businessName: providerProfile.businessName,
-        profilePictureUrl: providerProfile.profilePictureUrl || null
+        profilePictureUrl: providerProfile.profilePictureUrl || null,
+        rating: providerProfile.rating,
+        reviewsCount: providerProfile.reviewsCount,
+        yearsOfExperience: providerProfile.yearsOfExperience,
     } : undefined,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
@@ -160,18 +163,36 @@ export async function getQuoteById(quoteId: string): Promise<Quote | null> {
   }
 }
 
-export async function updateQuoteStatus(quoteId: string, newStatus: QuoteStatus): Promise<void> {
+export async function updateQuoteStatus(quoteId: string, newStatus: QuoteStatus, jobId?: string): Promise<void> {
     if (!adminDb) {
       console.error("Admin DB not initialized. Cannot update quote status.");
       throw new Error("Server error: Admin DB not initialized.");
     }
+    
+    const batch = adminDb.batch();
     const quoteRef = adminDb.collection('quotes').doc(quoteId);
+    
     try {
         const updatePayload: UpdateData<Quote> = { // Use UpdateData for type safety
             status: newStatus,
             updatedAt: FieldValue.serverTimestamp() as Timestamp, // Correct usage for Admin SDK
         };
-        await quoteRef.update(updatePayload);
+        batch.update(quoteRef, updatePayload);
+
+        // If accepting, reject all other pending quotes for the same job
+        if (newStatus === 'accepted' && jobId) {
+          const otherQuotesQuery = adminDb.collection('quotes')
+              .where('jobId', '==', jobId)
+              .where('status', '==', 'pending');
+          const otherQuotesSnap = await otherQuotesQuery.get();
+          otherQuotesSnap.forEach(doc => {
+            if (doc.id !== quoteId) {
+              batch.update(doc.ref, { status: 'rejected', updatedAt: FieldValue.serverTimestamp() });
+            }
+          });
+        }
+        await batch.commit();
+
     } catch (error) {
         console.error(`Error updating quote ${quoteId} status to ${newStatus} (Admin SDK):`, error);
         throw new Error(`Could not update quote status.`);

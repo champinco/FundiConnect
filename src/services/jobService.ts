@@ -8,6 +8,7 @@ import type { Job, JobStatus, JobUrgency } from '@/models/job';
 import type { PostJobFormValues } from '@/app/jobs/post/schemas';
 import { serviceCategoriesForValidation } from '@/app/jobs/post/schemas';
 import type { ServiceCategory } from '@/components/service-category-icon';
+import { getUserProfileFromFirestore } from './userService';
 
 /**
  * Creates a new job document in Firestore using Admin SDK.
@@ -140,6 +141,9 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
 
     if (jobSnap.exists) {
       const jobData = jobSnap.data()!;
+      
+      const clientProfile = await getUserProfileFromFirestore(jobData.clientId);
+
       return {
         ...jobData,
         id: jobSnap.id,
@@ -148,6 +152,10 @@ export async function getJobByIdFromFirestore(jobId: string): Promise<Job | null
         deadline: jobData.deadline ? (jobData.deadline as Timestamp).toDate() : null,
         urgency: jobData.urgency || 'medium', 
         otherCategoryDescription: jobData.otherCategoryDescription || undefined,
+        clientDetails: clientProfile ? {
+            name: clientProfile.fullName,
+            photoURL: clientProfile.photoURL,
+        } : undefined,
       } as Job;
     } else {
       return null;
@@ -198,8 +206,9 @@ export async function getJobsByClientIdFromFirestore(clientId: string): Promise<
  * @param jobId The ID of the job to update.
  * @param newStatus The new status for the job.
  * @param assignedProviderId Optional. The UID of the provider if the job is being assigned.
+ * @param acceptedQuoteId Optional. The ID of the quote that was accepted.
  */
-export async function updateJobStatus(jobId: string, newStatus: JobStatus, assignedProviderId?: string | null): Promise<void> {
+export async function updateJobStatus(jobId: string, newStatus: JobStatus, assignedProviderId?: string | null, acceptedQuoteId?: string | null): Promise<void> {
    if (!adminDb || typeof adminDb.collection !== 'function') {
     const errorMsg = "[updateJobStatus] CRITICAL: Firebase Admin DB not initialized. Aborting action.";
     console.error(errorMsg);
@@ -213,8 +222,14 @@ export async function updateJobStatus(jobId: string, newStatus: JobStatus, assig
 
   if (newStatus === 'assigned' && assignedProviderId) {
     updateData.assignedProviderId = assignedProviderId;
-  } else if (newStatus === 'open' || newStatus === 'cancelled') { 
+  }
+  if (newStatus === 'assigned' && acceptedQuoteId) {
+    updateData.acceptedQuoteId = acceptedQuoteId;
+  }
+  
+  if (newStatus === 'open' || newStatus === 'cancelled') { 
     updateData.assignedProviderId = FieldValue.delete() as unknown as string | null; 
+    updateData.acceptedQuoteId = FieldValue.delete() as unknown as string | null;
   }
 
 

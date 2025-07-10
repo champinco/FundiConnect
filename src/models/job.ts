@@ -27,4 +27,8 @@ export interface Job {
   deadline?: Date | null; 
   quotesReceived?: number; 
   acceptedQuoteId?: string | null;
+  clientDetails?: { // Denormalized for invoice generation
+      name: string | null;
+      photoURL?: string | null;
+  };
 }

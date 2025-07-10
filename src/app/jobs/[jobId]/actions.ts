@@ -14,6 +14,8 @@ import { createNotification } from '@/services/notificationService';
 import { getOrCreateChatAction } from '@/app/messages/actions'; 
 import { sendNewQuoteReceivedEmail, sendQuoteAcceptedEmail, sendQuoteRejectedEmail } from '@/services/emailService'; // Import email service
 import { revalidatePath } from 'next/cache';
+import { analyzeJobQuotes, type QuoteAnalysisInput, type QuoteAnalysisOutput } from '@/ai/flows/quote-analysis';
+
 
 interface SubmitQuoteResult {
   success: boolean;
@@ -100,8 +102,8 @@ export async function acceptQuoteAction(jobId: string, quoteId: string, provider
         return { success: false, message: "Unauthorized to accept this quote." };
     }
 
-    await updateQuoteStatus(quoteId, 'accepted');
-    await updateJobStatus(jobId, 'assigned', providerIdToAssign);
+    await updateQuoteStatus(quoteId, 'accepted', jobId);
+    await updateJobStatus(jobId, 'assigned', providerIdToAssign, quoteId);
     
     const job = await getJobByIdFromFirestore(jobId);
     const providerProfile = await getProviderProfileFromFirestore(providerIdToAssign); // Correctly fetch provider profile
@@ -370,5 +372,42 @@ export async function deleteJobAction(jobId: string, currentUserId: string): Pro
   } catch (error: any) {
     console.error(`[deleteJobAction] Error deleting job ${jobId}:`, error);
     return { success: false, message: `Failed to delete job: ${error.message}` };
+  }
+}
+
+
+export async function getQuoteAnalysisAction(job: Job, quotes: Quote[]): Promise<QuoteAnalysisOutput> {
+  if (!job || !quotes || quotes.length === 0) {
+    throw new Error("Job and quotes data are required for analysis.");
+  }
+  
+  const aiInput: QuoteAnalysisInput = {
+    jobDetails: {
+      title: job.title,
+      description: job.description,
+    },
+    quotes: quotes.map(quote => {
+      const providerProfile = quote.providerDetails;
+      return {
+        id: quote.id,
+        amount: quote.amount,
+        currency: quote.currency,
+        messageToClient: quote.messageToClient,
+        providerDetails: {
+          businessName: providerProfile?.businessName || 'Unnamed Provider',
+          rating: providerProfile?.rating || 0,
+          reviewsCount: providerProfile?.reviewsCount || 0,
+          yearsOfExperience: providerProfile?.yearsOfExperience || 0,
+        },
+      };
+    }),
+  };
+
+  try {
+    const analysis = await analyzeJobQuotes(aiInput);
+    return analysis;
+  } catch (error: any) {
+    console.error(`[getQuoteAnalysisAction] Error getting AI quote analysis for job ${job.id}:`, error.message);
+    throw new Error(`Failed to get AI analysis: ${error.message}`);
   }
 }

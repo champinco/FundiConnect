@@ -7,7 +7,7 @@ import { auth } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ServiceCategoryIcon from '@/components/service-category-icon';
-import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3, Loader2, Star, Trash2 } from 'lucide-react'; // Added Star, Edit3, Trash2
+import { MapPin, CalendarDays, Briefcase, UserCircle, MessageSquare, ShieldCheck, ArrowLeft, Clock, FileText, DollarSign, Edit3, Loader2, Star, Trash2, Download, Lightbulb } from 'lucide-react'; // Added Star, Edit3, Trash2, Download, Lightbulb
 import { format } from 'date-fns';
 import { formatDynamicDate } from '@/lib/dateUtils';
 import Link from 'next/link';
@@ -17,9 +17,10 @@ import SubmitQuoteForm from './components/submit-quote-form';
 import AcceptRejectQuoteButtons from './components/accept-reject-quote-buttons';
 import SubmitReviewForm from './components/submit-review-form';
 import MarkAsCompletedButton from './components/mark-as-completed-button'; 
-import { fetchJobDetailsPageDataAction, deleteJobAction, type JobDetailsPageData } from './actions';
+import { fetchJobDetailsPageDataAction, deleteJobAction, getQuoteAnalysisAction, type JobDetailsPageData } from './actions';
 import type { Job, JobStatus } from '@/models/job';
 import type { Quote } from '@/models/quote';
+import type { QuoteAnalysisOutput } from '@/ai/flows/quote-analysis';
 import { Avatar as ShadCNAvatar, AvatarFallback as ShadCNAvatarFallback, AvatarImage as ShadCNAvatarImage } from '@/components/ui/avatar'; 
 import { Skeleton } from '@/components/ui/skeleton'; 
 import { cn } from '@/lib/utils'; 
@@ -38,6 +39,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { generateInvoicePdf } from '@/services/invoiceService';
 
 
 // Loader for Suspense boundary if JobDetails itself is not async
@@ -90,6 +92,8 @@ function JobDetails({ jobId }: JobDetailsProps) {
   const { toast } = useToast();
   const reviewFormRef = useRef<HTMLDivElement>(null); 
   const [promptForReview, setPromptForReview] = useState(false); 
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<QuoteAnalysisOutput | null>(null);
 
   const fetchData = async () => {
     if (jobId) {
@@ -134,6 +138,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
 
 
   const handleQuoteActionComplete = () => {
+    setAnalysisResult(null); // Clear previous analysis
     fetchData(); 
   };
 
@@ -180,6 +185,32 @@ function JobDetails({ jobId }: JobDetailsProps) {
       setIsDeleting(false);
     }
   };
+  
+  const handleGetAnalysis = async () => {
+    if (!job || !quotes || quotes.length === 0) return;
+    setIsLoadingAnalysis(true);
+    setAnalysisResult(null);
+    try {
+      const result = await getQuoteAnalysisAction(job, quotes);
+      setAnalysisResult(result);
+    } catch (error: any) {
+      toast({ title: "Analysis Failed", description: error.message || "Could not get AI analysis.", variant: "destructive"});
+    } finally {
+      setIsLoadingAnalysis(false);
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    if (!job || job.status !== 'completed' || !job.assignedProviderId) return;
+
+    const acceptedQuote = quotes.find(q => q.id === job.acceptedQuoteId);
+    if (!acceptedQuote) {
+      toast({ title: "Error", description: "Could not find the accepted quote details for the invoice.", variant: "destructive"});
+      return;
+    }
+    generateInvoicePdf(job, acceptedQuote);
+    toast({ title: "Invoice Generated", description: "Your invoice PDF is being downloaded."});
+  };
 
 
   if (isLoading && !job) { 
@@ -216,6 +247,8 @@ function JobDetails({ jobId }: JobDetailsProps) {
   };
 
   const isJobOwner = currentUser?.uid === job.clientId;
+  const acceptedQuote = quotes.find(q => q.id === job.acceptedQuoteId);
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -304,7 +337,22 @@ function JobDetails({ jobId }: JobDetailsProps) {
               </div>
             )}
             
-            {currentUser?.uid === job.clientId && (
+            {job.status === 'completed' && acceptedQuote && (
+                <div className="mt-6 py-6 border-t">
+                    <h3 className="text-lg font-semibold mb-3">Invoice</h3>
+                    <Button
+                        onClick={handleDownloadInvoice}
+                        className="w-full"
+                    >
+                        <Download className="mr-2 h-4 w-4"/> Download Invoice
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2 text-center">
+                        Download a PDF invoice for this completed job.
+                    </p>
+                </div>
+            )}
+
+            {isJobOwner && (
               <MarkAsCompletedButton 
                   jobId={job.id} 
                   currentJobStatus={job.status} 
@@ -313,7 +361,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
               />
             )}
 
-            { (job.status === 'open' || job.status === 'pending_quotes') && currentUser?.uid !== job.clientId && ( 
+            { (job.status === 'open' || job.status === 'pending_quotes') && !isJobOwner && ( 
               <SubmitQuoteForm jobId={jobId} clientId={job.clientId} />
             )}
             
@@ -327,7 +375,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
                     </AlertDescription>
                   </Alert>
               )}
-              {currentUser?.uid === job.clientId && job.assignedProviderId && ( 
+              {isJobOwner && job.assignedProviderId && ( 
                 <SubmitReviewForm 
                     jobId={job.id} 
                     providerId={job.assignedProviderId} 
@@ -337,13 +385,44 @@ function JobDetails({ jobId }: JobDetailsProps) {
               )}
             </div>
 
-
-             {quotes.length > 0 && (job.status !== 'completed' && job.status !== 'cancelled') && ( 
+             {quotes.length > 0 && isJobOwner && (job.status !== 'completed' && job.status !== 'cancelled') && ( 
                 <div className="mt-8">
-                  <h3 className="text-xl font-semibold mb-4">Received Quotes ({quotes.length})</h3>
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4">
+                    <h3 className="text-xl font-semibold">Received Quotes ({quotes.length})</h3>
+                    {quotes.length > 1 && (
+                      <Button onClick={handleGetAnalysis} disabled={isLoadingAnalysis} variant="outline" size="sm">
+                        {isLoadingAnalysis ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Lightbulb className="mr-2 h-4 w-4"/>}
+                        {isLoadingAnalysis ? "Analyzing..." : "Get AI Analysis"}
+                      </Button>
+                    )}
+                  </div>
+                  {analysisResult && (
+                      <Card className="mb-6 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700">
+                        <CardHeader>
+                          <CardTitle className="text-lg text-blue-800 dark:text-blue-200 flex items-center"><Lightbulb className="mr-2"/>AI Quote Summary</CardTitle>
+                          <CardDescription className="text-blue-700 dark:text-blue-300">{analysisResult.overallSummary}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {analysisResult.prosCons.map(item => (
+                            <div key={item.quoteId}>
+                              <h4 className="font-semibold">{item.providerName}</h4>
+                              <ul className="text-sm list-disc pl-5">
+                                {item.pros.map((pro, i) => <li key={i} className="text-green-700 dark:text-green-400">{pro}</li>)}
+                                {item.cons.map((con, i) => <li key={i} className="text-amber-700 dark:text-amber-400">{con}</li>)}
+                              </ul>
+                            </div>
+                          ))}
+                        </CardContent>
+                      </Card>
+                  )}
                   <div className="space-y-4">
                     {quotes.map(quote => (
-                      <Card key={quote.id} className="bg-muted/20 dark:bg-muted/50">
+                      <Card key={quote.id} className={cn("bg-muted/20 dark:bg-muted/50", analysisResult?.bestValueRecommendation === quote.id && "border-primary ring-2 ring-primary")}>
+                        {analysisResult?.bestValueRecommendation === quote.id && (
+                          <div className="text-xs font-bold text-center py-1 bg-primary text-primary-foreground">
+                            AI Recommended Best Value
+                          </div>
+                        )}
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
@@ -382,7 +461,7 @@ function JobDetails({ jobId }: JobDetailsProps) {
                                 onQuoteActionComplete={handleQuoteActionComplete} 
                              /> 
                            )}
-                            {currentUser?.uid === job.clientId && (
+                            {isJobOwner && (
                                 <Button
                                 variant="outline"
                                 size="sm"

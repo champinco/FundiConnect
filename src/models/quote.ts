@@ -14,8 +14,12 @@ export interface Quote {
   updatedAt: Date;
   // Optional: details about the quote validity, specific terms, etc.
   validUntil?: Date | null;
-  providerDetails?: { // Denormalized for easier display if needed, but can also be fetched
+  // Optional: denormalized provider details for easier display
+  providerDetails?: {
     businessName: string;
     profilePictureUrl?: string | null;
+    rating: number;
+    reviewsCount: number;
+    yearsOfExperience: number;
   };
 }
